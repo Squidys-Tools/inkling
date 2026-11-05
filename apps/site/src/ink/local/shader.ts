@@ -3,8 +3,8 @@ in vec2 aPosition;
 void main() { gl_Position = vec4(aPosition, 0.0, 1.0); }
 `;
 
-// The glass is analytic: one ray-box test per surface and no marching. The ink is a photographic plate on a
-// plane fixed inside the cube, so it turns with the glass, and a slowly evolving noise field keeps it drifting.
+// The glass is analytic: one ray-box test per surface and no marching. The ink is a live 2D fluid sampled on three
+// parallel slices fixed inside the cube, so the layers part with parallax as it turns. Cards come from their own buffer.
 export const fragmentSource = `#version 300 es
 precision highp float;
 precision highp sampler3D;
@@ -16,7 +16,9 @@ uniform float uTime;
 uniform mat3 uRotation;
 uniform vec3 uPlateNormal;
 uniform vec3 uPlateAxis;
-uniform sampler2D uPlate;
+uniform vec2 uDyeTexel;
+uniform sampler2D uDye;
+uniform sampler2D uCards;
 uniform sampler3D uNoise;
 
 out vec4 outColor;
@@ -25,8 +27,6 @@ const float OUTER = 1.0;
 const float INNER = 0.955;
 const float LEVEL = 0.7;
 const float STRETCH = 1.12;
-const vec2 PLATE_U = vec2(-1.35, 1.35);
-const vec2 PLATE_V = vec2(-1.12, 0.77);
 const vec3 BACKDROP = vec3(0.04, 0.032, 0.026);
 // The section's studio token as 0-1 values, so the canvas edge disappears into the page.
 const vec3 PAGE = vec3(0.0549, 0.0471, 0.0392);
@@ -60,19 +60,64 @@ vec3 studio(vec3 d) {
   return c;
 }
 
-vec3 plate(vec3 ro, vec3 rd) {
-  float t = -dot(ro, uPlateNormal) / dot(rd, uPlateNormal);
-  vec3 p = ro + rd * t;
-  vec2 uv = vec2(
-    (dot(p, uPlateAxis) - PLATE_U.x) / (PLATE_U.y - PLATE_U.x),
-    1.0 - (p.y - PLATE_V.x) / (PLATE_V.y - PLATE_V.x)
-  );
-  vec3 still = texture(uPlate, uv).rgb;
-  float inked = 1.0 - smoothstep(0.25, 0.75, dot(still, vec3(0.33)));
-  vec3 q = vec3(uv * vec2(1.6, 1.1), uTime * 0.012);
-  vec2 drift = vec2(texture(uNoise, q).r, texture(uNoise, q + vec3(0.41, 0.17, 0.0)).r) - 0.5;
-  vec2 sway = vec2(0.0, sin(uTime * 0.21 + uv.x * 3.0) * 0.0015);
-  return texture(uPlate, uv + (drift * 0.014 + sway) * (0.35 + 0.65 * inked)).rgb;
+const float SLICES[3] = float[3](-0.42, 0.0, 0.36);
+const vec3 PAPER = vec3(0.87, 0.85, 0.8);
+
+vec2 simUv(vec3 p) {
+  return vec2((dot(p, uPlateAxis) + 1.35) / 2.7, (p.y + 0.955) / 1.655);
+}
+
+// Linear dye upsampled with an unsharp mask and a fine noise wobble, so a 352px field holds crisp tendrils.
+vec4 ink(vec2 uv) {
+  vec3 q = vec3(uv * vec2(3.2, 2.0), uTime * 0.01);
+  uv += (vec2(texture(uNoise, q).r, texture(uNoise, q + vec3(0.37, 0.61, 0.0)).r) - 0.5) * 0.003;
+  vec4 c = texture(uDye, uv);
+  vec2 e = uDyeTexel * 1.5;
+  vec4 r = texture(uDye, uv + vec2(e.x, 0.0));
+  vec4 l = texture(uDye, uv - vec2(e.x, 0.0));
+  vec4 t = texture(uDye, uv + vec2(0.0, e.y));
+  vec4 b = texture(uDye, uv - vec2(0.0, e.y));
+  vec4 sharp = max(c + (c - (r + l + t + b) * 0.25) * 1.2, 0.0);
+  // Sheets of ink read darkest where they fold edge-on, so the density gradient adds an outline to each curl.
+  vec4 edge = sqrt((r - l) * (r - l) + (t - b) * (t - b));
+  return sharp + edge * 1.2 * smoothstep(0.04, 0.3, c);
+}
+
+vec3 absorb(vec3 color, float density) {
+  float a = 2.7 * smoothstep(0.09, 0.85, density) + 3.0 * max(density - 0.7, 0.0);
+  return color * exp(-a * vec3(1.0, 1.06, 1.15));
+}
+
+vec3 backdrop(vec3 exit) {
+  float u = dot(exit, uPlateAxis);
+  float side = smoothstep(0.58, 0.7, -u) + smoothstep(0.5, 0.62, u);
+  vec3 c = mix(vec3(0.3, 0.29, 0.28), vec3(0.88, 0.88, 0.87), side);
+  c *= 0.78 + 0.22 * smoothstep(-0.95, 0.3, exit.y);
+  c += vec3(0.25, 0.22, 0.18) * exp(-abs(abs(u + 0.06) - 0.64) * 90.0) * (1.0 - side * 0.5);
+  if (exit.y < -INNER + 0.002) c = mix(vec3(0.5, 0.49, 0.47), vec3(0.2, 0.19, 0.18), smoothstep(0.4, 0.9, abs(u) * 0.8));
+  return c;
+}
+
+vec3 inWater(vec3 entry, vec3 dir, float exitT, vec4 card, vec3 cardLocal) {
+  vec3 color = backdrop(entry + dir * exitT);
+  float dn = dot(dir, uPlateNormal);
+  float base = dot(entry, uPlateNormal);
+  float cardT = dot(cardLocal - entry, dir);
+  bool carded = card.g <= 0.0;
+  for (int k = 0; k < 3; k++) {
+    int i = dn < 0.0 ? k : 2 - k;
+    float t = (SLICES[i] - base) / dn;
+    if (t <= 0.0 || t >= exitT) continue;
+    if (!carded && cardT > t) {
+      color = mix(color, PAPER * card.r, card.g);
+      carded = true;
+    }
+    vec3 p = entry + dir * t;
+    vec4 d = ink(simUv(p)) * smoothstep(LEVEL, LEVEL - 0.03, p.y);
+    color = absorb(color, i == 0 ? d.g * 0.8 : i == 1 ? d.r : d.b);
+  }
+  if (!carded) color = mix(color, PAPER * card.r, card.g);
+  return color;
 }
 
 void main() {
@@ -124,22 +169,20 @@ void main() {
     vec3 through;
     if (box(q, glassDir, INNER, iN, iF, inN, inF) && iN > 0.0) {
       vec3 entry = q + glassDir * iN;
-      // The plate already holds the photographed refraction, so the straight ray keeps it registered to the glass.
-      vec3 bent = lrd;
       float wet = smoothstep(LEVEL + 0.004, LEVEL - 0.004, entry.y);
-      vec3 water = plate(entry, bent);
-      float tLevel = bent.y < 0.0 ? (LEVEL - entry.y) / bent.y : -1.0;
       float aN, aF;
       vec3 aNn, aFn;
       box(entry, lrd, INNER, aN, aF, aNn, aFn);
+      vec4 card = texelFetch(uCards, ivec2(gl_FragCoord.xy), 0);
+      vec3 cardLocal = toLocal * (ro + rd * (card.b + 16.0)) * squash;
+      vec3 water = wet > 0.0 ? inWater(entry, lrd, aF, card, cardLocal) : vec3(0.0);
+      float tLevel = lrd.y < 0.0 ? (LEVEL - entry.y) / lrd.y : -1.0;
       vec3 back = INNER - abs(entry + lrd * aF);
       float backEdge = back.x + back.y + back.z - min(min(back.x, back.y), back.z) - max(max(back.x, back.y), back.z);
       vec3 air = vec3(0.5) * exp(-backEdge * 140.0) + mix(vec3(0.24, 0.236, 0.23), vec3(0.36, 0.354, 0.346), smoothstep(LEVEL, OUTER, entry.y)) + studio(uRotation * glassDir) * 0.03;
-      if (tLevel > 0.0 && wet < 1.0) {
-        float iFar, iNear;
-        vec3 n0, n1;
-        box(entry, bent, INNER, iNear, iFar, n0, n1);
-        if (tLevel < iFar) air = mix(air, plate(entry + bent * tLevel, bent) * 0.7, 0.25);
+      if (tLevel > 0.0 && tLevel < aF && wet < 1.0) {
+        vec4 film = ink(simUv(entry + lrd * tLevel - vec3(0.0, 0.03, 0.0)));
+        air = mix(air, air * 0.2, clamp(film.r + film.g + film.b, 0.0, 1.0) * 0.55);
       }
       through = mix(air, water, wet);
       float meniscus = exp(-abs(entry.y - LEVEL) * 160.0);
