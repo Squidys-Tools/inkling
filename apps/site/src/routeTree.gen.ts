@@ -14,6 +14,7 @@ import { Route as R404RouteImport } from './routes/404'
 import { Route as CreditsRouteImport } from './routes/credits'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as FeaturesRouteImport } from './routes/features'
+import { Route as PlainsRouteImport } from './routes/plains'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,6 +42,11 @@ const FeaturesRoute = FeaturesRouteImport.update({
   path: '/features',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlainsRoute = PlainsRouteImport.update({
+  id: '/plains',
+  path: '/plains',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/credits': typeof CreditsRoute
   '/download': typeof DownloadRoute
   '/features': typeof FeaturesRoute
+  '/plains': typeof PlainsRoute
   '/privacy': typeof PrivacyRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/credits': typeof CreditsRoute
   '/download': typeof DownloadRoute
   '/features': typeof FeaturesRoute
+  '/plains': typeof PlainsRoute
   '/privacy': typeof PrivacyRoute
 }
 export interface FileRoutesById {
@@ -70,13 +78,28 @@ export interface FileRoutesById {
   '/credits': typeof CreditsRoute
   '/download': typeof DownloadRoute
   '/features': typeof FeaturesRoute
+  '/plains': typeof PlainsRoute
   '/privacy': typeof PrivacyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/404' | '/credits' | '/download' | '/features' | '/privacy'
+  fullPaths:
+    | '/'
+    | '/404'
+    | '/credits'
+    | '/download'
+    | '/features'
+    | '/plains'
+    | '/privacy'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/404' | '/credits' | '/download' | '/features' | '/privacy'
+  to:
+    | '/'
+    | '/404'
+    | '/credits'
+    | '/download'
+    | '/features'
+    | '/plains'
+    | '/privacy'
   id:
     | '__root__'
     | '/'
@@ -84,6 +107,7 @@ export interface FileRouteTypes {
     | '/credits'
     | '/download'
     | '/features'
+    | '/plains'
     | '/privacy'
   fileRoutesById: FileRoutesById
 }
@@ -93,6 +117,7 @@ export interface RootRouteChildren {
   CreditsRoute: typeof CreditsRoute
   DownloadRoute: typeof DownloadRoute
   FeaturesRoute: typeof FeaturesRoute
+  PlainsRoute: typeof PlainsRoute
   PrivacyRoute: typeof PrivacyRoute
 }
 
@@ -133,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FeaturesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/plains': {
+      id: '/plains'
+      path: '/plains'
+      fullPath: '/plains'
+      preLoaderRoute: typeof PlainsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy': {
       id: '/privacy'
       path: '/privacy'
@@ -149,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   CreditsRoute: CreditsRoute,
   DownloadRoute: DownloadRoute,
   FeaturesRoute: FeaturesRoute,
+  PlainsRoute: PlainsRoute,
   PrivacyRoute: PrivacyRoute,
 }
 export const routeTree = rootRouteImport

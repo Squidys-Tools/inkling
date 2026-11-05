@@ -1,0 +1,6 @@
+{
+  "query": "the dog at the beach",
+  "placeholder": "Describe what you're looking for",
+  "match": "beach-dog",
+  "near": ["black-dog", "walrus", "pug"]
+}
