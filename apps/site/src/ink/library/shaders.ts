@@ -251,6 +251,7 @@ out float vAlpha;
 out float vDepth;
 out float vHalfPx;
 out float vBlurPx;
+out vec2 vDir;
 
 vec3 path(float t) {
   float u = 1.0 - t;
@@ -275,6 +276,7 @@ void main() {
   vec4 back = uProjection * uView * vec4(path(max(t - 0.01, 0.0)), 1.0);
   vec2 direction = (ahead.xy / ahead.w - back.xy / back.w) * uResolution;
   vec2 normal = normalize(vec2(-direction.y, direction.x) + 1e-5);
+  vDir = normalize(direction + 1e-5);
 
   float depth = max(-view.z, 0.05);
   float pixelsPerUnit = uResolution.y / (depth * uSpan);
@@ -296,8 +298,9 @@ void main() {
 }
 `;
 
-// A wisp is a ribbon holding a few braided filaments plus a faint smoky haze between them.
-export const wispFragment = /* glsl */ `#version 300 es
+// The guide: each wisp drawn as a few braided filaments into a small float target. It is never
+// shown; the smoke sim feeds ink and flow along it (density, screen tangent, position along).
+export const guideFragment = /* glsl */ `#version 300 es
 ${shared}
 uniform float uStrength;
 uniform float uSeed;
@@ -307,30 +310,76 @@ in float vAlpha;
 in float vDepth;
 in float vHalfPx;
 in float vBlurPx;
+in vec2 vDir;
 out vec4 outColor;
 void main() {
   float px = vSide * vHalfPx;
   float s = uSeed * 17.0;
   float ink = 0.0;
-  float room = vHalfPx - vBlurPx - 1.5;
-  for (int k = 0; k < 5; k++) {
+  float room = vHalfPx - 1.0;
+  for (int k = 0; k < 4; k++) {
     float fk = float(k);
-    float wander = sin(vAlong * (5.0 + fk * 2.3) + uTime * (0.11 + fk * 0.025) + s + fk * 2.4);
-    wander += 0.6 * sin(vAlong * (13.0 + fk * 4.1) - uTime * 0.09 + fk * 1.3 + s * 0.7);
-    wander *= 0.35 + 0.65 * (0.5 + 0.5 * sin(vAlong * 3.0 + fk * 1.9 + s));
-    float offset = wander * 0.6 * room;
-    float line = 0.45 + 0.5 * (0.5 + 0.5 * sin(vAlong * (17.0 + fk * 3.0) + fk * 5.1 + s - uTime * 0.2));
-    float breakup = smoothstep(-0.6, 0.5, sin(vAlong * (4.0 + fk * 2.3) + fk * 3.7 + s * 1.9 - uTime * 0.12));
-    float width = line + vBlurPx;
+    float wander = sin(vAlong * (5.0 + fk * 2.3) + uTime * (0.21 + fk * 0.05) + s + fk * 2.4);
+    wander += 0.3 * sin(vAlong * (9.0 + fk * 2.1) - uTime * 0.19 + fk * 1.3 + s * 0.7);
+    float offset = wander * 0.45 * room;
+    float breakup = 0.35 + 0.65 * smoothstep(-0.8, 0.7, sin(vAlong * (3.0 + fk * 1.7) + fk * 3.7 + s * 1.9 - uTime * 0.3));
     float d = abs(px - offset);
-    float strand = 1.0 - smoothstep(width - 0.5, width + 0.5, d);
-    float tone = (0.7 + 0.3 * sin(vAlong * 9.0 + fk * 2.2 + s)) * (1.0 - fk * 0.1);
-    ink = max(ink, strand * breakup * tone * min(1.0, (line + 0.6) / width));
+    ink += exp(-d * d * 1.4) * breakup * (0.8 - fk * 0.12);
   }
-  float across = 1.0 - smoothstep(0.0, 1.0, abs(vSide));
-  float haze = across * across * 0.06 * smoothstep(0.2, 1.0, sin(vAlong * 6.0 + s - uTime * 0.15));
-  float alpha = clamp(ink * 0.92 + haze, 0.0, 1.0) * vAlpha * uStrength;
-  vec3 color = mix(INK, water(gl_FragCoord.xy / uResolution), fogFor(vDepth) * 0.9);
-  outColor = vec4(color * alpha, alpha);
+  ink *= vAlpha * uStrength;
+  outColor = vec4(ink, vDir * ink, vAlong * ink);
+}
+`;
+
+// Shows the advected ink: the last two sim states blended for 60Hz motion from a 30Hz sim. The
+// low-res density is drawn as a faint body plus its iso-contours, which stay hairline-thin at
+// screen resolution and fold, split and loop as the field is carried along.
+export const inkFragment = /* glsl */ `#version 300 es
+${shared}
+uniform sampler2D uDye;
+uniform sampler2D uDyePrev;
+uniform float uBlend;
+uniform vec2 uDyeTexel;
+uniform float uFog;
+in vec2 vUv;
+out vec4 outColor;
+
+float n2(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + 1.0), f.x), f.y);
+}
+
+float dye(vec2 uv) {
+  return mix(texture(uDyePrev, uv).x, texture(uDye, uv).x, uBlend);
+}
+
+float now(vec2 uv) {
+  return texture(uDye, uv).x;
+}
+
+void main() {
+  float aspect = uResolution.x / uResolution.y;
+  vec2 p = vec2(vUv.x * aspect, vUv.y);
+  vec2 warp = vec2(n2(p * 30.0 + vec2(uTime * 0.21, 0.0)), n2(p * 30.0 + vec2(5.2, -uTime * 0.17))) - 0.5;
+  float d = dye(vUv + warp * uDyeTexel * 1.4);
+
+  vec2 o = uDyeTexel * 3.0;
+  float wide = 0.125 * (now(vUv + vec2(o.x, 0.0)) + now(vUv - vec2(o.x, 0.0)) + now(vUv + vec2(0.0, o.y)) + now(vUv - vec2(0.0, o.y))
+    + now(vUv + o * 0.7) + now(vUv - o * 0.7) + now(vUv + vec2(o.x, -o.y) * 0.7) + now(vUv + vec2(-o.x, o.y) * 0.7));
+  float strand = max(d - wide * 0.8, 0.0) * 2.7 + d * 0.3;
+  float smoke = 1.0 - exp(-strand * 2.4);
+  smoke *= smoothstep(0.02, 0.12, smoke);
+
+  float level = d * 14.0;
+  float across = abs(fract(level) - 0.5) / max(fwidth(level), 1e-4);
+  float lines = (1.0 - smoothstep(0.3, 1.1, across)) * smoothstep(0.02, 0.05, d) * (1.0 - smoothstep(0.1, 0.25, d));
+  float a = clamp(smoke * 0.74 + lines * 0.1, 0.0, 0.86);
+
+  float core = smoothstep(0.4, 0.85, smoke);
+  vec3 behind = water(gl_FragCoord.xy / uResolution);
+  vec3 color = mix(INK, behind, uFog + (1.0 - core) * 0.3);
+  outColor = vec4(color * a, a);
 }
 `;

@@ -1,14 +1,26 @@
 import type { Saved } from "./items.ts";
-import { lookAt, perspective, placement, seeded, type Vec3, viewDepth } from "./math.ts";
+import {
+  lookAt,
+  multiply,
+  perspective,
+  placement,
+  project,
+  seeded,
+  type Vec3,
+  viewDepth,
+} from "./math.ts";
+import { compile } from "./program.ts";
 import {
   backgroundFragment,
   cardFragment,
   cardVertex,
   causticFragment,
+  guideFragment,
+  inkFragment,
   quadVertex,
-  wispFragment,
   wispVertex,
 } from "./shaders.ts";
+import { createSmoke, type Path } from "./smoke.ts";
 import { drawWriting, writingAspect } from "./writing.ts";
 
 const focus = 3.4;
@@ -66,31 +78,6 @@ export type Frame = {
   still: boolean;
 };
 
-function compile(gl: WebGL2RenderingContext, vertex: string, fragment: string) {
-  const program = gl.createProgram();
-  for (const [type, source] of [
-    [gl.VERTEX_SHADER, vertex],
-    [gl.FRAGMENT_SHADER, fragment],
-  ] as const) {
-    const shader = gl.createShader(type);
-    if (!shader) throw new Error("shader");
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
-      throw new Error(gl.getShaderInfoLog(shader) ?? "shader");
-    gl.attachShader(program, shader);
-  }
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS))
-    throw new Error(gl.getProgramInfoLog(program) ?? "program");
-  const uniforms = new Map<string, WebGLUniformLocation | null>();
-  const at = (name: string) => {
-    if (!uniforms.has(name)) uniforms.set(name, gl.getUniformLocation(program, name));
-    return uniforms.get(name) ?? null;
-  };
-  return { program, at };
-}
-
 function upload(gl: WebGL2RenderingContext, texture: WebGLTexture, source: TexImageSource) {
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
@@ -123,7 +110,8 @@ export function createScene(
   const background = compile(gl, quadVertex, backgroundFragment);
   const caustic = compile(gl, quadVertex, causticFragment);
   const card = compile(gl, cardVertex, cardFragment);
-  const wisp = compile(gl, wispVertex, wispFragment);
+  const wisp = compile(gl, wispVertex, guideFragment);
+  const ink = compile(gl, quadVertex, inkFragment);
 
   const quad = gl.createVertexArray();
   gl.bindVertexArray(quad);
@@ -143,6 +131,8 @@ export function createScene(
   gl.enableVertexAttribArray(0);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   gl.bindVertexArray(null);
+
+  const smoke = createSmoke(gl, quad, mobile, seeded(29));
 
   const causticTexture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, causticTexture);
@@ -335,6 +325,28 @@ export function createScene(
     gl.generateMipmap(gl.TEXTURE_2D);
   };
 
+  const ends = (each: Wisp): [Vec3, Vec3, Vec3, Vec3] => {
+    const from = cards[each.from];
+    const to = cards[each.to];
+    const a = from.position;
+    const b = to.position;
+    const side = Math.sign(b[0] - a[0]) || 1;
+    const start: Vec3 = [a[0] + side * from.half[0] * 0.7, a[1] - from.half[1] * 0.25, a[2]];
+    const end: Vec3 = [b[0] - side * to.half[0] * 0.6, b[1] + to.half[1] * 0.15, b[2]];
+    return [
+      start,
+      [
+        start[0] + each.bendFrom[0] * side,
+        start[1] + each.bendFrom[1],
+        start[2] + each.bendFrom[2],
+      ],
+      [end[0] + each.bendTo[0] * side, end[1] + each.bendTo[1], end[2] + each.bendTo[2]],
+      end,
+    ];
+  };
+
+  let stirFrom: [number, number] | null = null;
+
   const render = ({ time, progress, pointer, still }: Frame) => {
     resize();
     gl.disable(gl.DEPTH_TEST);
@@ -342,7 +354,6 @@ export function createScene(
     if (still || frames % 2 === 0) bakeCaustic(time);
     frames += 1;
 
-    gl.viewport(0, 0, width, height);
     const aspect = width / height;
     const fov = aspect < 1 ? 1.05 : 0.82;
     const tanY = Math.tan(fov / 2);
@@ -353,6 +364,80 @@ export function createScene(
     const view = lookAt(eye, [pointer[0] * 0.06, pointer[1] * 0.04, cameraZ - 6]);
     const projection = perspective(fov, aspect, 0.05, 60);
 
+    const sway = still ? 0 : 1;
+    for (const each of cards) {
+      const [px, py, pz] = each.phase;
+      let base: Vec3;
+      if (each.spot) {
+        const { ndc, depth } = each.spot;
+        base = [ndc[0] * depth * tanX, ndc[1] * depth * tanY, -depth];
+      } else {
+        const [sx, sy, offset] = each.cloud;
+        const depth = near + ((((offset - forward) % span) + span) % span);
+        const reach = 1.25 + 0.58 * depth;
+        base = [sx * reach * tanX, sy * reach * tanY, cameraZ - depth];
+      }
+      const hero = each.spot !== null && heroSpots.includes(each.spot);
+      const drift = (hero ? 0.5 : each.spot ? 0.9 : 1.3) * sway;
+      const deep = hero ? 0.25 : 1;
+      const t = time;
+      const bob = Math.sin(t * 0.42 + py) * 0.055 + Math.sin(t * 0.19 + px) * 0.065;
+      each.position = [
+        base[0] + (Math.sin(t * 0.17 + px) * 0.1 + Math.sin(t * 0.071 + pz) * 0.06) * drift,
+        base[1] + (bob + Math.sin(t * 0.06 + pz) * 0.04 + Math.sin(t * 0.11) * 0.03) * drift,
+        base[2] + (Math.sin(t * 0.13 + pz) * 0.17 + Math.sin(t * 0.31 + px) * 0.04) * drift * deep,
+      ];
+      each.model = placement(
+        each.position,
+        each.tilt[0] +
+          (Math.sin(t * 0.42 + py + 0.9) * 0.1 + Math.sin(t * 0.1 + py) * 0.06) * drift,
+        each.tilt[1] + (Math.sin(t * 0.16 + px) * 0.18 + Math.sin(t * 0.37 + pz) * 0.05) * drift,
+        each.tilt[2] + (Math.sin(t * 0.23 + pz) * 0.07 + Math.sin(t * 0.09 + px) * 0.04) * drift,
+      );
+      each.depth = viewDepth(view, each.position);
+    }
+    for (const each of textures) {
+      if (each.loaded && each.loadedAt < 0) each.loadedAt = time;
+    }
+
+    const shown = wisps.filter(
+      (each) => Math.min(cards[each.from].depth, cards[each.to].depth) >= 0.4,
+    );
+    const viewProjection = multiply(projection, view);
+    const paths: Path[] = shown.map((each) =>
+      ends(each).flatMap((point) => project(viewProjection, point)),
+    );
+    const here: [number, number] = [pointer[0] * 0.5 + 0.5, pointer[1] * 0.5 + 0.5];
+    const push: [number, number] = stirFrom
+      ? [(here[0] - stirFrom[0]) * 6, (here[1] - stirFrom[1]) * 6]
+      : [0, 0];
+    stirFrom = here;
+
+    smoke.fit(aspect);
+    smoke.advance(time, still, paths, { pointer: here, push }, (guideWidth, guideHeight) => {
+      gl.useProgram(wisp.program);
+      gl.bindVertexArray(strand);
+      gl.uniformMatrix4fv(wisp.at("uView"), false, view);
+      gl.uniformMatrix4fv(wisp.at("uProjection"), false, projection);
+      gl.uniform2f(wisp.at("uResolution"), guideWidth, guideHeight);
+      gl.uniform1f(wisp.at("uTime"), time);
+      gl.uniform1f(wisp.at("uFocus"), focus);
+      gl.uniform1f(wisp.at("uAperture"), aperture);
+      gl.uniform1f(wisp.at("uSpan"), 2 * tanY);
+      gl.uniform1f(wisp.at("uWidth"), 0.12);
+      gl.uniform1f(wisp.at("uStrength"), still ? 1.3 : 1);
+      for (const each of shown) {
+        const [start, bendFrom, bendTo, end] = ends(each);
+        gl.uniform3f(wisp.at("uFrom"), ...start);
+        gl.uniform3f(wisp.at("uBendFrom"), ...bendFrom);
+        gl.uniform3f(wisp.at("uBendTo"), ...bendTo);
+        gl.uniform3f(wisp.at("uTo"), ...end);
+        gl.uniform1f(wisp.at("uSeed"), each.seed);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, (strandSegments + 1) * 2);
+      }
+    });
+
+    gl.viewport(0, 0, width, height);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, causticTexture);
     gl.activeTexture(gl.TEXTURE0);
@@ -366,48 +451,12 @@ export function createScene(
     gl.bindVertexArray(quad);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    for (const each of cards) {
-      const [px, py, pz] = each.phase;
-      let base: Vec3;
-      if (each.spot) {
-        const { ndc, depth } = each.spot;
-        base = [ndc[0] * depth * tanX, ndc[1] * depth * tanY, -depth];
-      } else {
-        const [sx, sy, offset] = each.cloud;
-        const depth = near + ((((offset - forward) % span) + span) % span);
-        const reach = 1.25 + 0.58 * depth;
-        base = [sx * reach * tanX, sy * reach * tanY, cameraZ - depth];
-      }
-      const drift = each.spot ? 0.4 : 1;
-      each.position = [
-        base[0] + Math.sin(time * 0.13 + px) * 0.07 * drift,
-        base[1] + (Math.sin(time * 0.11 + py) * 0.05 + Math.sin(time * 0.05 + pz) * 0.03) * drift,
-        base[2] + Math.sin(time * 0.09 + pz) * 0.1 * drift,
-      ];
-      each.model = placement(
-        each.position,
-        each.tilt[0] + Math.sin(time * 0.1 + py) * 0.06 * drift,
-        each.tilt[1] + Math.sin(time * 0.08 + px) * 0.09 * drift,
-        each.tilt[2] + Math.sin(time * 0.07 + pz) * 0.04 * drift,
-      );
-      each.depth = viewDepth(view, each.position);
-    }
-    for (const each of textures) {
-      if (each.loaded && each.loadedAt < 0) each.loadedAt = time;
-    }
-
     const drawables: { depth: number; draw: () => void }[] = [];
     for (const each of cards) {
       if (each.depth < 0.25 || each.depth > near + span + 1) continue;
       drawables.push({ depth: each.depth, draw: () => drawCard(each) });
     }
-    for (const each of wisps) {
-      const a = cards[each.from];
-      const b = cards[each.to];
-      const depth = Math.min(a.depth, b.depth);
-      if (depth < 0.4) continue;
-      drawables.push({ depth: Math.max(a.depth, b.depth) + 0.01, draw: () => drawWisp(each) });
-    }
+    if (shown.length) drawables.push({ depth: focus + 0.45, draw: () => drawInk() });
     drawables.sort((x, y) => y.depth - x.depth);
 
     gl.enable(gl.BLEND);
@@ -419,16 +468,6 @@ export function createScene(
     gl.uniform1f(card.at("uTime"), time);
     gl.uniform1i(card.at("uImage"), 0);
     gl.uniform1i(card.at("uCaustic"), 1);
-    gl.useProgram(wisp.program);
-    gl.uniformMatrix4fv(wisp.at("uView"), false, view);
-    gl.uniformMatrix4fv(wisp.at("uProjection"), false, projection);
-    gl.uniform2f(wisp.at("uResolution"), width, height);
-    gl.uniform1f(wisp.at("uTime"), time);
-    gl.uniform1f(wisp.at("uFocus"), focus);
-    gl.uniform1f(wisp.at("uAperture"), aperture);
-    gl.uniform1f(wisp.at("uSpan"), 2 * tanY);
-    gl.uniform1f(wisp.at("uWidth"), 0.1);
-    gl.uniform1i(wisp.at("uCaustic"), 1);
 
     let active: WebGLProgram | null = null;
     const bind = (program: WebGLProgram, vao: WebGLVertexArrayObject) => {
@@ -464,38 +503,42 @@ export function createScene(
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
 
-    const drawWisp = (each: Wisp) => {
-      bind(wisp.program, strand);
-      const from = cards[each.from];
-      const to = cards[each.to];
-      const a = from.position;
-      const b = to.position;
-      const side = Math.sign(b[0] - a[0]) || 1;
-      const start: Vec3 = [a[0] + side * from.half[0] * 0.7, a[1] - from.half[1] * 0.25, a[2]];
-      const end: Vec3 = [b[0] - side * to.half[0] * 0.6, b[1] + to.half[1] * 0.15, b[2]];
-      gl.uniform3f(wisp.at("uFrom"), ...start);
-      gl.uniform3f(wisp.at("uTo"), ...end);
-      gl.uniform3f(
-        wisp.at("uBendFrom"),
-        start[0] + each.bendFrom[0] * side,
-        start[1] + each.bendFrom[1],
-        start[2] + each.bendFrom[2],
-      );
-      gl.uniform3f(
-        wisp.at("uBendTo"),
-        end[0] + each.bendTo[0] * side,
-        end[1] + each.bendTo[1],
-        end[2] + each.bendTo[2],
-      );
-      gl.uniform1f(wisp.at("uSeed"), each.seed);
-      gl.uniform1f(wisp.at("uStrength"), 0.95);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, (strandSegments + 1) * 2);
+    const drawInk = () => {
+      const layer = smoke.view(still);
+      if (!layer) return;
+      bind(ink.program, quad);
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, layer.now);
+      gl.activeTexture(gl.TEXTURE3);
+      gl.bindTexture(gl.TEXTURE_2D, layer.before);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.uniform1i(ink.at("uDye"), 2);
+      gl.uniform1i(ink.at("uDyePrev"), 3);
+      gl.uniform1f(ink.at("uBlend"), layer.blend);
+      gl.uniform2f(ink.at("uDyeTexel"), layer.texelX, layer.texelY);
+      gl.uniform2f(ink.at("uResolution"), width, height);
+      gl.uniform1f(ink.at("uTime"), time);
+      gl.uniform1f(ink.at("uFog"), 0.16);
+      const xs = paths.flatMap((path) => [path[0], path[2], path[4], path[6]]);
+      const ys = paths.flatMap((path) => [path[1], path[3], path[5], path[7]]);
+      const margin = 0.18;
+      const left = Math.max(0, Math.floor((Math.min(...xs) - margin) * width));
+      const bottom = Math.max(0, Math.floor((Math.min(...ys) - margin * aspect) * height));
+      const right = Math.min(width, Math.ceil((Math.max(...xs) + margin) * width));
+      const top = Math.min(height, Math.ceil((Math.max(...ys) + margin * aspect) * height));
+      if (right <= left || top <= bottom) return;
+      gl.enable(gl.SCISSOR_TEST);
+      gl.scissor(left, bottom, right - left, top - bottom);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      gl.disable(gl.SCISSOR_TEST);
     };
 
     for (const each of drawables) each.draw();
   };
 
+  // The governor sheds sim resolution first, then canvas resolution.
   const lower = () => {
+    if (smoke.lower()) return true;
     if (quality <= 0.5) return false;
     quality = Math.max(0.5, quality * 0.8);
     return true;

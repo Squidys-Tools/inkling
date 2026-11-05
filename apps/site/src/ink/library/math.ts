@@ -99,3 +99,26 @@ export function seeded(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+export function multiply(a: Float32Array, b: Float32Array) {
+  const out = new Float32Array(16);
+  for (let column = 0; column < 4; column++) {
+    for (let row = 0; row < 4; row++) {
+      let sum = 0;
+      for (let k = 0; k < 4; k++) sum += a[k * 4 + row] * b[column * 4 + k];
+      out[column * 4 + row] = sum;
+    }
+  }
+  return out;
+}
+
+/** Screen uv (0..1, y up) of a world point under a combined projection-view matrix. */
+export function project(viewProjection: Float32Array, point: Vec3) {
+  const m = viewProjection;
+  const [x, y, z] = point;
+  const w = m[3] * x + m[7] * y + m[11] * z + m[15];
+  const cx = m[0] * x + m[4] * y + m[8] * z + m[12];
+  const cy = m[1] * x + m[5] * y + m[9] * z + m[13];
+  const safe = Math.max(w, 0.05);
+  return [(cx / safe) * 0.5 + 0.5, (cy / safe) * 0.5 + 0.5];
+}
