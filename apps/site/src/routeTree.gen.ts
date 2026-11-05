@@ -15,6 +15,7 @@ import { Route as CreditsRouteImport } from './routes/credits'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as InkDevelopRouteImport } from './routes/ink.develop'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InkDevelopRoute = InkDevelopRouteImport.update({
+  id: '/ink/develop',
+  path: '/ink/develop',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/download': typeof DownloadRoute
   '/features': typeof FeaturesRoute
   '/privacy': typeof PrivacyRoute
+  '/ink/develop': typeof InkDevelopRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/download': typeof DownloadRoute
   '/features': typeof FeaturesRoute
   '/privacy': typeof PrivacyRoute
+  '/ink/develop': typeof InkDevelopRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,12 +79,27 @@ export interface FileRoutesById {
   '/download': typeof DownloadRoute
   '/features': typeof FeaturesRoute
   '/privacy': typeof PrivacyRoute
+  '/ink/develop': typeof InkDevelopRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/404' | '/credits' | '/download' | '/features' | '/privacy'
+  fullPaths:
+    | '/'
+    | '/404'
+    | '/credits'
+    | '/download'
+    | '/features'
+    | '/privacy'
+    | '/ink/develop'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/404' | '/credits' | '/download' | '/features' | '/privacy'
+  to:
+    | '/'
+    | '/404'
+    | '/credits'
+    | '/download'
+    | '/features'
+    | '/privacy'
+    | '/ink/develop'
   id:
     | '__root__'
     | '/'
@@ -85,6 +108,7 @@ export interface FileRouteTypes {
     | '/download'
     | '/features'
     | '/privacy'
+    | '/ink/develop'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -94,6 +118,7 @@ export interface RootRouteChildren {
   DownloadRoute: typeof DownloadRoute
   FeaturesRoute: typeof FeaturesRoute
   PrivacyRoute: typeof PrivacyRoute
+  InkDevelopRoute: typeof InkDevelopRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -140,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ink/develop': {
+      id: '/ink/develop'
+      path: '/ink/develop'
+      fullPath: '/ink/develop'
+      preLoaderRoute: typeof InkDevelopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -150,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   DownloadRoute: DownloadRoute,
   FeaturesRoute: FeaturesRoute,
   PrivacyRoute: PrivacyRoute,
+  InkDevelopRoute: InkDevelopRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
