@@ -59,7 +59,7 @@ const blink = stylex.keyframes({
 const styles = stylex.create({
   section: {
     position: "relative",
-    height: { default: "340vh", [media.reduced]: "100vh" },
+    height: { default: "300vh", [media.reduced]: "100vh" },
     backgroundColor: inkOcrColor.water,
     color: inkOcrColor.ink,
     fontFamily: landing.font,
@@ -73,7 +73,6 @@ const styles = stylex.create({
   fill: {
     position: "absolute",
     inset: 0,
-    display: "block",
     width: "100%",
     height: "100%",
   },

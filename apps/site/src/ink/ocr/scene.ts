@@ -1,57 +1,11 @@
-import type { WordBox } from "./receipt.ts";
-import { compositeFragment, paperFragment, paperVertex, quadVertex } from "./shaders.ts";
+import { compositeFragment, flowFragment, quadVertex } from "./shaders.ts";
 
-type Mat4 = Float32Array;
+const imageAspect = 1376 / 768;
 
-function perspective(fov: number, aspect: number, near: number, far: number): Mat4 {
-  const f = 1 / Math.tan(fov / 2);
-  const out = new Float32Array(16);
-  out[0] = f / aspect;
-  out[5] = f;
-  out[10] = (far + near) / (near - far);
-  out[11] = -1;
-  out[14] = (2 * far * near) / (near - far);
-  return out;
-}
-
-function multiply(a: Mat4, b: Mat4): Mat4 {
-  const out = new Float32Array(16);
-  for (let col = 0; col < 4; col++)
-    for (let row = 0; row < 4; row++) {
-      let sum = 0;
-      for (let k = 0; k < 4; k++) sum += a[k * 4 + row] * b[col * 4 + k];
-      out[col * 4 + row] = sum;
-    }
-  return out;
-}
-
-function rotation(x: number, y: number, z: number): Mat4 {
-  const [cx, sx, cy, sy, cz, sz] = [
-    Math.cos(x),
-    Math.sin(x),
-    Math.cos(y),
-    Math.sin(y),
-    Math.cos(z),
-    Math.sin(z),
-  ];
-  const rx = new Float32Array([1, 0, 0, 0, 0, cx, sx, 0, 0, -sx, cx, 0, 0, 0, 0, 1]);
-  const ry = new Float32Array([cy, 0, -sy, 0, 0, 1, 0, 0, sy, 0, cy, 0, 0, 0, 0, 1]);
-  const rz = new Float32Array([cz, sz, 0, 0, -sz, cz, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
-  return multiply(rz, multiply(ry, rx));
-}
-
-function translation(x: number, y: number, z: number): Mat4 {
-  return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]);
-}
-
-function upperLeft(m: Mat4) {
-  return new Float32Array([m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10]]);
-}
-
-function compile(gl: WebGL2RenderingContext, vertex: string, fragment: string) {
+function compile(gl: WebGL2RenderingContext, fragment: string) {
   const program = gl.createProgram();
   for (const [kind, source] of [
-    [gl.VERTEX_SHADER, vertex],
+    [gl.VERTEX_SHADER, quadVertex],
     [gl.FRAGMENT_SHADER, fragment],
   ] as const) {
     const shader = gl.createShader(kind);
@@ -62,6 +16,7 @@ function compile(gl: WebGL2RenderingContext, vertex: string, fragment: string) {
       throw new Error(gl.getShaderInfoLog(shader) ?? "shader failed");
     gl.attachShader(program, shader);
   }
+  gl.bindAttribLocation(program, 0, "aPosition");
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS))
     throw new Error(gl.getProgramInfoLog(program) ?? "link failed");
@@ -73,168 +28,150 @@ function compile(gl: WebGL2RenderingContext, vertex: string, fragment: string) {
   return { program, at };
 }
 
-function target(gl: WebGL2RenderingContext) {
+function upload(gl: WebGL2RenderingContext, image: TexImageSource, mipmaps: boolean) {
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+  if (mipmaps) gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(
+    gl.TEXTURE_2D,
+    gl.TEXTURE_MIN_FILTER,
+    mipmaps ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR,
+  );
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   return texture;
 }
 
-const columns = 72;
-const rows = 108;
-const paperSize = [0.95, 1.425] as const;
+const ease = (x: number) => x * x * (3 - 2 * x);
 
-function sheet() {
-  const uv = new Float32Array((columns + 1) * (rows + 1) * 2);
-  for (let y = 0, i = 0; y <= rows; y++)
-    for (let x = 0; x <= columns; x++, i += 2) {
-      uv[i] = x / columns;
-      uv[i + 1] = y / rows;
-    }
-  const index = new Uint32Array(columns * rows * 6);
-  for (let y = 0, i = 0; y < rows; y++)
-    for (let x = 0; x < columns; x++, i += 6) {
-      const a = y * (columns + 1) + x;
-      const b = a + columns + 1;
-      index.set([a, b, a + 1, a + 1, b, b + 1], i);
-    }
-  return { uv, index };
+/** The part of the moodboard plate on screen, as image uv: x, y of the top left, then width, height. */
+function framing(aspect: number, progress: number) {
+  const settle = ease(Math.min(1, progress / 0.5));
+  if (aspect < 1) {
+    const width = 0.5 / (1.12 - 0.12 * settle);
+    const height = (width * imageAspect) / aspect;
+    return [0.505 - width / 2, 0.49 - height * (0.36 - 0.04 * settle), width, height] as const;
+  }
+  const zoom = 1.2 - 0.2 * settle;
+  let width = 1;
+  let height = imageAspect / aspect;
+  if (height > 1) {
+    width = 1 / height;
+    height = 1;
+  }
+  width /= zoom;
+  height /= zoom;
+  const cx = 0.52 - 0.02 * settle;
+  const cy = 0.34 + 0.16 * settle;
+  const x = Math.min(1 - width, Math.max(0, cx - width / 2));
+  const y = Math.min(1 - height, Math.max(0, cy - height / 2));
+  return [x, y, width, height] as const;
 }
 
-/** Where the scroll and the clock put the scene: 0 is the receipt entering, 1 is it settled deep. */
-export type Frame = { progress: number; time: number; hit: number };
+/** Source pixels per CSS pixel at rest, so the canvas never renders finer than the plate. */
+export function plateDensity(cssWidth: number, cssHeight: number) {
+  const [, , width] = framing(cssWidth / cssHeight, 1);
+  return (width * 1376) / cssWidth;
+}
 
-export function createScene(canvas: HTMLCanvasElement, receipt: HTMLCanvasElement, word: WordBox) {
-  const gl = canvas.getContext("webgl2", { antialias: false, alpha: false });
+export type Plates = { still: TexImageSource; clean: TexImageSource; mask: TexImageSource };
+export type Frame = { progress: number; time: number; hit: number; pour: number; flow: boolean };
+
+export function createScene(canvas: HTMLCanvasElement, plates: Plates) {
+  const gl = canvas.getContext("webgl2", { antialias: false, alpha: false, depth: false });
   if (!gl) throw new Error("webgl2 unavailable");
 
-  const paper = compile(gl, paperVertex, paperFragment);
-  const composite = compile(gl, quadVertex, compositeFragment);
+  const flowProgram = compile(gl, flowFragment);
+  const composite = compile(gl, compositeFragment);
 
-  const { uv, index } = sheet();
-  const paperVao = gl.createVertexArray();
-  gl.bindVertexArray(paperVao);
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER, uv, gl.STATIC_DRAW);
-  const aUv = gl.getAttribLocation(paper.program, "aUv");
-  gl.enableVertexAttribArray(aUv);
-  gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 0, 0);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, index, gl.STATIC_DRAW);
-
-  const quadVao = gl.createVertexArray();
-  gl.bindVertexArray(quadVao);
+  const quad = gl.createVertexArray();
+  gl.bindVertexArray(quad);
   gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  const aPosition = gl.getAttribLocation(composite.program, "aPosition");
-  gl.enableVertexAttribArray(aPosition);
-  gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0);
-  gl.bindVertexArray(null);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
 
-  const receiptTexture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, receiptTexture);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, receipt);
-  gl.generateMipmap(gl.TEXTURE_2D);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  const still = upload(gl, plates.still, true);
+  const clean = upload(gl, plates.clean, true);
+  const mask = upload(gl, plates.mask, false);
+
+  const flow = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, flow);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const flowBuffer = gl.createFramebuffer();
 
-  const scene = target(gl);
-  const mask = target(gl);
-  const depth = gl.createRenderbuffer();
-  const framebuffer = gl.createFramebuffer();
   let width = 0;
   let height = 0;
+  let flowWidth = 0;
+  let flowHeight = 0;
+  let aspect = 1;
+  let flowReady = false;
 
-  function resize(cssWidth: number, cssHeight: number, ratio: number) {
+  function resize(cssWidth: number, cssHeight: number, ratio: number, flowRatio: number) {
+    if (!gl) return;
+    aspect = cssWidth / Math.max(1, cssHeight);
     const w = Math.max(1, Math.round(cssWidth * ratio));
     const h = Math.max(1, Math.round(cssHeight * ratio));
-    if (!gl || (w === width && h === height)) return;
-    width = w;
-    height = h;
-    canvas.width = w;
-    canvas.height = h;
-    for (const texture of [scene, mask]) {
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-      gl.generateMipmap(gl.TEXTURE_2D);
+    if (w !== width || h !== height) {
+      width = w;
+      height = h;
+      canvas.width = w;
+      canvas.height = h;
     }
-    gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
-    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, scene, 0);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, mask, 0);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    const fw = Math.max(1, Math.round(cssWidth * flowRatio));
+    const fh = Math.max(1, Math.round(cssHeight * flowRatio));
+    if (fw !== flowWidth || fh !== flowHeight) {
+      flowWidth = fw;
+      flowHeight = fh;
+      gl.bindTexture(gl.TEXTURE_2D, flow);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, fw, fh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, flowBuffer);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, flow, 0);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      flowReady = false;
+    }
   }
 
-  function render({ progress, time, hit }: Frame) {
+  function render({ progress, time, hit, pour, flow: step }: Frame) {
     if (!gl || width === 0) return;
-    const aspect = width / height;
-    const fit = Math.min(1, aspect / 0.72);
-    const projection = perspective(0.62, aspect, 0.1, 20);
-    const sink = 1 - Math.pow(1 - progress, 1.6);
-    const y = 0.98 - 1.12 * sink + 0.03 * Math.sin(time * 0.5);
-    const z = -2.85 / fit - 0.25 * sink;
-    const sway = Math.sin(time * 0.31) * 0.05;
-    const shift = aspect > 1.2 ? Math.min(0.5, (aspect - 1.2) * 0.45) * -z * 0.32 : 0;
-    const model = multiply(
-      translation(shift + 0.04 * Math.sin(time * 0.23), y, z),
-      rotation(-0.42 + 0.22 * sink + sway, 0.22 - 0.12 * sink + sway * 0.6, -0.16 + 0.07 * sink),
-    );
-    const clip = multiply(projection, model);
-    const cx = clip[12] / clip[15];
-    const cy = clip[13] / clip[15];
+    const view = framing(aspect, progress);
+    gl.bindVertexArray(quad);
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-    gl.viewport(0, 0, width, height);
-    gl.clearBufferfv(gl.COLOR, 0, [0, 0, 0, 0]);
-    gl.clearBufferfv(gl.COLOR, 1, [0, 0, 0, 0]);
-    gl.clear(gl.DEPTH_BUFFER_BIT);
-    gl.enable(gl.DEPTH_TEST);
-    gl.useProgram(paper.program);
-    gl.uniformMatrix4fv(paper.at("uProjection"), false, projection);
-    gl.uniformMatrix4fv(paper.at("uModelView"), false, model);
-    gl.uniformMatrix3fv(paper.at("uNormalMatrix"), false, upperLeft(model));
-    gl.uniform2f(paper.at("uSize"), paperSize[0], paperSize[1]);
-    gl.uniform1f(paper.at("uTime"), time);
-    gl.uniform1f(paper.at("uHit"), hit);
-    gl.uniform1f(paper.at("uFog"), 0.04 + 0.16 * sink);
-    gl.uniform4f(paper.at("uWord"), word.x, word.y, word.width, word.height);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, receiptTexture);
-    gl.uniform1i(paper.at("uReceipt"), 0);
-    gl.bindVertexArray(paperVao);
-    gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_INT, 0);
-    gl.disable(gl.DEPTH_TEST);
-
-    for (const texture of [scene, mask]) {
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.generateMipmap(gl.TEXTURE_2D);
+    if (step || !flowReady) {
+      flowReady = true;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, flowBuffer);
+      gl.viewport(0, 0, flowWidth, flowHeight);
+      gl.useProgram(flowProgram.program);
+      gl.uniform2f(flowProgram.at("uResolution"), flowWidth, flowHeight);
+      gl.uniform4f(flowProgram.at("uFrame"), ...view);
+      gl.uniform1f(flowProgram.at("uTime"), time);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
     gl.useProgram(composite.program);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, scene);
-    gl.uniform1i(composite.at("uScene"), 0);
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, mask);
-    gl.uniform1i(composite.at("uMask"), 1);
+    for (const [unit, texture, name] of [
+      [0, still, "uStill"],
+      [1, clean, "uClean"],
+      [2, mask, "uMask"],
+      [3, flow, "uFlow"],
+    ] as const) {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.uniform1i(composite.at(name), unit);
+    }
     gl.uniform2f(composite.at("uResolution"), width, height);
-    gl.uniform2f(composite.at("uCenter"), cx * 0.5 + 0.5, cy * 0.5 + 0.5);
+    gl.uniform4f(composite.at("uFrame"), ...view);
     gl.uniform1f(composite.at("uTime"), time);
+    gl.uniform1f(composite.at("uPour"), pour);
     gl.uniform1f(composite.at("uHit"), hit);
-    gl.uniform1f(composite.at("uInk"), 1 - 0.62 * progress);
-    gl.uniform1f(composite.at("uSurface"), 0.9 + 0.12 * sink);
-    gl.bindVertexArray(quadVao);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.bindVertexArray(null);
   }
 
   function dispose() {
