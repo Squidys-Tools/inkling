@@ -265,3 +265,17 @@ export const onboardingColor = stylex.defineVars({
   badge: "rgba(14, 14, 12, 0.72)",
   badgeInk: "#d8d2c6",
 });
+
+// Ink-in-water hero prototype (apps/site/src/ink/hero): milky water, near-black ink, frosted glass.
+export const inkHeroColor = stylex.defineVars({
+  water: "#f3f1ec",
+  ink: "#0f0f10",
+  muted: "#5f5c57",
+  faint: "#8d8a84",
+  glass: "rgba(255, 255, 255, 0.38)",
+  glassEdge: "rgba(255, 255, 255, 0.85)",
+  glassRim: "rgba(15, 15, 16, 0.08)",
+  glassShadow: "rgba(15, 15, 16, 0.1)",
+  buttonInk: "#f3f1ec",
+  found: "#3b5bff",
+});
