@@ -35,6 +35,7 @@ export default defineConfig(({ command }) => ({
         { path: "/features" },
         { path: "/privacy" },
         { path: "/credits" },
+        { path: "/ink/local", sitemap: { exclude: true } },
         { path: "/404", prerender: { outputPath: "/404.html" }, sitemap: { exclude: true } },
       ],
       sitemap: { enabled: siteUrl !== "", host: siteUrl },

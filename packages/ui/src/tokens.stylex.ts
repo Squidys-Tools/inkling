@@ -265,3 +265,12 @@ export const onboardingColor = stylex.defineVars({
   badge: "rgba(14, 14, 12, 0.72)",
   badgeInk: "#d8d2c6",
 });
+
+// The ink-in-water "local" section: the one dark section, a warm near-black studio.
+export const inkLocal = stylex.defineVars({
+  studio: "#0e0c0a",
+  ink: "#ece8e1",
+  muted: "#8a847a",
+  hairline: "rgba(236, 232, 225, 0.16)",
+  linkRule: "rgba(236, 232, 225, 0.35)",
+});
