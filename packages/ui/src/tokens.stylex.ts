@@ -265,3 +265,14 @@ export const onboardingColor = stylex.defineVars({
   badge: "rgba(14, 14, 12, 0.72)",
   badgeInk: "#d8d2c6",
 });
+
+// The ink-in-water OCR prototype (apps/site/src/ink/ocr): milky water, ink and the cobalt find.
+export const inkOcrColor = stylex.defineVars({
+  water: "#f3f1ec",
+  ink: "#141414",
+  inkSoft: "rgba(20, 20, 20, 0.5)",
+  pill: "rgba(255, 255, 255, 0.7)",
+  pillEdge: "rgba(20, 20, 20, 0.08)",
+  pillShadow: "rgba(30, 40, 70, 0.1)",
+  found: "#3b5bff",
+});
