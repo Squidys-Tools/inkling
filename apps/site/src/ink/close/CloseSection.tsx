@@ -27,7 +27,11 @@ function registerRedHat() {
   }
 }
 
-const images = { plate: "/media/ink/close/plate.webp", clean: "/media/ink/close/clean.webp" };
+const images = {
+  plate: "/media/ink/close/plate.webp",
+  clean: "/media/ink/close/clean.webp",
+  target: "/media/ink/close/target.webp",
+};
 
 // Renders only while on screen, and lets the drop fall once the section is well in view.
 function watch(canvas: HTMLCanvasElement, sim: Water) {
@@ -96,7 +100,7 @@ export function CloseSection() {
   const onPointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
     if (calm || !event.isPrimary) return;
     const box = event.currentTarget.getBoundingClientRect();
-    water.current?.ripple(event.clientX - box.left);
+    water.current?.poke(event.clientX - box.left, event.clientY - box.top);
   };
 
   return (
