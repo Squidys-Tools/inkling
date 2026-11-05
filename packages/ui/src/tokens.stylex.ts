@@ -265,3 +265,12 @@ export const onboardingColor = stylex.defineVars({
   badge: "rgba(14, 14, 12, 0.72)",
   badgeInk: "#d8d2c6",
 });
+
+// Ink-in-water prototype, section 02 "develop". water and ink are also the shader's WATER and INK.
+export const inkDevelopColor = stylex.defineVars({
+  water: "#f3f1ec",
+  ink: "#0c0c0e",
+  pill: "rgba(255, 255, 255, 0.62)",
+  pillEdge: "rgba(12, 12, 14, 0.12)",
+  found: "#3b5bff",
+});
