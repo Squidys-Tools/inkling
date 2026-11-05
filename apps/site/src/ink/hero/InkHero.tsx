@@ -47,7 +47,7 @@ function animate(
   let teardown = () => {};
   const start = () => {
     if (state.disposed) return;
-    const ink = createInk(canvas, plate);
+    const ink = createInk(canvas, plate, matchMedia(coarse).matches);
     if (!ink) return;
     inkRef.current = ink;
     const measure = () => {
@@ -145,7 +145,7 @@ export function InkHero() {
     const x = (caret - box.left) / box.width + (Math.random() - 0.5) * 0.04;
     const y = 1 - (rect.top - box.top) / box.height + 0.03 + Math.random() * 0.05;
     const angle = (Math.random() - 0.5) * 1.6;
-    const force = 0.006 + Math.random() * 0.008;
+    const force = 0.0018 + Math.random() * 0.002;
     ink.stir(x, y, Math.sin(angle) * force, Math.cos(angle) * force, 0.004);
   }, []);
 
@@ -260,6 +260,8 @@ const blink = stylex.keyframes({
 
 // The plate is the moodboard ink cut to 664x639 frame pixels, with the pill's centre at
 // (314.5, 626). Both scale from the pill's height in the section so they stay registered.
+// The live ink reads the plate only as its guide; the plate itself shows only as the still
+// for reduced motion or when WebGL2 is missing.
 const styles = stylex.create({
   section: {
     position: "relative",
