@@ -62,8 +62,9 @@ fails if a dev seed file still reaches it.
 `dev:app` runs the app on `.dev-library/` in the worktree, which
 `tools/dev/seeded-library.ts` fills with the same seed on first run, so both dev
 modes show the same library and a dev run can never touch or stamp the real one.
-Delete `.dev-library/` to reseed. Passing `dev:app` a `--user-data-dir=<dir>`
-points at another library instead and never seeds it.
+Delete `.dev-library/` to reseed. The worktree's settle action (`Clean up worktree`
+in `t3.json`) deletes it too, with `dist/` and `node_modules/`. Passing `dev:app` a
+`--user-data-dir=<dir>` points at another library instead and never seeds it.
 `build:app` writes `dist/renderer` and `dist/desktop`, then runs
 `tools/repo/assert-no-demo-seed.ts`, which fails the build if any seed file or
 reference reached them. electron-builder packs only those two folders, and every
