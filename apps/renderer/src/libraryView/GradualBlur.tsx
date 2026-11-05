@@ -6,8 +6,8 @@
 import * as stylex from "@stylexjs/stylex";
 
 const layerCount = 5;
-const maxBlur = 32;
-const height = 70;
+const maxBlur = 14;
+const height = 30;
 
 type Edge = "top" | "bottom";
 
