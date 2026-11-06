@@ -96,6 +96,7 @@ const transfer = createItemTransfer({
     if (id === "note") return { ...base, kind: "note", body: "# My note", localAssetPath: null };
     if (id === "escape") return { ...base, localAssetPath: "assets/escape.txt" };
     if (id === "large") return { ...base, localAssetPath: "assets/large.jpg" };
+    if (id === "wide") return { ...base, localAssetPath: "assets/wide.png" };
     return base;
   },
 });
@@ -150,6 +151,10 @@ test("missing, non-image, escaped and oversized copy inputs fail closed", async 
   for (const id of ["", "missing", "note", "escape", "large"])
     await expect(transfer.image(id)).rejects.toBeInstanceOf(Error);
   await expect(transfer.file("escape")).rejects.toBeInstanceOf(Error);
+  await sharp({ create: { width: 7000, height: 6000, channels: 3, background: "red" } })
+    .png()
+    .toFile(join(assets, "wide.png"));
+  await expect(transfer.image("wide")).rejects.toThrow("too large to copy");
 });
 
 test("text drag exports are sanitized, bounded, unique beyond capacity and cleaned up", async () => {

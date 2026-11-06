@@ -76,6 +76,11 @@ export function createItemTransfer({
               if (!result.bytesRead) throw new Error("The image changed while being copied.");
               offset += result.bytesRead;
             }
+            const { width = 0, height = 0 } = await sharp(bytes, {
+              limitInputPixels: false,
+            }).metadata();
+            if (width * height > 40_000_000)
+              throw new Error("This image is too large to copy. Drag its file instead.");
             // Decode in native workers, without fetching remote URLs or changing the original.
             return await sharp(bytes, { limitInputPixels: 40_000_000 }).rotate().png().toBuffer();
           } finally {

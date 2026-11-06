@@ -79,17 +79,17 @@ test("image capture refuses what inspection rejects before it stores anything", 
   const { root, library } = await temporaryLibrary({
     media: {
       inspectImage: async () => {
-        throw new Error("image processing error: image dimensions exceed safe limits");
+        throw new Error("Input buffer contains unsupported image format");
       },
     },
   });
   await expect(
     library.saveFile({
-      fileName: "huge.png",
+      fileName: "fake.png",
       kind: "image",
       bytes: new TextEncoder().encode("not really"),
     }),
-  ).rejects.toThrow("safe limits");
+  ).rejects.toThrow("unsupported image format");
 
   expect(count(library, "items")).toBe(0);
   expect(count(library, "jobs")).toBe(0);
