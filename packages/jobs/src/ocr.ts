@@ -34,13 +34,12 @@ const defaultOcrWorkers = () =>
     Math.max(2, Math.min(Math.floor(availableParallelism() / 3), Math.floor(totalmem() / 4e9))),
   );
 
-// Tesseract's heap grows to the largest image a worker has read and never
-// shrinks, so passes over a large image run one at a time and the
-// worker that ran one is replaced afterwards. Small images keep the full pool.
-const LARGE_OCR_PIXELS = 6_000_000;
+// Larger images are read at this size. In our benchmark of real photos, reads at
+// 12 MP and at full size found fewer words than 6 MP and took far longer.
+const MAX_OCR_PIXELS = 6_000_000;
+// Tesseract's heap grows to the largest image a worker has read and never shrinks,
+// so a rotated copy past the size limit runs alone and its worker is then replaced.
 const LARGE_OCR_PASSES = 1;
-// Past this, every pass would hold gigabytes. A larger image is read at this size.
-const MAX_OCR_PIXELS = 33_554_432;
 
 export function createTesseractOcr({
   cacheDirectory,
@@ -178,19 +177,20 @@ export function createTesseractOcr({
     // Decoded before the worker: tesseract.js can otherwise emit an uncaught
     // main-process exception for corrupt bytes.
     const source = sharp(await sharpImageInput(input), { limitInputPixels: maxImagePixels });
-    const { width: sourceWidth = 0, height: sourceHeight = 0 } = await source.metadata();
-    const scale = Math.min(1, Math.sqrt(MAX_OCR_PIXELS / (sourceWidth * sourceHeight)));
+    const { autoOrient } = await source.metadata();
+    const scale = Math.min(1, Math.sqrt(MAX_OCR_PIXELS / (autoOrient.width * autoOrient.height)));
+    // Tesseract only needs lossless bytes in a format it reads, so it gets the fastest PNG.
     const image = await source
-      .resize(scale < 1 ? { width: Math.floor(sourceWidth * scale) } : {})
-      .png()
+      .rotate()
+      .resize(scale < 1 ? { width: Math.floor(autoOrient.width * scale) } : {})
+      .png({ compressionLevel: 1 })
       .toBuffer();
     const { width = 0, height = 0 } = await sharp(image).metadata();
-    const large = width * height >= LARGE_OCR_PIXELS;
     // A rotated copy is read on its bounding canvas, about 1.5 times the pixels at 15 degrees.
     const largeAt = (angle: number) => {
       const radians = (Math.abs(angle) * Math.PI) / 180;
       const [cos, sin] = [Math.cos(radians), Math.sin(radians)];
-      return (width * cos + height * sin) * (width * sin + height * cos) >= LARGE_OCR_PIXELS;
+      return (width * cos + height * sin) * (width * sin + height * cos) >= MAX_OCR_PIXELS;
     };
     let bestText = "";
     let bestQuality = -1;
@@ -207,16 +207,29 @@ export function createTesseractOcr({
         bestConfidence = result.data.confidence;
       }
     }
-    for (const result of await passes([3, 6, 7].map((psm) => pass(image, psm, large))))
-      consider(result);
-    if (bestWordCount === 0 || bestConfidence < 70) {
-      const highContrast = await sharp(image).grayscale().threshold(225).png().toBuffer();
-      consider(await pass(highContrast, 6, large));
+    const readClearly = () => bestWordCount >= 8 && bestConfidence >= 70;
+    for (const psm of [3, 6, 7]) {
+      consider(await pass(image, psm));
+      if (readClearly()) return bestText;
     }
-    if (bestWordCount < 8 || bestConfidence < 70) {
+    if (bestWordCount === 0 || bestConfidence < 70) {
+      const highContrast = await sharp(image)
+        .grayscale()
+        .threshold(225)
+        .png({ compressionLevel: 1 })
+        .toBuffer();
+      consider(await pass(highContrast, 6));
+    }
+    // Most photos have no text and read as one stray word or low-confidence noise.
+    // Straightening needs some real text to work with, and costs six more reads.
+    if (!readClearly() && bestWordCount >= 2 && bestConfidence >= 30) {
       const rotations = [-15, -10, -5, 5, 10, 15].map((angle) =>
         pass(
-          () => sharp(image).rotate(angle, { background: "#ffffff" }).png().toBuffer(),
+          () =>
+            sharp(image)
+              .rotate(angle, { background: "#ffffff" })
+              .png({ compressionLevel: 1 })
+              .toBuffer(),
           6,
           largeAt(angle),
         ),
