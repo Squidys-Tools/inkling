@@ -3,7 +3,7 @@ import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { bindingsFor } from "@inkling/contracts/shortcuts";
 import { color, font } from "@inkling/ui/tokens.stylex";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { platform } from "../desktop.ts";
 import { KeptFloating } from "./KeptFloating.tsx";
 import { MemoryMatch } from "./MemoryMatch.tsx";
@@ -26,6 +26,48 @@ type ScreenNav = {
 const modifier = platform === "darwin" ? "⌘" : "Ctrl";
 const searchKey = (bindingsFor("search", platform)[0]?.key ?? "k").toUpperCase();
 
+/** Which of the shown keys are physically held, so each kbd can press down with it. */
+function useHeldKeys(keys: string[]) {
+  const [held, setHeld] = useState<ReadonlySet<string>>(new Set());
+  const keysKey = keys.join(",");
+  useEffect(() => {
+    const shown = keysKey.split(",");
+    const onKey = (event: KeyboardEvent) => {
+      const down = event.type === "keydown";
+      setHeld((current) => {
+        const next = new Set(current);
+        if (shown[0] === modifier) {
+          const modifierHeld = platform === "darwin" ? event.metaKey : event.ctrlKey;
+          if (modifierHeld) next.add(modifier);
+          else {
+            // macOS sends no keyup for a letter released after ⌘, so releasing ⌘ clears them all.
+            next.clear();
+          }
+        }
+        const letter = shown.find((key) => key !== modifier && key === event.key.toUpperCase());
+        if (letter) {
+          if (down) next.add(letter);
+          else next.delete(letter);
+        }
+        return next.size === current.size && [...next].every((key) => current.has(key))
+          ? current
+          : next;
+      });
+    };
+    const release = () => setHeld(new Set());
+    // Capture phase: the shortcut handler stops Ctrl+K before it bubbles to window.
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("keyup", onKey, true);
+    window.addEventListener("blur", release);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("keyup", onKey, true);
+      window.removeEventListener("blur", release);
+    };
+  }, [keysKey]);
+  return held;
+}
+
 function Keys({
   keys,
   hint,
@@ -37,10 +79,18 @@ function Keys({
   delay: number;
   style: stylex.StyleXStyles;
 }) {
+  const held = useHeldKeys(keys);
   return (
     <div {...stylex.props(styles.keys, styles.rise, styles.delay(delay), style)}>
       {keys.map((key, i) => (
-        <kbd key={key} {...stylex.props(styles.kbd, styles.delay(delay + 0.7 + i * 0.12))}>
+        <kbd
+          key={key}
+          {...stylex.props(
+            styles.kbd,
+            styles.delay(delay + 0.7 + i * 0.12),
+            held.has(key) && styles.kbdHeld,
+          )}
+        >
           {key}
         </kbd>
       ))}
@@ -296,7 +346,10 @@ const styles = stylex.create({
     animationName: { default: keyPress, [reduced]: "none" },
     animationDuration: "260ms",
     animationTimingFunction: "ease-out",
+    transitionProperty: "translate, border-bottom-width, background-color",
+    transitionDuration: { default: "80ms", [reduced]: "0s" },
   },
+  kbdHeld: { translate: "0 1px", borderBottomWidth: 1, backgroundColor: color.border },
   actions: { position: "absolute", display: "flex", alignItems: "center", gap: 18 },
   centeredRow: { left: 0, right: 0, justifyContent: "center" },
   primary: {
