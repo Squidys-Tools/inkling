@@ -12,6 +12,8 @@ const modal =
   '[role="dialog"]:not([aria-modal="false"]), [role="alertdialog"]:not([aria-modal="false"])';
 
 function run(router: ReturnType<typeof useRouter>, command: Command) {
+  // The welcome shows these shortcuts as demos; running one would leave it with onboarding unfinished.
+  if (router.state.location.pathname === "/welcome") return;
   // An open dialog owns the keyboard: it keeps Escape and the shortcuts
   // until it closes. The settings sheet lives in the URL, so back and
   // forward from the mouse or the menu still close and reopen it (Base UI
