@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { isUrlIngestionError } from "./errors.ts";
+import { isUrlIngestionError, UrlIngestionError } from "./errors.ts";
 import { ingestUrl } from "./url-ingestion.ts";
 
 const article = `<html><head><title>Saved page</title></head><body><article>
@@ -177,4 +177,13 @@ test("a link straight to a file is kept, titled by its file name, without readin
   );
   const document = await ingestUrl("https://example.com/", { fetch: pdf.fetch, lookupHost });
   expect(document).toMatchObject({ title: "example.com", imageUrls: [] });
+});
+
+test("a page that refuses is permanent, one that may recover is not", () => {
+  const http = (status: number) => new UrlIngestionError("http-error", "", { status }).permanent;
+  expect([404, 410, 403].map(http)).toEqual([true, true, true]);
+  expect([408, 429, 500, 503].map(http)).toEqual([false, false, false, false]);
+  expect(new UrlIngestionError("network-error", "").permanent).toBe(false);
+  expect(new UrlIngestionError("timeout", "").permanent).toBe(false);
+  expect(new UrlIngestionError("unsupported-content-type", "").permanent).toBe(true);
 });

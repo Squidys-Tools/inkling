@@ -189,7 +189,7 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
   async function embedText(text: string, prefix = "search_document:", allowDownload = true) {
     const content = text.trim();
     if (!content || !hasEmbeddableCharacters(content))
-      throw new Error("text contains no embeddable characters");
+      throw Object.assign(new Error("text contains no embeddable characters"), { permanent: true });
     const { tokenizer, session } = textRuntime ?? (await loadTextRuntime(allowDownload));
     const tensor = (values: number[]) =>
       new ort.Tensor(

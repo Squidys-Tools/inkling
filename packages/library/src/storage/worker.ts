@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Cause, Data, Duration, Effect, Exit, Option, PubSub, Schedule } from "effect";
 import type { Job } from "@inkling/contracts";
+import { WorkerError } from "@inkling/contracts/jobs";
 import { errorMessage } from "./errors.ts";
 import { JOB_LEASE_MILLIS, JobQueue } from "./jobs.ts";
 
@@ -79,8 +80,12 @@ export const makeWorker = Effect.fnUntraced(function* <R>({
           const exit = yield* Effect.exit(restore(process(job)));
           if (Exit.isSuccess(exit)) yield* jobs.complete(job.id, workerId);
           else if (isPostponed(exit.cause)) yield* jobs.release(job.id, workerId);
-          else if (!Cause.hasInterruptsOnly(exit.cause))
-            yield* jobs.fail(job.id, workerId, errorMessage(Cause.squash(exit.cause)));
+          else if (!Cause.hasInterruptsOnly(exit.cause)) {
+            const error = Cause.squash(exit.cause);
+            yield* jobs.fail(job.id, workerId, errorMessage(error), {
+              permanent: error instanceof WorkerError && error.permanent === true,
+            });
+          }
         }),
       ),
     ).pipe(Effect.onInterrupt(() => jobs.release(job.id, workerId).pipe(Effect.ignore)));
