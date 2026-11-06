@@ -115,7 +115,13 @@ function Privacy() {
       <section {...stylex.props(styles.section)}>
         <h2 {...stylex.props(type.heading)}>This website</h2>
         <p {...stylex.props(type.body)}>
-          This site sets no cookies and runs no analytics. Downloads come from GitHub.
+          This site sets no cookies and runs no analytics, except on its beta waitlist page.
+          Downloads come from GitHub.
+        </p>
+        <p {...stylex.props(type.body)}>
+          The waitlist page loads Clerk, the service that holds the list. The address you enter
+          there is stored by Clerk, and we use it only to tell you when a stable beta is ready.
+          Clerk may set its own cookies on that page.
         </p>
       </section>
     </main>

@@ -77,6 +77,12 @@ latest GitHub release, looked up once per build. Build it with
 `bun run build:site`, which runs Vite on Node: under the Bun runtime, StyleX's
 production media-query parser fails.
 
+The `/waitlist` page needs `VITE_CLERK_PUBLISHABLE_KEY` in the Vercel project's
+environment variables and in `apps/site/.env.local` for local runs (`*.local` is
+ignored by git). Without it the page says the waitlist is not open. In the Clerk
+dashboard, set the access mode to Waitlist and keep email enabled, since
+invitation emails need it.
+
 Iterate on the site with `bun run dev:site` (hot reload; read the port from its
 output). It builds `/demo/` once at start, so restart it to see renderer changes there. Vercel's automatic Git deployments are disabled in
 `apps/site/vercel.json`. The `Site preview` workflow invokes Vercel only for a
