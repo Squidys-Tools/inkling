@@ -64,7 +64,18 @@
     "inkling/no-low-value-comments": "error",
     "inkling/require-suppression-reason": "error",
     "inkling/no-color-literals": "error",
-    "inkling/no-css-imports": "error"
+    "inkling/no-css-imports": "error",
+    "eslint/no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "@hugeicons/core-free-icons",
+            "message": "Import each icon from its own path, such as @hugeicons/core-free-icons/PlusSignIcon. The package root makes every tool load about 6,000 icon files."
+          }
+        ]
+      }
+    ]
   },
   "ignorePatterns": [
     "dist",

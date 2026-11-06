@@ -1,4 +1,4 @@
-import { ViewSidebarLeftIcon } from "@hugeicons/core-free-icons";
+import ViewSidebarLeftIcon from "@hugeicons/core-free-icons/ViewSidebarLeftIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate, useRouterState } from "@tanstack/react-router";

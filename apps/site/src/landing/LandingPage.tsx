@@ -11,26 +11,18 @@ import { MascotHint } from "./MascotHint.tsx";
 import { Story } from "./Story.tsx";
 
 // Registered through the FontFace API, as the rest of the site's faces are: the
-// route preloads the same files so the first paint rarely waits for them.
-const faces = [
-  ["/media/red-hat-400.ttf", "400"],
-  ["/media/red-hat-500.ttf", "500"],
-  ["/media/red-hat-700.ttf", "700"],
-] as const;
-
+// route preloads the same file so the first paint rarely waits for it.
 let registered = false;
 
 function registerRedHat() {
   if (registered) return;
   registered = true;
-  for (const [url, weight] of faces) {
-    const face = new FontFace("Red Hat", `url(${url}) format("truetype")`, {
-      weight,
-      display: "swap",
-    });
-    document.fonts.add(face);
-    void face.load().catch(() => {});
-  }
+  const face = new FontFace("Red Hat", 'url(/media/red-hat.woff2) format("woff2")', {
+    weight: "300 900",
+    display: "swap",
+  });
+  document.fonts.add(face);
+  void face.load().catch(() => {});
 }
 
 export function LandingPage() {

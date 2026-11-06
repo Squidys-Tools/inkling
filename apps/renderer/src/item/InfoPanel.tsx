@@ -1,4 +1,5 @@
-import { BookOpen01Icon, FileTextIcon } from "@hugeicons/core-free-icons";
+import BookOpen01Icon from "@hugeicons/core-free-icons/BookOpen01Icon";
+import FileTextIcon from "@hugeicons/core-free-icons/FileTextIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";

@@ -1,15 +1,13 @@
-import {
-  BoldIcon,
-  CodeIcon,
-  ItalicIcon,
-  Link01Icon,
-  ListIcon,
-  ListOrderedIcon,
-  ListTodoIcon,
-  QuoteIcon,
-  RefreshCcwIcon,
-  RefreshCwIcon,
-} from "@hugeicons/core-free-icons";
+import BoldIcon from "@hugeicons/core-free-icons/BoldIcon";
+import CodeIcon from "@hugeicons/core-free-icons/CodeIcon";
+import ItalicIcon from "@hugeicons/core-free-icons/ItalicIcon";
+import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
+import ListIcon from "@hugeicons/core-free-icons/ListIcon";
+import ListOrderedIcon from "@hugeicons/core-free-icons/ListOrderedIcon";
+import ListTodoIcon from "@hugeicons/core-free-icons/ListTodoIcon";
+import QuoteIcon from "@hugeicons/core-free-icons/QuoteIcon";
+import RefreshCcwIcon from "@hugeicons/core-free-icons/RefreshCcwIcon";
+import RefreshCwIcon from "@hugeicons/core-free-icons/RefreshCwIcon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, text } from "@inkling/ui/tokens.stylex";
