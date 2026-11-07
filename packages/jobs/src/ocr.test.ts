@@ -137,13 +137,17 @@ test("a read stops as soon as it is clear, and only straightens text it can see"
   }
 });
 
-test("an image reads upright and at most at the size limit", async () => {
+test("an image reads upright, and only an image longer than 16:9 keeps more than 6 MP", async () => {
   const solid = (width: number, height: number) =>
     sharp({ create: { width, height, channels: 3, background: "#ffffff" } });
   for (const [image, width, height] of [
     [await solid(600, 200).withMetadata({ orientation: 6 }).jpeg().toBuffer(), 200, 600],
     [await solid(4000, 3000).jpeg().toBuffer(), 2828, 2121],
     [await solid(3000, 4000).withMetadata({ orientation: 6 }).jpeg().toBuffer(), 2828, 2121],
+    // Full-page screenshots keep their text size, up to the memory cap.
+    [await solid(1000, 8000).png().toBuffer(), 1000, 8000],
+    [await solid(3000, 12000).png().toBuffer(), 1837, 7348],
+    [await solid(2000, 20000).png().toBuffer(), 1831, 18317],
   ] as const) {
     const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-size-"));
     roots.push(cacheDirectory);
@@ -170,7 +174,7 @@ test("an image reads upright and at most at the size limit", async () => {
   }
 });
 
-test("files and passes share a bounded worker pool and ties resolve in the serial order", async () => {
+test("files and passes share a bounded worker pool", async () => {
   const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-pool-"));
   roots.push(cacheDirectory);
   const { stats, workerFactory } = modeWorkers(50);
@@ -187,6 +191,37 @@ test("files and passes share a bounded worker pool and ties resolve in the seria
   expect(stats.count).toBe(3);
   expect(stats.peak).toBe(3);
   expect(stats.cachePaths.size).toBe(3);
+});
+
+test("rotations that tie resolve in angle order, whichever finishes first", async () => {
+  const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-ties-"));
+  roots.push(cacheDirectory);
+  const rotations: { width: number; finish: () => void }[] = [];
+  const ocr = createTesseractOcr({
+    cacheDirectory,
+    workers: 6,
+    workerFactory: async () => ({
+      setParameters: async () => {},
+      recognize: async (image) => {
+        const { width = 0 } = await sharp(image).metadata();
+        if (width === 900) return { data: { text: "faint print", confidence: 50 } };
+        const finished = Promise.withResolvers<void>();
+        rotations.push({ width, finish: finished.resolve });
+        // Steeper angles have wider canvases and finish last, so -15 degrees arrives after -5.
+        if (rotations.length === 6)
+          for (const { finish } of rotations.toSorted((a, b) => a.width - b.width)) finish();
+        await finished.promise;
+        return { data: { text: `canvas ${width} wide`, confidence: 50 } };
+      },
+      terminate: async () => {},
+    }),
+  });
+  try {
+    const text = await ocr.recognize(fixture("image-columns-01.png"));
+    expect(text).toBe(`canvas ${Math.max(...rotations.map(({ width }) => width))} wide`);
+  } finally {
+    await ocr.close();
+  }
 });
 
 test("a large rotated copy reads alone and replaces the worker it grew", async () => {
