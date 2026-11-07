@@ -44,7 +44,7 @@ export function startTextInference(modelPath: string, onStopped: () => void) {
   });
   thread.once("error", stop);
   thread.once("exit", (code) => stop(new Error(`text inference stopped with code ${code}`)));
-  return (window: TextWindow) => {
+  const infer = (window: TextWindow) => {
     if (stopped) return Promise.reject(stopped);
     const id = nextId++;
     const reply = Promise.withResolvers<TextInferenceResponse>();
@@ -52,4 +52,5 @@ export function startTextInference(modelPath: string, onStopped: () => void) {
     thread.postMessage({ id, ...window } satisfies TextInferenceRequest);
     return reply.promise;
   };
+  return { infer, close: () => void thread.terminate() };
 }

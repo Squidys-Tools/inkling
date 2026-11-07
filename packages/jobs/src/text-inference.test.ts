@@ -8,7 +8,7 @@ test("a thread that cannot start fails the window waiting on it and reports that
   const directory = mkdtempSync(join(tmpdir(), "inkling-text-inference-"));
   try {
     const { promise: stopped, resolve } = Promise.withResolvers<void>();
-    const infer = startTextInference(join(directory, "missing.onnx"), resolve);
+    const { infer } = startTextInference(join(directory, "missing.onnx"), resolve);
     const window = { ids: [1], typeIds: [0], mask: [1] };
     await expect(infer(window)).rejects.toThrow();
     await stopped;
