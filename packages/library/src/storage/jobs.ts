@@ -59,11 +59,13 @@ function jobFromRow(row: JobRow): Job {
 export type JobQueueOptions = {
   now?: () => number;
   onUpdated?: (itemId: string) => void;
+  retryDelaysMillis?: ReadonlyArray<number>;
 };
 
 export const makeJobQueue = Effect.fnUntraced(function* ({
   now = Date.now,
   onUpdated = () => {},
+  retryDelaysMillis = [10_000, 30_000, 90_000],
 }: JobQueueOptions = {}) {
   const sql = yield* SqlClient.SqlClient;
   // Workers listen here for newly queued kinds, so capture never waits for a poll.
@@ -138,7 +140,9 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
         // indexed ahead of a backlog. Jobs queued in the same instant keep their order.
         const busyFilter = kinds ? sql`AND busy.kind IN ${sql.in(kinds)}` : sql.literal("");
         const earlierFilter = kinds ? sql`AND earlier.kind IN ${sql.in(kinds)}` : sql.literal("");
+        // A pending job's lease_until is when its retry may start. An item's later jobs wait for it.
         const [row] = yield* sql<JobRow>`SELECT * FROM jobs WHERE status = 'pending' ${kindFilter}
+          AND (lease_until IS NULL OR lease_until <= ${now()})
           AND NOT EXISTS (SELECT 1 FROM jobs busy WHERE busy.item_id = jobs.item_id
             AND busy.status = 'processing' ${busyFilter})
           AND NOT EXISTS (SELECT 1 FROM jobs earlier WHERE earlier.item_id = jobs.item_id
@@ -185,33 +189,39 @@ export const makeJobQueue = Effect.fnUntraced(function* ({
     return true;
   });
 
-  const fail = Effect.fnUntraced(function* (jobId: string, workerId: string, error: string) {
+  const fail = Effect.fnUntraced(function* (
+    jobId: string,
+    workerId: string,
+    error: string,
+    { permanent = false }: { permanent?: boolean } = {},
+  ) {
     const job = yield* owned(jobId, workerId);
     if (!job) return false;
-    const retried = yield* sql.withTransaction(
+    yield* sql.withTransaction(
       Effect.gen(function* () {
         const failedAt = now();
         const retrying = yield* sql`UPDATE jobs SET error_message = ${error},
           started_at = COALESCE(started_at, ${failedAt})
           WHERE id = ${jobId} AND status = 'processing' AND worker_id = ${workerId}
-          AND retry_count < max_retries`.raw;
+          AND retry_count < max_retries AND ${permanent ? 0 : 1}`.raw;
         if (changes(retrying)) {
+          const [{ retry_count }] = yield* sql<{ retry_count: number }>`SELECT retry_count FROM jobs
+            WHERE id = ${jobId}`;
+          const delay = retryDelaysMillis[retry_count] ?? retryDelaysMillis.at(-1) ?? 0;
           yield* sql`UPDATE jobs SET status = 'pending', retry_count = retry_count + 1,
-            worker_id = NULL, lease_until = NULL, progress_current = 0, progress_message = NULL
+            worker_id = NULL, lease_until = ${failedAt + delay}, progress_current = 0,
+            progress_message = NULL
             WHERE id = ${jobId} AND status = 'processing' AND worker_id = ${workerId}`;
-          return true;
         } else {
           yield* sql`UPDATE jobs SET status = 'failed', completed_at = ${failedAt},
             error_message = ${error}, progress_message = ${error}, worker_id = NULL,
             lease_until = NULL
             WHERE id = ${jobId} AND status = 'processing' AND worker_id = ${workerId}`;
-          return false;
         }
       }),
     );
+    // A waiting retry needs no wake: the lanes' poll picks it up when its delay ends.
     yield* announce(job);
-    // A retry is pending work again, so idle lanes hear of it instead of waiting for a poll.
-    if (retried) yield* PubSub.publish(enqueued, job.kind);
     return true;
   });
 

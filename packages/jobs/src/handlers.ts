@@ -29,7 +29,10 @@ export type WorkerOptions = {
 };
 
 const failure = (cause: unknown) =>
-  new WorkerError({ message: cause instanceof Error ? cause.message : String(cause) });
+  new WorkerError({
+    message: cause instanceof Error ? cause.message : String(cause),
+    permanent: cause instanceof Error && "permanent" in cause && cause.permanent === true,
+  });
 const attempt = <A>(run: () => Promise<A>) => Effect.tryPromise({ try: run, catch: failure });
 const read = (path: string) => attempt(() => readFile(path));
 
