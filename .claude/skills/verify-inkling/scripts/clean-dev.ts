@@ -39,7 +39,7 @@ export const assertWorktree = () => {
   }
 };
 
-type Process = { pid: number; name: string; command: string };
+export type Process = { pid: number; name: string; command: string };
 export type RunState = {
   runId: string;
   library: string;

@@ -11,6 +11,7 @@ import {
   listProcesses,
   root,
   stopOwned,
+  type Process,
 } from "../../.claude/skills/verify-inkling/scripts/clean-dev.ts";
 
 // Bun lays node_modules out per package, so the root, the extension and each workspace package can hold one.
@@ -31,41 +32,46 @@ const targets = [
 ];
 
 // Deleting files under a running Electron app breaks it. Such an app's command line names this worktree.
-const runningApp = () => {
-  const base = `${fold(root)}${sep}`;
-  return listProcesses().find(
-    (p) =>
+// `ps` gives no process name, and the worktree path can itself contain "electron", so it is cut out first.
+export const worktreeApp = (processes: Process[], worktree: string) => {
+  const base = `${fold(worktree)}${sep}`;
+  return processes.find((p) => {
+    const command = fold(p.command);
+    return (
       p.pid !== process.pid &&
-      /electron/i.test(p.name || p.command) &&
-      fold(p.command).includes(base),
-  );
+      command.includes(base) &&
+      /electron/i.test(p.name || command.replaceAll(base, ""))
+    );
+  });
 };
 
-try {
-  assertWorktree();
-  // A linked worktree's .git is a file. In the main checkout, .dev-library is the developer's own data.
-  if (!lstatSync(join(root, ".git")).isFile())
-    throw new Error(
-      "refusing: this is the main checkout, not a worktree; settle runs only in a worktree",
+if (import.meta.main) {
+  try {
+    assertWorktree();
+    // A linked worktree's .git is a file. In the main checkout, .dev-library is the developer's own data.
+    if (!lstatSync(join(root, ".git")).isFile())
+      throw new Error(
+        "refusing: this is the main checkout, not a worktree; settle runs only in a worktree",
+      );
+    // Check before anything is deleted: cleanDev() removes .dev, and a refusal must leave every target in place.
+    await stopOwned();
+    const app = worktreeApp(listProcesses(), root);
+    if (app)
+      throw new Error(
+        `refusing: an Electron app from this worktree is still running (pid ${app.pid}); close it, then rerun`,
+      );
+    const verification = await cleanDev();
+    const removed: string[] = [];
+    for (const target of targets) {
+      if (!existsSync(target)) continue;
+      rmSync(target, { recursive: true, force: true });
+      removed.push(relative(root, target));
+    }
+    console.log(
+      `clean-worktree: ${verification.note}; removed ${removed.join(", ") || "nothing else"}`,
     );
-  // Check before anything is deleted: cleanDev() removes .dev, and a refusal must leave every target in place.
-  await stopOwned();
-  const app = runningApp();
-  if (app)
-    throw new Error(
-      `refusing: an Electron app from this worktree is still running (pid ${app.pid}); close it, then rerun`,
-    );
-  const verification = await cleanDev();
-  const removed: string[] = [];
-  for (const target of targets) {
-    if (!existsSync(target)) continue;
-    rmSync(target, { recursive: true, force: true });
-    removed.push(relative(root, target));
+  } catch (error) {
+    console.error(`clean-worktree: ${(error as Error).message}`);
+    process.exit(1);
   }
-  console.log(
-    `clean-worktree: ${verification.note}; removed ${removed.join(", ") || "nothing else"}`,
-  );
-} catch (error) {
-  console.error(`clean-worktree: ${(error as Error).message}`);
-  process.exit(1);
 }
