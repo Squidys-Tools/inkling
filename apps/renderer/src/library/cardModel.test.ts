@@ -41,6 +41,21 @@ describe("card views", () => {
     expect(view.treatment).toBe(treatment);
   });
 
+  it.each([
+    [{ mediaWidth: 8000, mediaHeight: 5000 }, null, true],
+    [{ mediaWidth: 8000, mediaHeight: 5001 }, null, false],
+    [{ mediaWidth: 8000, mediaHeight: 5001 }, "/thumbnail.webp", true],
+    // BMP and ICO have no size until their thumbnail, and are drawn as they always were.
+    [{}, null, true],
+  ] as const)("an image of %j with thumbnail %s draws: %s", (metadata, thumbnailPath, draws) => {
+    const view = toCardView(
+      card({ kind: "image", localAssetPath: "/original.jpg", thumbnailPath, metadata }),
+    );
+    expect(Boolean(view.image)).toBe(draws);
+    expect(view.noPreview).toBe(!draws);
+    expect(view.treatment).toBe("media");
+  });
+
   it("uses a video link's poster until a thumbnail exists", () => {
     const view = toCardView(
       card({ kind: "url", sourceUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }),
