@@ -31,11 +31,13 @@ const results = await Promise.all([
       external,
     }),
   ),
-  // Each process starts its thread beside its own bundle: export snapshots and text embeddings.
+  // Each process starts its threads beside its own bundle: export snapshots, text embeddings
+  // and page extraction.
   Bun.build({
     entrypoints: [
       "packages/library/src/storage/sqlite-snapshot-worker.ts",
       "packages/jobs/src/text-inference-thread.ts",
+      "packages/jobs/src/extract-url-thread.ts",
     ],
     outdir,
     target: "node",
