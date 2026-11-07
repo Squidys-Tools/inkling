@@ -32,13 +32,15 @@ Every feature was executed end to end with agent-desktop on 2026-11-02 unless it
 - [Edit a note](./edit-note.md): item view > Edit note > Save note.
 - [Capture a quote](./capture-quote.md): Add > Quote.
 - [Capture a link](./capture-link.md): Add > Link (uses the network for the URL you type).
+- [Capture by deep link](./capture-deep-link.md): `inkling://capture?url=...` as a launch argument, no GUI.
+- [Capture by the extension receiver](./capture-extension.md): POST to the loopback receiver, no GUI.
 - [Search](./search.md): `Search your mind`, Ctrl+K, empty state, Clear search, Save as Space.
 - [Spaces](./spaces.md): create Smart and Regular, rename, file an item (native menu), delete (native confirm).
 - [Archive and restore](./archive-restore.md): item Archive, Archive view, Restore.
 
 ## Not covered, with the reason
 
-- Deep link `inkling://capture?url=...`: only a packaged build registers the scheme; an OS link opens the installed app on the real library.
+- The OS-level deep link (a browser or the shell opening `inkling://`): only a packaged build registers the scheme, and that build opens the real library. The app's own intake is covered by [capture-deep-link](./capture-deep-link.md).
 - File and Screenshot capture (native pickers), paste, drag and drop, clipboard: OS input this driver does not reach.
 - Card right-click menu: `right-click` needs `--headed` (real cursor and focus). Use the item view's `Keep in a Space` instead, which is the same menu.
 - The `/` shortcut: agent-desktop has no key name for it. Ctrl+K reaches the same field.

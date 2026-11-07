@@ -4,7 +4,15 @@
 // `.artifacts/` and survives cleanup.
 
 import { spawn, spawnSync, type StdioOptions } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, statSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
 import {
@@ -94,9 +102,12 @@ const snapshotText = (run: RunState, windowId: string) => {
 
 const readyMarker = (run: RunState) => (run.seeded ? "Everything" : "Skip");
 
+// A launch argument reaches Windows through cmd.exe, so only plain link characters pass.
+const SAFE_LINK = /^inkling:\/\/capture\?url=[\w.~:/=+-]*$/u;
+
 // Returns the pid of the launcher this run owns (cmd.exe on Windows, bun elsewhere); its tree is the app.
-const startDetached = (library: string, logPath: string) => {
-  const app = ["tools/dev/dev-app.ts", `--user-data-dir=${library}`];
+const startDetached = (library: string, logPath: string, extraArgs: string[] = []) => {
+  const app = ["tools/dev/dev-app.ts", `--user-data-dir=${library}`, ...extraArgs];
   if (process.platform !== "win32") {
     const log = openSync(logPath, "w");
     const child = spawn(process.execPath, app, {
@@ -125,12 +136,16 @@ const startDetached = (library: string, logPath: string) => {
 };
 
 const launch = async (flags: string[]) => {
+  const linkAt = flags.indexOf("--link");
+  const link = linkAt < 0 ? undefined : flags[linkAt + 1];
+  if (linkAt >= 0 && !SAFE_LINK.test(link ?? ""))
+    fail(`--link needs a plain inkling://capture?url=... link, got ${link ?? "nothing"}`);
   const livePids = new Set(liveOwned().map((p) => p.pid));
   const live = runStates().filter((s) => runHasLiveProcess(s, livePids));
   if (live.length > 0)
     fail("a verification run is already live in this worktree; run `cleanup` first");
   // Stale scratch from an earlier run goes first so `.dev` only ever holds one run.
-  const cleared = await cleanDev("stop");
+  const cleared = await cleanDev();
   if (cleared.removed) console.log(`launch: cleared stale ${devDir}`);
 
   const runId = `${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 6)}`;
@@ -167,7 +182,7 @@ const launch = async (flags: string[]) => {
       closeSync(log);
       if (built.status !== 0) throw new Error(`build:app failed; see ${join(base, "build.log")}`);
     }
-    run.launcherPid = startDetached(library, join(base, "electron.log"));
+    run.launcherPid = startDetached(library, join(base, "electron.log"), link ? [link] : []);
     writeFileSync(join(base, "run.json"), JSON.stringify(run, null, 2));
 
     const deadline = Date.now() + 120_000;
@@ -202,11 +217,39 @@ const launch = async (flags: string[]) => {
     throw new Error("app did not reach a usable window within 120s");
   } catch (error) {
     console.error(`verify-inkling: ${(error as Error).message}; cleaning up the failed launch`);
-    await cleanDev("stop").catch((cleanError: Error) =>
+    await cleanDev().catch((cleanError: Error) =>
       console.error(`verify-inkling: ${cleanError.message}`),
     );
     process.exit(1);
   }
+};
+
+// The receiver's port is random, so it is found from this run's Electron listening sockets (a listener has remote port 0).
+const receiverPorts = (run: RunState) => {
+  if (run.electronPid === undefined) return [];
+  const script = `Get-NetTCPConnection -OwningProcess ${run.electronPid} -ErrorAction SilentlyContinue | Where-Object { $_.LocalAddress -eq '127.0.0.1' -and $_.RemotePort -eq 0 } | Select-Object -ExpandProperty LocalPort`;
+  const found = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    encoding: "utf8",
+  });
+  return found.stdout.split(/\s+/).filter(Boolean).map(Number);
+};
+
+// Posts one URL capture the way the browser extension does. The token is read from this run's library and never printed.
+const postCapture = async (run: RunState, url: string) => {
+  const token = readFileSync(join(run.library, "pairing_token"), "utf8").trim();
+  const auth = { Authorization: `Bearer ${token}` };
+  for (const port of receiverPorts(run)) {
+    const base = `http://127.0.0.1:${port}`;
+    const health = await fetch(`${base}/v1/health`, { headers: auth }).catch(() => null);
+    if (!health?.ok) continue;
+    const posted = await fetch(`${base}/v1/captures`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ version: 1, kind: "page", url }),
+    });
+    return { status: posted.status, body: await posted.text() };
+  }
+  return null;
 };
 
 const doctor = () => {
@@ -407,9 +450,21 @@ switch (command) {
     db.close();
     break;
   }
+  case "capture": {
+    // Feeds a URL to the app through its extension receiver, not the GUI.
+    const run = currentRun();
+    const url = rest[0];
+    if (!url || !/^https?:\/\/\S+$/u.test(url)) fail("usage: capture <http(s) url>");
+    if (!liveOwned().some((p) => p.pid === run.electronPid)) fail("this run's app is not running");
+    const posted = await postCapture(run, url);
+    if (!posted) fail("no extension receiver answered for this run");
+    console.log(`${posted.status} ${posted.body}`);
+    process.exit(posted.status === 201 ? 0 : 1);
+    break;
+  }
   case "cleanup": {
     try {
-      const result = await cleanDev("stop");
+      const result = await cleanDev();
       console.log(`cleanup: ${result.note}`);
     } catch (error) {
       fail((error as Error).message);
@@ -418,7 +473,7 @@ switch (command) {
   }
   default:
     console.error(
-      "usage: instance.ts launch [--empty] [--skip-build] | doctor | window | windows | ref <role> <name> [--contains] [--in <ref>] [--window <id>] | tree [--window <id>] [snapshot args] | ad <args> | shot <name> | db <sql> | cleanup",
+      "usage: instance.ts launch [--empty] [--skip-build] [--link <inkling://capture?url=...>] | doctor | window | windows | ref <role> <name> [--contains] [--in <ref>] [--window <id>] | tree [--window <id>] [snapshot args] | ad <args> | shot <name> | db <sql> | capture <url> | cleanup",
     );
     process.exit(64);
 }
