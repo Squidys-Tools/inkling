@@ -29,6 +29,15 @@ test("only the top-level files list decides what is packed", () => {
   for (const platform of ["win", "mac", "linux"]) expect(pkg.build[platform].files).toBeUndefined();
 });
 
+// regression: GitHub renames an uploaded "inkling Setup x.exe" to "inkling.Setup.x.exe", while the
+// update feed keeps naming "inkling-Setup-x.exe", so Windows updates downloaded a 404.
+test("every installer name is safe to upload and to name in an update feed", () => {
+  for (const platform of ["win", "mac", "linux"])
+    expect(pkg.build[platform].artifactName).toMatch(
+      /^\$\{name\}-\$\{version\}-[\w${}-]+\.\$\{ext\}$/,
+    );
+});
+
 test("desktop identity and capture scheme agree", () => {
   expect(pkg.desktopName).toBe("inkling.desktop");
   expect(pkg.build.linux.syncDesktopName).toBe(true);
