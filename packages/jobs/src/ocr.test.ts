@@ -90,8 +90,7 @@ function modeWorkers(confidence: number, delay = 5) {
         stats.peak = Math.max(stats.peak, stats.active);
         stats.calls++;
         const text = `psm${psm}`;
-        // Page mode 3 finishes last, so judging results as they arrive would pick another.
-        await new Promise((resolve) => setTimeout(resolve, psm === "3" ? delay * 4 : delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
         busy = false;
         stats.active--;
         return { data: { text, confidence } };
@@ -103,6 +102,73 @@ function modeWorkers(confidence: number, delay = 5) {
   };
   return { stats, workerFactory };
 }
+
+test("a read stops as soon as it is clear, and only straightens text it can see", async () => {
+  const clear = "plenty of clear words in this sample text here";
+  for (const [text, confidence, reads] of [
+    [clear, 95, 1],
+    [clear, 50, 10],
+    ["faint print", 91, 9],
+    ["faint print", 20, 4],
+    ["stray", 95, 3],
+    ["stray", 50, 4],
+    ["", 0, 4],
+  ] as const) {
+    const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-stages-"));
+    roots.push(cacheDirectory);
+    let calls = 0;
+    const ocr = createTesseractOcr({
+      cacheDirectory,
+      workerFactory: async () => ({
+        setParameters: async () => {},
+        recognize: async () => {
+          calls++;
+          return { data: { text, confidence } };
+        },
+        terminate: async () => {},
+      }),
+    });
+    try {
+      await ocr.recognize(fixture("image-columns-01.png"));
+    } finally {
+      await ocr.close();
+    }
+    expect([text, confidence, calls]).toEqual([text, confidence, reads]);
+  }
+});
+
+test("an image reads upright and at most at the size limit", async () => {
+  const solid = (width: number, height: number) =>
+    sharp({ create: { width, height, channels: 3, background: "#ffffff" } });
+  for (const [image, width, height] of [
+    [await solid(600, 200).withMetadata({ orientation: 6 }).jpeg().toBuffer(), 200, 600],
+    [await solid(4000, 3000).jpeg().toBuffer(), 2828, 2121],
+    [await solid(3000, 4000).withMetadata({ orientation: 6 }).jpeg().toBuffer(), 2828, 2121],
+  ] as const) {
+    const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-size-"));
+    roots.push(cacheDirectory);
+    const reads: Buffer[] = [];
+    const ocr = createTesseractOcr({
+      cacheDirectory,
+      workerFactory: async () => ({
+        setParameters: async () => {},
+        recognize: async (read) => {
+          reads.push(read);
+          return {
+            data: { text: "plenty of clear words in this sample text here", confidence: 95 },
+          };
+        },
+        terminate: async () => {},
+      }),
+    });
+    try {
+      await ocr.recognize(image);
+    } finally {
+      await ocr.close();
+    }
+    expect(await sharp(reads[0]).metadata()).toMatchObject({ width, height });
+  }
+});
 
 test("files and passes share a bounded worker pool and ties resolve in the serial order", async () => {
   const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-pool-"));
@@ -116,23 +182,23 @@ test("files and passes share a bounded worker pool and ties resolve in the seria
   // Every pass ties on quality, so the first one judged wins: page mode 3.
   expect(await Promise.all(files)).toEqual(["psm3", "psm3", "psm3"]);
   await closing;
-  // 3 page modes, contrast and 6 rotations per file, never more than 3 at once.
-  expect(stats.calls).toBe(30);
+  // 3 page modes and contrast per file, never more than 3 at once.
+  expect(stats.calls).toBe(12);
   expect(stats.count).toBe(3);
   expect(stats.peak).toBe(3);
   expect(stats.cachePaths.size).toBe(3);
 });
 
-test("a large image reads one pass at a time and replaces each worker it grew", async () => {
-  // 3000 x 2000 is just over the large-image threshold. 2800 x 2000 is under it,
-  // but each rotated copy's canvas is over it, so only the 6 rotations count as large.
-  for (const [width, height, peak, retired] of [
-    [3000, 2000, 1, 10],
-    [2800, 2000, 3, 6],
+test("a large rotated copy reads alone and replaces the worker it grew", async () => {
+  // Each rotated copy's canvas is over the size limit at 3000 x 2000, and under it at 2000 x 1500.
+  for (const [width, height, retired] of [
+    [3000, 2000, 6],
+    [2000, 1500, 0],
   ]) {
     const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-large-"));
     roots.push(cacheDirectory);
     const stats = { created: 0, terminated: 0, active: 0, peak: 0, calls: 0 };
+    const secondRotation = Promise.withResolvers<void>();
     const ocr = createTesseractOcr({
       cacheDirectory,
       workers: 4,
@@ -143,9 +209,12 @@ test("a large image reads one pass at a time and replaces each worker it grew", 
           recognize: async () => {
             stats.calls++;
             stats.peak = Math.max(stats.peak, ++stats.active);
+            // Rotations start after the 4 serial reads. Small ones must overlap to get past this.
+            if (retired === 0 && stats.calls === 5) await secondRotation.promise;
+            if (stats.calls === 6) secondRotation.resolve();
             await new Promise((resolve) => setTimeout(resolve, 5));
             stats.active--;
-            return { data: { text: "faint", confidence: 50 } };
+            return { data: { text: "faint print", confidence: 50 } };
           },
           terminate: async () => {
             stats.terminated++;
@@ -158,15 +227,14 @@ test("a large image reads one pass at a time and replaces each worker it grew", 
       .toBuffer();
     let retiredBeforeClose = 0;
     try {
-      expect(await ocr.recognize(image)).toBe("faint");
+      expect(await ocr.recognize(image)).toBe("faint print");
       retiredBeforeClose = stats.terminated;
     } finally {
       await ocr.close();
     }
-    // 3 page modes, contrast and 6 rotations. Large passes run one at a time, and
-    // every worker that read one was shut down rather than kept.
+    // Every worker that read a large copy was shut down rather than kept.
     expect(stats.calls).toBe(10);
-    expect(stats.peak).toBe(peak);
+    expect(stats.peak > 1).toBe(retired === 0);
     expect(retiredBeforeClose).toBe(retired);
     expect(stats.terminated).toBe(stats.created);
   }
@@ -175,14 +243,14 @@ test("a large image reads one pass at a time and replaces each worker it grew", 
 test("an idle pool shuts its workers down and the next file starts fresh ones", async () => {
   const cacheDirectory = mkdtempSync(join(tmpdir(), "inkling-tesseract-idle-"));
   roots.push(cacheDirectory);
-  const stats = { created: 0, terminated: 0 };
-  let bothTerminated!: () => void;
+  const stats = { created: 0 };
+  let workerTerminated!: () => void;
   const terminated = new Promise<void>((resolve) => {
-    bothTerminated = resolve;
+    workerTerminated = resolve;
   });
   const ocr = createTesseractOcr({
     cacheDirectory,
-    workers: 2,
+    workers: 1,
     idleMillis: 0,
     workerFactory: async () => {
       stats.created++;
@@ -192,7 +260,7 @@ test("an idle pool shuts its workers down and the next file starts fresh ones", 
           data: { text: "plenty of clear words in this sample text here", confidence: 95 },
         }),
         terminate: async () => {
-          if (++stats.terminated === 2) bothTerminated();
+          workerTerminated();
         },
       };
     },
@@ -202,7 +270,7 @@ test("an idle pool shuts its workers down and the next file starts fresh ones", 
     await ocr.recognize(bytes);
     await terminated;
     await ocr.recognize(bytes);
-    expect(stats.created).toBe(4);
+    expect(stats.created).toBe(2);
   } finally {
     await ocr.close();
   }
