@@ -202,6 +202,7 @@ export function createPreviewClient(): LibraryClient {
       databasePath: "preview",
       fts5Enabled: false,
       schemaVersion: 0,
+      searchIndexing: false,
       itemCount: ordered(false).length,
     }),
     kindCounts: async () => {

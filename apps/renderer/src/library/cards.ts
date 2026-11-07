@@ -150,5 +150,9 @@ export const useScope = (scope: CardScope) => {
   return useSelector(libraryIndex, (state) => state.scopes.get(key));
 };
 export const useCard = (id: string) => useSelector(libraryIndex, (state) => state.cards.get(id));
+/** Undefined until the first page answers: an unread library is not an empty one. */
 export const useActiveTotal = () =>
-  useSelector(libraryIndex, (state) => state.scopes.get(active)?.total);
+  useSelector(libraryIndex, (state) => {
+    const scope = state.scopes.get(active);
+    return scope?.status === "loading" && scope.total === 0 ? undefined : scope?.total;
+  });

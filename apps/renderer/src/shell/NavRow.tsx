@@ -18,7 +18,7 @@ export function NavLink({
 }: RowLook & {
   icon: ReactNode;
   label: string;
-  count?: number;
+  count?: ReactNode;
   onClick?: () => void;
 } & Pick<LinkProps, "to" | "params">) {
   return (
@@ -43,7 +43,7 @@ export function NavLink({
       )}
       {!compact && count !== undefined && (
         <span data-sidebar-label {...stylex.props(styles.count)}>
-          {count.toLocaleString()}
+          {typeof count === "number" ? count.toLocaleString() : count}
         </span>
       )}
     </Link>
@@ -139,9 +139,10 @@ const styles = stylex.create({
     whiteSpace: "nowrap",
   },
   count: {
+    display: "flex",
+    justifyContent: "flex-end",
     width: "40px",
     flexShrink: 0,
-    textAlign: "right",
     fontFamily: font.mono,
     fontSize: "12px",
     lineHeight: "16px",
