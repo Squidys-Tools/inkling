@@ -12,6 +12,7 @@ import {
   selectCards,
 } from "./rows.ts";
 import { clampLimit } from "./shared.ts";
+import { searchableMetadata } from "./schema.ts";
 import { invalidInput } from "./errors.ts";
 
 const semanticMatchFloor = 0.55;
@@ -106,7 +107,8 @@ export function makeSearch(ctx: StorageContext) {
   const likeClause = (pattern: string, prefix = "") => {
     const column = (name: string) =>
       sql`${sql.literal(`${prefix}${name}`)} COLLATE NOCASE LIKE ${pattern} ESCAPE char(92)`;
-    return sql`(${sql.or(["title", "description", "body", "source_label", "ocr_text", "metadata"].map(column))})`;
+    const metadata = sql`${sql.literal(searchableMetadata(`${prefix}metadata`))} COLLATE NOCASE LIKE ${pattern} ESCAPE char(92)`;
+    return sql`(${sql.or([...["title", "description", "body", "source_label", "ocr_text"].map(column), metadata])})`;
   };
 
   // Every embedding write goes through storeEmbedding, which bumps the generation;
@@ -207,9 +209,11 @@ export function makeSearch(ctx: StorageContext) {
     if (ctx.fts5Enabled) {
       const match = escapeFtsQuery(search);
       if (match) {
-        rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)}
-          FROM items_fts f JOIN items i ON i.id = f.item_id
-          WHERE i.archived = 0 AND ${allowed("i.id")} AND items_fts MATCH ${match}
+        // Filtering items by an index rowid set lets SQLite walk idx_items_active_updated and stop
+        // at the limit. Joining each match first reads every match's whole row, metadata included.
+        rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM items i
+          WHERE i.archived = 0 AND ${allowed("i.id")}
+          AND i.rowid IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ${match})
           ORDER BY i.updated_at DESC, i.created_at DESC LIMIT ${cap}`;
       }
     } else {

@@ -6,9 +6,11 @@ import * as ort from "onnxruntime-node";
 import { IMAGE_DIMENSION, IMAGE_MODEL, TEXT_DIMENSION, TEXT_MODEL } from "@inkling/contracts/jobs";
 import { downloadModelAsset, hasSha256, type ModelAsset } from "./model-assets.ts";
 import models from "./model-manifest.json" with { type: "json" };
-import { sharpImageInput, validateImageDimensions } from "./thumbnail.ts";
+import { startTextInference } from "./text-inference.ts";
+import { maxImagePixels, sharpImageInput } from "./thumbnail.ts";
 
 const maxTokens = 8192;
+const documentLaneIdleMillis = 30_000;
 const imageEdge = 224;
 const imageMean = [0.4814547, 0.4578275, 0.4082107];
 const imageStd = [0.26862954, 0.2613026, 0.2757771];
@@ -101,9 +103,7 @@ export function hasEmbeddableCharacters(value: string) {
 
 async function imageTensor(bytes: Buffer) {
   const input = await sharpImageInput(bytes);
-  const { width, height } = await sharp(input, { limitInputPixels: 32_000_000 }).metadata();
-  validateImageDimensions(width, height);
-  const { data } = await sharp(input, { limitInputPixels: 32_000_000 })
+  const { data } = await sharp(input, { limitInputPixels: maxImagePixels })
     .rotate()
     .resize(imageEdge, imageEdge, { fit: "cover", kernel: "cubic" })
     .removeAlpha()
@@ -121,14 +121,11 @@ async function imageTensor(bytes: Buffer) {
   return values;
 }
 
-type TextRuntime = { tokenizer: TokenizerLike; session: ort.InferenceSession };
+type TextRuntime = { tokenizer: TokenizerLike; infer: ReturnType<typeof startTextInference> };
 
 export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelDirectory?: string) {
   const modelCache = resolve(modelCacheDirectory);
   const bundledModels = bundledModelDirectory ? resolve(bundledModelDirectory) : null;
-  let textRuntimePromise: Promise<TextRuntime> | undefined;
-  let textQueryRuntimePromise: Promise<TextRuntime> | undefined;
-  let textRuntime: TextRuntime | undefined;
   let imageSessionPromise: Promise<ort.InferenceSession> | undefined;
 
   const modelAsset = (name: string, asset: ModelAsset, allowDownload: boolean) =>
@@ -139,7 +136,7 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
       bundledModels ? join(bundledModels, name, asset.path) : undefined,
     );
 
-  async function openTextRuntime(allowDownload: boolean): Promise<TextRuntime> {
+  async function openTextModel(allowDownload: boolean) {
     const { name, model, tokenizer: tokenizerAsset } = models.text;
     const [modelPath, tokenizerPath] = await Promise.all([
       modelAsset(name, model, allowDownload),
@@ -147,35 +144,39 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     ]);
     const tokenizerJson = JSON.parse(await readFile(tokenizerPath, "utf8"));
     const tokenizer = new Tokenizer(tokenizerJson, {});
-    // Documents vary in length, so an arena would keep the peak of the longest one.
-    const session = await ort.InferenceSession.create(modelPath, { enableCpuMemArena: false });
-    return { tokenizer, session };
+    return { tokenizer, modelPath };
   }
 
-  const keepTextRuntime = (runtime: TextRuntime) => (textRuntime ??= runtime);
-
-  function loadTextRuntime(allowDownload: boolean) {
-    if (allowDownload) {
-      textRuntimePromise ??= (async () => {
-        const cachedRuntime = textQueryRuntimePromise
-          ? await textQueryRuntimePromise.catch(() => null)
-          : null;
-        return cachedRuntime ?? openTextRuntime(true);
-      })()
-        .then(keepTextRuntime)
+  // Each lane has its own thread: a search must not queue behind a document's window, which
+  // can take a minute, when it has five seconds before it falls back to text alone. Each thread
+  // holds 160 MB, so the document lane closes between runs; search stays open to answer at once.
+  function textLane(allowDownload: boolean, idleMillis?: number) {
+    let runtime: TextRuntime | undefined;
+    let opening: Promise<TextRuntime> | undefined;
+    return () =>
+      runtime ??
+      (opening ??= openTextModel(allowDownload)
+        .then(({ tokenizer, modelPath }) => {
+          // A stopped thread answers nothing more, so the next embedding opens a new one.
+          const started: TextRuntime = {
+            tokenizer,
+            infer: startTextInference(
+              modelPath,
+              () => {
+                if (runtime === started) runtime = undefined;
+              },
+              { idleMillis },
+            ),
+          };
+          runtime = started;
+          return started;
+        })
         .finally(() => {
-          textRuntimePromise = undefined;
-        });
-      return textRuntimePromise;
-    }
-    textQueryRuntimePromise ??= openTextRuntime(false)
-      .then(keepTextRuntime)
-      .catch((error) => {
-        textQueryRuntimePromise = undefined;
-        throw error;
-      });
-    return textQueryRuntimePromise;
+          opening = undefined;
+        }));
   }
+  const documentLane = textLane(true, documentLaneIdleMillis);
+  const queryLane = textLane(false);
 
   async function openImageSession() {
     const { name, model } = models.image;
@@ -186,36 +187,26 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     });
   }
 
-  async function embedText(text: string, prefix = "search_document:", allowDownload = true) {
+  async function embedText(text: string, prefix = "search_document:", lane = documentLane) {
     const content = text.trim();
     if (!content || !hasEmbeddableCharacters(content))
-      throw new Error("text contains no embeddable characters");
-    const { tokenizer, session } = textRuntime ?? (await loadTextRuntime(allowDownload));
-    const tensor = (values: number[]) =>
-      new ort.Tensor(
-        "int64",
-        BigInt64Array.from(values, (value) => BigInt(value)),
-        [1, values.length],
-      );
+      throw Object.assign(new Error("text contains no embeddable characters"), { permanent: true });
+    const { tokenizer, infer } = await lane();
     // Mean of every token's state across all windows; one window is the plain mean pool.
     const vector = new Float32Array(TEXT_DIMENSION);
     let tokens = 0;
-    for (const { ids, typeIds, mask } of textTokenWindows(tokenizer, `${prefix} ${content}`)) {
-      const output = await session.run({
-        input_ids: tensor(ids),
-        token_type_ids: tensor(typeIds),
-        attention_mask: tensor(mask),
-      });
-      const hidden = output.last_hidden_state as ort.Tensor | undefined;
+    for (const window of textTokenWindows(tokenizer, `${prefix} ${content}`)) {
+      const { ids } = window;
+      const { dims, data: hiddenData } = await infer(window);
       if (
-        hidden?.dims.length !== 3 ||
-        hidden.dims[0] !== 1 ||
-        hidden.dims[1] !== ids.length ||
-        hidden.dims[2] !== TEXT_DIMENSION
+        !hiddenData ||
+        dims?.length !== 3 ||
+        dims[0] !== 1 ||
+        dims[1] !== ids.length ||
+        dims[2] !== TEXT_DIMENSION
       ) {
-        throw new Error(`Nomic text output has unexpected shape ${JSON.stringify(hidden?.dims)}`);
+        throw new Error(`Nomic text output has unexpected shape ${JSON.stringify(dims)}`);
       }
-      const hiddenData = hidden.data as Float32Array;
       for (let tokenIndex = 0; tokenIndex < ids.length; tokenIndex += 1) {
         const offset = tokenIndex * TEXT_DIMENSION;
         for (let dimension = 0; dimension < TEXT_DIMENSION; dimension += 1) {
@@ -258,7 +249,7 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
 
   return {
     embedText,
-    embedQuery: (text: string) => embedText(text, "search_query:", false),
+    embedQuery: (text: string) => embedText(text, "search_query:", queryLane),
     embedImage,
   };
 }

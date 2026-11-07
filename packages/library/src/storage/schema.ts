@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { storageFailure } from "./errors.ts";
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 11;
 
 const itemsSchema = `
 CREATE TABLE IF NOT EXISTS items (
@@ -141,7 +141,8 @@ function migrateItemColumns(db: DatabaseSync, migrationNeeded: boolean) {
     for (const row of rows) {
       const body = row.body?.trim() ? row.body : row.kind === "note" ? (row.description ?? "") : "";
       const bodyFormat = row.body_format?.trim() ? row.body_format : "md";
-      update.run(body, bodyFormat, row.id);
+      // A row holds its full metadata, so rewriting one that did not change is not free.
+      if (body !== row.body || bodyFormat !== row.body_format) update.run(body, bodyFormat, row.id);
     }
     db.exec("COMMIT");
   } catch (error) {
@@ -150,50 +151,91 @@ function migrateItemColumns(db: DatabaseSync, migrationNeeded: boolean) {
   }
 }
 
+// The metadata words search matches: what the user wrote or saved, never JSON keys, HTML tags or
+// bookkeeping. metadata.html is the markup of metadata.text. Unparseable legacy metadata is
+// indexed as it is, because a JSON error here would fail the write that fired the trigger.
+export const searchableMetadata = (column: string) => `CASE WHEN json_valid(${column}) THEN (
+  SELECT group_concat(atom, ' ') FROM json_tree(${column})
+  WHERE fullkey IN ('$.text', '$.quoteText', '$.attribution', '$.author', '$.publishedDate',
+      '$.fileName', '$.sourceUrl', '$.social.authorName', '$.social.authorHandle', '$.social.text')
+    OR path = '$.tags'
+    OR (fullkey = '$.extractedText' AND atom IS NOT json_extract(${column}, '$.text'))
+) ELSE ${column} END`;
+
+function dropFts(db: DatabaseSync) {
+  db.exec(`
+    DROP TRIGGER IF EXISTS items_fts_after_insert;
+    DROP TRIGGER IF EXISTS items_fts_after_update;
+    DROP TRIGGER IF EXISTS items_fts_after_delete;
+    DROP TABLE IF EXISTS items_fts;
+  `);
+}
+
+const indexColumns = "rowid, item_id, title, description, source_label, ocr_text, metadata, body";
+const indexedValues = (
+  where: string,
+) => `SELECT rowid, id, title, description, source_label, ocr_text,
+  ${searchableMetadata("metadata")}, body FROM items i WHERE ${where}
+  AND NOT EXISTS (SELECT 1 FROM items_fts f WHERE f.rowid = i.rowid)`;
+
+// While this setting exists the index is partial: the triggers keep every item they touch
+// indexed, and Library.buildSearchIndex adds the rest, so a library opens without waiting for it.
+export const searchIndexPendingKey = "search_index_pending";
+
+export const searchIndexBatch = (rowids: string) =>
+  `INSERT INTO items_fts(${indexColumns}) ${indexedValues(`i.rowid IN (${rowids})`)}`;
+
 function setupFts(db: DatabaseSync) {
   try {
     db.exec("BEGIN IMMEDIATE");
-    const exists = Boolean(
+    let exists = Boolean(
       db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'items_fts'").get(),
     );
-    const hasBody = exists && tableHasColumn(db, "items_fts", "body");
-    if (exists && !hasBody) {
-      db.exec(`
-        DROP TRIGGER IF EXISTS items_fts_after_insert;
-        DROP TRIGGER IF EXISTS items_fts_after_update;
-        DROP TRIGGER IF EXISTS items_fts_after_delete;
-        DROP TABLE IF EXISTS items_fts;
-      `);
+    const pending = db
+      .prepare("SELECT 1 FROM app_settings WHERE key = ?")
+      .get(searchIndexPendingKey);
+    if (exists && !pending) {
+      const itemCount = (db.prepare("SELECT COUNT(*) AS count FROM items").get() as Row).count;
+      const indexedCount = (db.prepare("SELECT COUNT(*) AS count FROM items_fts").get() as Row)
+        .count;
+      if (itemCount !== indexedCount) {
+        dropFts(db);
+        exists = false;
+      }
     }
+    // An index row shares its item's rowid: item_id is UNINDEXED, so finding a row by it reads
+    // every item's text. items has no INTEGER PRIMARY KEY, so a plain VACUUM of the live library
+    // could renumber its rowids and would have to rebuild this index.
     db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
         item_id UNINDEXED, title, description, source_label, ocr_text, metadata, body
       );
       DROP TRIGGER IF EXISTS items_fts_after_insert;
       CREATE TRIGGER items_fts_after_insert AFTER INSERT ON items BEGIN
-        INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
-        VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata, new.body);
+        INSERT INTO items_fts(rowid, item_id, title, description, source_label, ocr_text, metadata, body)
+        VALUES (new.rowid, new.id, new.title, new.description, new.source_label, new.ocr_text, ${searchableMetadata("new.metadata")}, new.body);
       END;
       DROP TRIGGER IF EXISTS items_fts_after_delete;
       CREATE TRIGGER items_fts_after_delete AFTER DELETE ON items BEGIN
-        DELETE FROM items_fts WHERE item_id = old.id;
+        DELETE FROM items_fts WHERE rowid = old.rowid;
       END;
       DROP TRIGGER IF EXISTS items_fts_after_update;
-      CREATE TRIGGER items_fts_after_update AFTER UPDATE ON items BEGIN
-        DELETE FROM items_fts WHERE item_id = old.id;
-        INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
-        VALUES (new.id, new.title, new.description, new.source_label, new.ocr_text, new.metadata, new.body);
+      CREATE TRIGGER items_fts_after_update
+      AFTER UPDATE OF title, description, source_label, ocr_text, metadata, body ON items
+      WHEN old.title IS NOT new.title OR old.description IS NOT new.description
+        OR old.source_label IS NOT new.source_label OR old.ocr_text IS NOT new.ocr_text
+        OR old.body IS NOT new.body
+        OR ${searchableMetadata("old.metadata")} IS NOT ${searchableMetadata("new.metadata")}
+      BEGIN
+        DELETE FROM items_fts WHERE rowid = old.rowid;
+        INSERT INTO items_fts(rowid, item_id, title, description, source_label, ocr_text, metadata, body)
+        VALUES (new.rowid, new.id, new.title, new.description, new.source_label, new.ocr_text, ${searchableMetadata("new.metadata")}, new.body);
       END;
     `);
-    const itemCount = (db.prepare("SELECT COUNT(*) AS count FROM items").get() as Row).count;
-    const indexedCount = (db.prepare("SELECT COUNT(*) AS count FROM items_fts").get() as Row).count;
-    if (!exists || !hasBody || itemCount !== indexedCount) {
-      db.exec(`
-        DELETE FROM items_fts;
-        INSERT INTO items_fts(item_id, title, description, source_label, ocr_text, metadata, body)
-        SELECT id, title, description, source_label, ocr_text, metadata, body FROM items;
-      `);
-    }
+    if (!exists && db.prepare("SELECT 1 FROM items LIMIT 1").get())
+      db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, '1')").run(
+        searchIndexPendingKey,
+      );
     db.exec("COMMIT");
     return true;
   } catch {
@@ -220,13 +262,10 @@ export function openDatabase(databasePath: string, { syncToDisk = true } = {}) {
     try {
       db.exec("ALTER TABLE items ADD COLUMN ocr_text TEXT NOT NULL DEFAULT ''");
     } catch {}
-    db.exec(`
-      DROP TRIGGER IF EXISTS items_fts_after_insert;
-      DROP TRIGGER IF EXISTS items_fts_after_update;
-      DROP TRIGGER IF EXISTS items_fts_after_delete;
-      DROP TABLE IF EXISTS items_fts;
-    `);
   }
+  // Before the backfill below: its per-row updates would otherwise each fire the old trigger,
+  // which scans the whole library. setupFts starts a new index on item rowids afterwards.
+  if (version < 11) dropFts(db);
   db.exec(jobsSchema);
   ensureColumns(db, "jobs", [
     ["worker_id", "TEXT"],

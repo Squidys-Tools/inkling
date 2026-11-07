@@ -13,12 +13,16 @@ export const TEXT_DIMENSION = 768;
 export const IMAGE_MODEL = "nomic-embed-vision-v1.5-sharp";
 export const IMAGE_DIMENSION = 768;
 
-// onnxruntime keeps a device ID and uploads usage events to Microsoft unless this is set.
-// It decides once, as it first starts, so the worker gets it when it is forked.
-export const WORKER_ENVIRONMENT = { ORT_DISABLE_TELEMETRY: "1" };
+// ORT_DISABLE_TELEMETRY: onnxruntime decides once, as it first starts, so it must be set at fork.
+// UV_THREADPOOL_SIZE: libuv's default four threads are shared by sharp, file reads, DNS and the
+// zlib that decodes page bodies, so image jobs held a download past its 15 s budget. Keep it
+// above the lanes in `jobLanesLayer`.
+export const WORKER_ENVIRONMENT = { ORT_DISABLE_TELEMETRY: "1", UV_THREADPOOL_SIZE: "16" };
 
 export class WorkerError extends Schema.TaggedError<WorkerError>()("WorkerError", {
   message: Schema.String,
+  // Trying again would fail the same way, so the job stops at once.
+  permanent: Schema.optional(Schema.Boolean),
 }) {}
 
 const Text = Schema.String;

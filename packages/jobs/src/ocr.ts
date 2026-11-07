@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { createWorker } from "tesseract.js";
-import { sharpImageInput } from "./thumbnail.ts";
+import { maxImagePixels, sharpImageInput } from "./thumbnail.ts";
 
 const tesseractEntry = fileURLToPath(import.meta.resolve("tesseract.js"));
 const tesseractDirectory = dirname(tesseractEntry);
@@ -26,7 +26,7 @@ type OcrWorkerFactory = (
 ) => Promise<OcrWorker>;
 
 // Each Tesseract worker reads on one core, so a few of them read several images,
-// and the page modes and rotations of one image, at once. Each can hold hundreds of
+// and the rotations of one image, at once. Each can hold hundreds of
 // megabytes: one per three cores and per 4 GB of memory, but at least two and at most four.
 const defaultOcrWorkers = () =>
   Math.min(
@@ -34,10 +34,16 @@ const defaultOcrWorkers = () =>
     Math.max(2, Math.min(Math.floor(availableParallelism() / 3), Math.floor(totalmem() / 4e9))),
   );
 
-// Tesseract's heap grows to the largest image a worker has read and never
-// shrinks, so passes over a large image run one at a time and the
-// worker that ran one is replaced afterwards. Small images keep the full pool.
-const LARGE_OCR_PIXELS = 6_000_000;
+// Larger images are read at this size. In our benchmark of real photos, reads at
+// 12 MP and at full size found fewer words than 6 MP and took far longer.
+const OCR_PIXELS = 6_000_000;
+// A full-page screenshot shrunk to that size lost 98% of its words, so an image longer
+// than 16:9 keeps the short edge a 16:9 image has at that size.
+const MIN_OCR_EDGE = Math.sqrt((OCR_PIXELS * 9) / 16);
+// Past this, every pass would hold gigabytes.
+const MAX_OCR_PIXELS = 33_554_432;
+// Tesseract's heap grows to the largest image a worker has read and never shrinks,
+// so a pass over more than OCR_PIXELS runs alone and its worker is then replaced.
 const LARGE_OCR_PASSES = 1;
 
 export function createTesseractOcr({
@@ -161,9 +167,8 @@ export function createTesseractOcr({
       if (large) releaseLarge();
     }
   }
-  // Every pass of a stage runs at once; results are then judged in the original
-  // order, so ties resolve exactly as the serial loop did. The first failure in
-  // that order fails the image, after its siblings have settled.
+  // The passes run at once and are judged in the order given, so a tie never depends on
+  // which finished first. The first failure in that order fails the image, after its siblings settle.
   async function passes(runs: Promise<Awaited<ReturnType<typeof pass>>>[]) {
     const results = await Promise.allSettled(runs);
     return results.map((result) => {
@@ -175,16 +180,30 @@ export function createTesseractOcr({
   async function recognizeImage(input: Buffer) {
     // Decoded before the worker: tesseract.js can otherwise emit an uncaught
     // main-process exception for corrupt bytes.
-    const image = await sharp(await sharpImageInput(input))
-      .png()
+    const source = sharp(await sharpImageInput(input), { limitInputPixels: maxImagePixels });
+    const { width: sourceWidth, height: sourceHeight } = (await source.metadata()).autoOrient;
+    const sourcePixels = sourceWidth * sourceHeight;
+    const scale = Math.min(
+      1,
+      Math.sqrt(MAX_OCR_PIXELS / sourcePixels),
+      Math.max(
+        Math.sqrt(OCR_PIXELS / sourcePixels),
+        MIN_OCR_EDGE / Math.min(sourceWidth, sourceHeight),
+      ),
+    );
+    const [width, height] = [Math.floor(sourceWidth * scale), Math.floor(sourceHeight * scale)];
+    // Tesseract only needs lossless bytes in a format it reads, so it gets the fastest PNG.
+    const image = await source
+      .rotate()
+      .resize(scale < 1 ? { width, height, fit: "fill" } : {})
+      .png({ compressionLevel: 1 })
       .toBuffer();
-    const { width = 0, height = 0 } = await sharp(image).metadata();
-    const large = width * height >= LARGE_OCR_PIXELS;
+    const large = width * height > OCR_PIXELS;
     // A rotated copy is read on its bounding canvas, about 1.5 times the pixels at 15 degrees.
     const largeAt = (angle: number) => {
       const radians = (Math.abs(angle) * Math.PI) / 180;
       const [cos, sin] = [Math.cos(radians), Math.sin(radians)];
-      return (width * cos + height * sin) * (width * sin + height * cos) >= LARGE_OCR_PIXELS;
+      return (width * cos + height * sin) * (width * sin + height * cos) > OCR_PIXELS;
     };
     let bestText = "";
     let bestQuality = -1;
@@ -201,16 +220,29 @@ export function createTesseractOcr({
         bestConfidence = result.data.confidence;
       }
     }
-    for (const result of await passes([3, 6, 7].map((psm) => pass(image, psm, large))))
-      consider(result);
+    const readClearly = () => bestWordCount >= 8 && bestConfidence >= 70;
+    for (const psm of [3, 6, 7]) {
+      consider(await pass(image, psm, large));
+      if (readClearly()) return bestText;
+    }
     if (bestWordCount === 0 || bestConfidence < 70) {
-      const highContrast = await sharp(image).grayscale().threshold(225).png().toBuffer();
+      const highContrast = await sharp(image)
+        .grayscale()
+        .threshold(225)
+        .png({ compressionLevel: 1 })
+        .toBuffer();
       consider(await pass(highContrast, 6, large));
     }
-    if (bestWordCount < 8 || bestConfidence < 70) {
+    // Most photos have no text and read as one stray word or low-confidence noise.
+    // Straightening needs some real text to work with, and costs six more reads.
+    if (!readClearly() && bestWordCount >= 2 && bestConfidence >= 30) {
       const rotations = [-15, -10, -5, 5, 10, 15].map((angle) =>
         pass(
-          () => sharp(image).rotate(angle, { background: "#ffffff" }).png().toBuffer(),
+          () =>
+            sharp(image)
+              .rotate(angle, { background: "#ffffff" })
+              .png({ compressionLevel: 1 })
+              .toBuffer(),
           6,
           largeAt(angle),
         ),

@@ -114,6 +114,8 @@ export const LibraryStatus = Schema.Struct({
   databasePath: Text,
   fts5Enabled: Schema.Boolean,
   schemaVersion: Schema.Number,
+  // The search index is being built after an upgrade, so search may miss older items for now.
+  searchIndexing: Schema.Boolean,
   itemCount: Schema.Number,
 });
 export type LibraryStatus = typeof LibraryStatus.Type;
@@ -157,5 +159,6 @@ export const LibraryChange = Schema.Union([
   Schema.TaggedStruct("JobsChanged", { itemIds: Schema.Array(Text) }),
   // A restore wrote items, Spaces and jobs at once; every window reads everything again.
   Schema.TaggedStruct("LibraryReplaced", {}),
+  Schema.TaggedStruct("SearchIndexReady", {}),
 ]);
 export type LibraryChange = typeof LibraryChange.Type;

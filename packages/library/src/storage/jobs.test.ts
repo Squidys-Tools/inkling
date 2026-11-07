@@ -124,6 +124,46 @@ test("manual retry restores the full retry budget", async () => {
   });
 });
 
+// regression: a failed job used to retry at once, so a dropped connection spent every attempt.
+test("a retry waits out its delay, and a failure marked permanent does not retry", async () => {
+  let now = 1000;
+  const { library } = await temporaryLibrary({
+    jobQueue: { now: () => now, retryDelaysMillis: [10_000, 30_000, 90_000] },
+  });
+  const insert = library.db.prepare(
+    "INSERT INTO items (id, kind, created_at, updated_at) VALUES (?, 'image', 1, 1)",
+  );
+  insert.run("later-item");
+  insert.run("gone-item");
+  const queue = library.jobs;
+  const jobId = await queue.enqueue("later-item", "ocr_image");
+  // The item's next job keeps its place behind the waiting retry.
+  const nextId = await queue.enqueue("later-item", "generate_embedding");
+
+  for (const delay of [10_000, 30_000, 90_000]) {
+    await queue.claimNext("worker");
+    await queue.fail(jobId, "worker", "offline");
+    now += delay - 1;
+    expect(await queue.claimNext("worker")).toBeNull();
+    now += 1;
+  }
+  expect((await queue.claimNext("worker"))?.id).toBe(jobId);
+  await queue.fail(jobId, "worker", "offline");
+  expect((await queue.claimNext("worker"))?.id).toBe(nextId);
+
+  const goneId = await queue.enqueue("gone-item", "ocr_image");
+  expect((await queue.claimNext("worker"))?.id).toBe(goneId);
+  await queue.fail(goneId, "worker", "too large", { permanent: true });
+  expect((await queue.getForItem("gone-item"))[0]).toMatchObject({
+    status: "failed",
+    retryCount: 0,
+    errorMessage: "too large",
+  });
+  // Trying again by hand starts at once.
+  expect(await queue.retry(goneId)).toBe(true);
+  expect((await queue.claimNext("worker"))?.id).toBe(goneId);
+});
+
 test("silent thumbnail jobs never appear in summaries, counts, or lifecycle events", async () => {
   let now = 10_000;
   const events: string[] = [];
@@ -211,4 +251,18 @@ test("parallel lanes run each item's own jobs one at a time, in the order queued
   expect(await queue.enqueue("first", "generate_embedding")).toBe(embedding);
   expect(await queue.complete(ocr, "lane-b")).toBe(true);
   expect((await queue.claimNext("lane-c", main))?.kind).toBe("generate_embedding");
+
+  // A page's lane takes its download while every main lane is busy on other items, and
+  // the page's embedding still waits for that download on a main lane.
+  insert.run("page");
+  const pageKinds = [...main, "enrich_url"];
+  const download = await queue.enqueue("page", "enrich_url");
+  await queue.enqueue("page", "generate_embedding");
+  expect((await queue.claimNext("pages", ["enrich_url"], pageKinds))?.id).toBe(download);
+  expect(await queue.claimNext("lane-d", pageKinds)).toBeNull();
+  expect(await queue.complete(download, "pages")).toBe(true);
+  expect((await queue.claimNext("lane-d", pageKinds))?.kind).toBe("generate_embedding");
+  // It waits for a main-lane job on its own item: finishing mid-embedding would queue no new one.
+  await queue.enqueue("page", "enrich_url");
+  expect(await queue.claimNext("pages", ["enrich_url"], pageKinds)).toBeNull();
 });

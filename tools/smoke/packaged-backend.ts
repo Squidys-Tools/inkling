@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { Worker } from "node:worker_threads";
 
 // Runs the packaged app's own PDF chunk, OCR worker, sharp and ONNX models on its
 // Electron Node runtime, with no window and no library. Default: the `bun run dist` output.
@@ -147,6 +149,36 @@ if (!process.versions.electron) {
     await inference.release();
     inference = undefined;
     console.log("PASS packaged pinned text model CPU inference");
+
+    // The app embeds on this thread, so its module has to resolve from inside the archive.
+    const thread = new Worker(join(chunks, "text-inference-thread.mjs"), {
+      workerData: { modelPath: join(modelRoot, manifest.text.name, manifest.text.model.path) },
+    });
+    try {
+      const reply = once(thread, "message");
+      thread.postMessage({
+        id: 1,
+        ids: tokens.ids,
+        typeIds: tokens.ids.map(() => 0),
+        mask: tokens.ids.map(() => 1),
+      });
+      const [{ dims, error }] = await reply;
+      assert.deepEqual(dims, [1, tokens.ids.length, 768], error);
+    } finally {
+      await thread.terminate();
+    }
+    console.log("PASS packaged text inference thread");
+
+    // Its failure on a bad address proves the extraction bundle loads inside the archive.
+    const extraction = new Worker(join(chunks, "extract-url-thread.mjs"));
+    try {
+      extraction.postMessage("not a url");
+      const [{ error }] = await once(extraction, "message");
+      assert.match(error, /url/i);
+    } finally {
+      await extraction.terminate();
+    }
+    console.log("PASS packaged page extraction thread");
 
     const pixels = await sharp(thumbnail)
       .resize(224, 224, { fit: "cover" })

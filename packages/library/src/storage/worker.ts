@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Cause, Data, Duration, Effect, Exit, Option, PubSub, Schedule } from "effect";
 import type { Job } from "@inkling/contracts";
+import { WorkerError } from "@inkling/contracts/jobs";
 import { errorMessage } from "./errors.ts";
 import { JOB_LEASE_MILLIS, JobQueue } from "./jobs.ts";
 
@@ -14,6 +15,8 @@ export type Processor<R> = (job: Job, workerId: string) => Effect.Effect<unknown
 
 export type WorkerOptions<R> = {
   processors: Record<string, Processor<R>>;
+  // Kinds whose jobs on the same item this lane waits for, when more than the ones it runs.
+  itemKinds?: ReadonlyArray<string>;
   // A hung model, decoder, or fetch fails its job after this long instead of
   // holding the worker forever. Kinds without an entry get `defaultTimeout`.
   timeouts?: Partial<Record<string, Duration.Input>>;
@@ -29,6 +32,7 @@ const defaultTimeout = Duration.minutes(30);
 
 export const makeWorker = Effect.fnUntraced(function* <R>({
   processors,
+  itemKinds,
   timeouts = {},
   pollInterval = Duration.seconds(5),
   workerId = randomUUID(),
@@ -40,12 +44,12 @@ export const makeWorker = Effect.fnUntraced(function* <R>({
 
   const claim = Effect.gen(function* () {
     yield* ready;
-    const claimed = yield* jobs.claimNext(workerId, kinds);
+    const claimed = yield* jobs.claimNext(workerId, kinds, itemKinds);
     if (claimed || !onIdle) return claimed;
     yield* onIdle().pipe(
       Effect.catchCause((cause) => Effect.logWarning("job backfill failed", cause)),
     );
-    return yield* jobs.claimNext(workerId, kinds);
+    return yield* jobs.claimNext(workerId, kinds, itemKinds);
   });
 
   const heartbeat = (job: Job) =>
@@ -79,8 +83,12 @@ export const makeWorker = Effect.fnUntraced(function* <R>({
           const exit = yield* Effect.exit(restore(process(job)));
           if (Exit.isSuccess(exit)) yield* jobs.complete(job.id, workerId);
           else if (isPostponed(exit.cause)) yield* jobs.release(job.id, workerId);
-          else if (!Cause.hasInterruptsOnly(exit.cause))
-            yield* jobs.fail(job.id, workerId, errorMessage(Cause.squash(exit.cause)));
+          else if (!Cause.hasInterruptsOnly(exit.cause)) {
+            const error = Cause.squash(exit.cause);
+            yield* jobs.fail(job.id, workerId, errorMessage(error), {
+              permanent: error instanceof WorkerError && error.permanent === true,
+            });
+          }
         }),
       ),
     ).pipe(Effect.onInterrupt(() => jobs.release(job.id, workerId).pipe(Effect.ignore)));

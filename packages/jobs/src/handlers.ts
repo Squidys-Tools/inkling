@@ -4,6 +4,7 @@ import { type PdfEvent, WorkerError, WorkerRpcs } from "@inkling/contracts/jobs"
 import type { NormalizedArticle } from "@inkling/ingestion/types";
 import { Effect, Queue, Stream } from "effect";
 import { createEmbeddingEngine } from "./embeddings.ts";
+import { extractUrlOnThread } from "./extract-url.ts";
 import { createTesseractOcr } from "./ocr.ts";
 import type { extractPdfTextByPages } from "./pdf.ts";
 import { createVideoPoster, type ShellThumbnail } from "./video-poster.ts";
@@ -29,7 +30,10 @@ export type WorkerOptions = {
 };
 
 const failure = (cause: unknown) =>
-  new WorkerError({ message: cause instanceof Error ? cause.message : String(cause) });
+  new WorkerError({
+    message: cause instanceof Error ? cause.message : String(cause),
+    permanent: cause instanceof Error && "permanent" in cause && cause.permanent === true,
+  });
 const attempt = <A>(run: () => Promise<A>) => Effect.tryPromise({ try: run, catch: failure });
 const read = (path: string) => attempt(() => readFile(path));
 
@@ -55,7 +59,7 @@ export const makeWorkerHandlers = Effect.fnUntraced(function* ({
   ocr = createTesseractOcr({ cacheDirectory: join(modelCacheDirectory, "tesseract") }),
   embeddings = createEmbeddingEngine(modelCacheDirectory, bundledModelDirectory),
   extractPdf,
-  extractUrl = (url) => import("@inkling/ingestion").then(({ ingestUrl }) => ingestUrl(url)),
+  extractUrl = extractUrlOnThread,
   shell,
   videoDecoderPath,
 }: WorkerOptions) {
