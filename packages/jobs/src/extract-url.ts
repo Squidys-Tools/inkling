@@ -26,32 +26,38 @@ export function createUrlExtractor({
   idleMillis = threadIdleMillis,
   startThread = () => new Worker(threadUrl),
 }: { idleMillis?: number; startThread?: () => Worker } = {}) {
-  let kept: { thread: Worker; forget: () => void } | undefined;
+  let kept: { thread: Worker; timer: ReturnType<typeof setTimeout> } | undefined;
+
+  const forget = (thread: Worker) => {
+    if (kept?.thread !== thread) return;
+    clearTimeout(kept.timer);
+    kept = undefined;
+  };
+
+  const start = () => {
+    const thread = startThread();
+    // Node can deliver a thread's error after its reply, even while terminating it. Without a
+    // listener for the thread's whole life, that error would throw in the process running every
+    // job. A thread that dies between pages must not be handed the next one either.
+    thread.on("error", () => forget(thread));
+    thread.once("exit", () => forget(thread));
+    return thread;
+  };
 
   const keep = (thread: Worker) => {
     if (kept) return void thread.terminate();
     const timer = setTimeout(() => {
-      kept?.forget();
+      forget(thread);
       void thread.terminate();
     }, idleMillis);
     timer.unref();
-    const forget = () => {
-      clearTimeout(timer);
-      thread.off("exit", forget);
-      thread.off("error", forget);
-      kept = undefined;
-    };
-    // A kept thread that dies between pages must not be handed the next one, and with no listener
-    // its uncaught error would throw here, in the process running every other job.
-    thread.once("exit", forget);
-    thread.once("error", forget);
-    kept = { thread, forget };
+    kept = { thread, timer };
   };
 
   const take = () => {
-    if (!kept) return startThread();
-    const { thread, forget } = kept;
-    forget();
+    if (!kept) return start();
+    const { thread } = kept;
+    forget(thread);
     return thread;
   };
 

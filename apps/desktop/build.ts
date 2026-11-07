@@ -24,7 +24,7 @@ const results = await Promise.all([
       outdir,
       target: "node",
       format: "esm",
-      // Lazy imports (PDF, thumbnails, URL extraction) become chunks loaded on first use.
+      // Lazy imports (PDF, thumbnails) become chunks loaded on first use.
       // The module's name stays in the chunk's, so the packaged smokes find `worker-pdf-*.mjs`.
       splitting: true,
       naming: { entry: `${name}.mjs`, chunk: `${name}-[name]-[hash].mjs` },

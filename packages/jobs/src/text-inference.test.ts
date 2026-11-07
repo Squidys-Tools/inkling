@@ -21,6 +21,8 @@ test("a lane closes only once idle, never with a window waiting, and frees its t
     const { promise: stopped, resolve } = Promise.withResolvers<void>();
     const infer = startTextInference("unused", resolve, { idleMillis: 50, thread });
     const window = { ids: [1], typeIds: [0], mask: [1] };
+    // A long document sends its next window as the previous reply lands; it must not be closed.
+    await infer(window);
     await infer(window);
     await stopped;
     await exited;
