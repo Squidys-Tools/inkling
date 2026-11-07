@@ -6,6 +6,7 @@ import * as ort from "onnxruntime-node";
 import { IMAGE_DIMENSION, IMAGE_MODEL, TEXT_DIMENSION, TEXT_MODEL } from "@inkling/contracts/jobs";
 import { downloadModelAsset, hasSha256, type ModelAsset } from "./model-assets.ts";
 import models from "./model-manifest.json" with { type: "json" };
+import { startTextInference } from "./text-inference.ts";
 import { maxImagePixels, sharpImageInput } from "./thumbnail.ts";
 
 const maxTokens = 8192;
@@ -119,7 +120,10 @@ async function imageTensor(bytes: Buffer) {
   return values;
 }
 
-type TextRuntime = { tokenizer: TokenizerLike; session: ort.InferenceSession };
+type TextRuntime = ReturnType<typeof startTextInference> & {
+  tokenizer: TokenizerLike;
+  stopped: boolean;
+};
 
 export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelDirectory?: string) {
   const modelCache = resolve(modelCacheDirectory);
@@ -145,12 +149,27 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     ]);
     const tokenizerJson = JSON.parse(await readFile(tokenizerPath, "utf8"));
     const tokenizer = new Tokenizer(tokenizerJson, {});
-    // Documents vary in length, so an arena would keep the peak of the longest one.
-    const session = await ort.InferenceSession.create(modelPath, { enableCpuMemArena: false });
-    return { tokenizer, session };
+    // A stopped thread answers nothing more, so the next embedding opens a new one.
+    const runtime: TextRuntime = {
+      tokenizer,
+      stopped: false,
+      ...startTextInference(modelPath, () => {
+        runtime.stopped = true;
+        if (textRuntime === runtime) textRuntime = undefined;
+        textQueryRuntimePromise = undefined;
+      }),
+    };
+    return runtime;
   }
 
-  const keepTextRuntime = (runtime: TextRuntime) => (textRuntime ??= runtime);
+  // A thread can stop before its open resolves, and keeping it then would fail every later embed.
+  // A search during a document's first open starts a second thread; the one not kept must end.
+  const keepTextRuntime = (runtime: TextRuntime) => {
+    if (runtime.stopped) return runtime;
+    textRuntime ??= runtime;
+    if (textRuntime !== runtime) runtime.close();
+    return textRuntime;
+  };
 
   function loadTextRuntime(allowDownload: boolean) {
     if (allowDownload) {
@@ -188,32 +207,22 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     const content = text.trim();
     if (!content || !hasEmbeddableCharacters(content))
       throw Object.assign(new Error("text contains no embeddable characters"), { permanent: true });
-    const { tokenizer, session } = textRuntime ?? (await loadTextRuntime(allowDownload));
-    const tensor = (values: number[]) =>
-      new ort.Tensor(
-        "int64",
-        BigInt64Array.from(values, (value) => BigInt(value)),
-        [1, values.length],
-      );
+    const { tokenizer, infer } = textRuntime ?? (await loadTextRuntime(allowDownload));
     // Mean of every token's state across all windows; one window is the plain mean pool.
     const vector = new Float32Array(TEXT_DIMENSION);
     let tokens = 0;
-    for (const { ids, typeIds, mask } of textTokenWindows(tokenizer, `${prefix} ${content}`)) {
-      const output = await session.run({
-        input_ids: tensor(ids),
-        token_type_ids: tensor(typeIds),
-        attention_mask: tensor(mask),
-      });
-      const hidden = output.last_hidden_state as ort.Tensor | undefined;
+    for (const window of textTokenWindows(tokenizer, `${prefix} ${content}`)) {
+      const { ids } = window;
+      const { dims, data: hiddenData } = await infer(window);
       if (
-        hidden?.dims.length !== 3 ||
-        hidden.dims[0] !== 1 ||
-        hidden.dims[1] !== ids.length ||
-        hidden.dims[2] !== TEXT_DIMENSION
+        !hiddenData ||
+        dims?.length !== 3 ||
+        dims[0] !== 1 ||
+        dims[1] !== ids.length ||
+        dims[2] !== TEXT_DIMENSION
       ) {
-        throw new Error(`Nomic text output has unexpected shape ${JSON.stringify(hidden?.dims)}`);
+        throw new Error(`Nomic text output has unexpected shape ${JSON.stringify(dims)}`);
       }
-      const hiddenData = hidden.data as Float32Array;
       for (let tokenIndex = 0; tokenIndex < ids.length; tokenIndex += 1) {
         const offset = tokenIndex * TEXT_DIMENSION;
         for (let dimension = 0; dimension < TEXT_DIMENSION; dimension += 1) {

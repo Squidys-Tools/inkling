@@ -209,9 +209,11 @@ export function makeSearch(ctx: StorageContext) {
     if (ctx.fts5Enabled) {
       const match = escapeFtsQuery(search);
       if (match) {
-        rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)}
-          FROM items_fts f JOIN items i ON i.id = f.item_id
-          WHERE i.archived = 0 AND ${allowed("i.id")} AND items_fts MATCH ${match}
+        // Filtering items by an index rowid set lets SQLite walk idx_items_active_updated and stop
+        // at the limit. Joining each match first reads every match's whole row, metadata included.
+        rows = yield* sql<ItemRow>`SELECT ${sql.literal(qualifiedItemColumns)} FROM items i
+          WHERE i.archived = 0 AND ${allowed("i.id")}
+          AND i.rowid IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ${match})
           ORDER BY i.updated_at DESC, i.created_at DESC LIMIT ${cap}`;
       }
     } else {

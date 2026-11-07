@@ -8,15 +8,21 @@ function trimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+// Neither provider serves `/oembed.json` on its own host: YouTube answers at
+// `/oembed` and Vimeo under `/api/`, and the wrong paths return an HTML 404.
+export const videoOEmbedUrl = ({ provider, sourceUrl }: VideoLinkEmbed) =>
+  provider === "youtube"
+    ? `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(sourceUrl)}`
+    : `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(sourceUrl)}`;
+
 export async function ingestVideoLink(
   sourceUrl: string,
   videoLink: VideoLinkEmbed,
   fetch: typeof globalThis.fetch | undefined,
   request: RequestLimits,
 ): Promise<NormalizedArticle> {
-  const host = videoLink.provider === "youtube" ? "www.youtube.com" : "vimeo.com";
   const metadata = (await runHttp(
-    fetchJson(`https://${host}/oembed.json?url=${encodeURIComponent(videoLink.sourceUrl)}`, {
+    fetchJson(videoOEmbedUrl(videoLink), {
       ...request,
       timeoutMs: Math.min(request.timeoutMs, 4_000),
     }),
