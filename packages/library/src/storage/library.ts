@@ -12,7 +12,7 @@ import { makeImport } from "./import-library.ts";
 import { makeItems } from "./items.ts";
 import { makePhotoSearch } from "./photo-search.ts";
 import { JobQueue, type JobQueueOptions, makeJobQueue } from "./jobs.ts";
-import { openDatabase, SCHEMA_VERSION } from "./schema.ts";
+import { openDatabase, SCHEMA_VERSION, searchIndexBatch, searchIndexPendingKey } from "./schema.ts";
 import { makeSearch } from "./search.ts";
 import { makeSpaces } from "./spaces.ts";
 
@@ -28,6 +28,10 @@ export type LibraryOptions = {
   // disk sync costs about 100ms on CI disks.
   syncToDisk?: boolean;
 };
+
+// About 50ms of work on long articles, which is as long as a save should wait for its turn.
+const searchIndexBatchSize = 20;
+const searchIndexPause = "10 millis";
 
 const makeLibrary = Effect.fnUntraced(function* (
   databasePath: string,
@@ -49,12 +53,42 @@ const makeLibrary = Effect.fnUntraced(function* (
     media,
   };
   const search = makeSearch(ctx);
+  let searchIndexing =
+    (yield* sql`SELECT 1 FROM app_settings WHERE key = ${searchIndexPendingKey}`).length > 0;
+  const indexItemsBefore = (cursor: number) =>
+    sql.withTransaction(
+      Effect.gen(function* () {
+        const rows = yield* sql<{ rowid: number }>`SELECT rowid FROM items WHERE rowid < ${cursor}
+          ORDER BY rowid DESC LIMIT ${searchIndexBatchSize}`;
+        const rowids = rows.map((row) => row.rowid);
+        if (rowids.length) yield* sql.unsafe(searchIndexBatch(rowids.join(",")));
+        const last = rowids.length < searchIndexBatchSize;
+        if (last) yield* sql`DELETE FROM app_settings WHERE key = ${searchIndexPendingKey}`;
+        return last ? null : (rowids.at(-1) ?? null);
+      }),
+    );
   return {
     status: (): Omit<LibraryStatus, "itemCount"> => ({
       databasePath,
       fts5Enabled,
       schemaVersion: SCHEMA_VERSION,
+      searchIndexing,
     }),
+    /**
+     * Adds the items a new index is missing, newest first, a batch at a time so saves and reads
+     * run in between. Stopping loses nothing: the next start resumes from the pending setting.
+     */
+    buildSearchIndex: () =>
+      Effect.gen(function* () {
+        if (!searchIndexing) return false;
+        let cursor: number | null = Number.MAX_SAFE_INTEGER;
+        while (cursor !== null) {
+          cursor = yield* indexItemsBefore(cursor);
+          if (cursor !== null) yield* Effect.sleep(searchIndexPause);
+        }
+        searchIndexing = false;
+        return true;
+      }),
     hasCompletedOnboarding: () =>
       sql`SELECT 1 FROM app_settings WHERE key = 'onboarding_completed'`.pipe(
         Effect.map((rows) => rows.length > 0),

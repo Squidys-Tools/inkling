@@ -1,4 +1,5 @@
-import { resolve } from "node:path";
+import { mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Effect, Fiber, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -6,6 +7,7 @@ import { SqlError } from "effect/sql/SqlError";
 import { errorMessage } from "./errors.ts";
 import { JobQueue } from "./jobs.ts";
 import { Library, type LibraryOptions, libraryLayer } from "./library.ts";
+import { openDatabase, searchIndexBatch, searchIndexPendingKey } from "./schema.ts";
 import { makeWorker, type WorkerOptions } from "./worker.ts";
 
 type Services = Library | JobQueue | SqlClient.SqlClient;
@@ -42,8 +44,24 @@ function promised<T extends object>(
 // through a second, plain connection to the file.
 export async function openTestLibrary(
   databasePath: string,
-  options: Omit<LibraryOptions, "databasePath" | "appVersion"> & { appVersion?: string } = {},
+  {
+    leaveSearchIndexPending = false,
+    ...options
+  }: Omit<LibraryOptions, "databasePath" | "appVersion"> & {
+    appVersion?: string;
+    leaveSearchIndexPending?: boolean;
+  } = {},
 ) {
+  // The app builds the index behind its first reads; a test sees the finished one unless it asks.
+  if (!leaveSearchIndexPending) {
+    mkdirSync(dirname(resolve(databasePath)), { recursive: true });
+    const { db } = openDatabase(resolve(databasePath), { syncToDisk: false });
+    db.exec(`BEGIN IMMEDIATE;
+      ${searchIndexBatch("SELECT rowid FROM items")};
+      DELETE FROM app_settings WHERE key = '${searchIndexPendingKey}';
+      COMMIT`);
+    db.close();
+  }
   const runtime = ManagedRuntime.make(
     libraryLayer({ databasePath, appVersion: "0.0.0-test", syncToDisk: false, ...options }),
   );

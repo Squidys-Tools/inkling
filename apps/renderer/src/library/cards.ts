@@ -1,6 +1,6 @@
 import type { CardScope, LibraryCard } from "@inkling/contracts";
 import { libraryClient } from "./connection.ts";
-import { assetUrl } from "./assets.ts";
+import { cardAsset } from "./cardModel.ts";
 import { errorMessage } from "./errors.ts";
 import {
   dropScope,
@@ -23,7 +23,7 @@ import { warmThumbnail } from "../cards/thumbnailCache.ts";
 export function warmCards(ids: readonly string[]) {
   for (const id of ids) {
     const card = libraryIndex.get().cards.get(id);
-    const image = card && (assetUrl(card.thumbnailPath) ?? assetUrl(card.localAssetPath));
+    const image = card && cardAsset(card);
     if (image) warmThumbnail(image);
   }
 }
@@ -150,5 +150,9 @@ export const useScope = (scope: CardScope) => {
   return useSelector(libraryIndex, (state) => state.scopes.get(key));
 };
 export const useCard = (id: string) => useSelector(libraryIndex, (state) => state.cards.get(id));
+/** Undefined until the first page answers: an unread library is not an empty one. */
 export const useActiveTotal = () =>
-  useSelector(libraryIndex, (state) => state.scopes.get(active)?.total);
+  useSelector(libraryIndex, (state) => {
+    const scope = state.scopes.get(active);
+    return scope?.status === "loading" && scope.total === 0 ? undefined : scope?.total;
+  });

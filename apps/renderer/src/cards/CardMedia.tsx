@@ -1,4 +1,4 @@
-import { PlayIcon } from "@hugeicons/core-free-icons";
+import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { useLayoutEffect, useRef } from "react";
@@ -93,10 +93,12 @@ export function CardMedia({
   view,
   layout,
   priority,
+  waiting,
 }: {
   view: CardView;
   layout: CardLayout;
   priority: boolean;
+  waiting?: boolean;
 }) {
   const list = layout === "list";
   const box = list ? styles.row : styles.fill;
@@ -141,7 +143,7 @@ export function CardMedia({
       {article ? (
         <ArticleArtwork view={view} showTitle={!list} />
       ) : (
-        <TypedArtworkFor view={view} compact={list} />
+        <TypedArtworkFor view={view} compact={list} waiting={waiting} />
       )}
     </div>
   );

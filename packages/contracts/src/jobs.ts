@@ -21,6 +21,8 @@ export const WORKER_ENVIRONMENT = { ORT_DISABLE_TELEMETRY: "1", UV_THREADPOOL_SI
 
 export class WorkerError extends Schema.TaggedError<WorkerError>()("WorkerError", {
   message: Schema.String,
+  // Trying again would fail the same way, so the job stops at once.
+  permanent: Schema.optional(Schema.Boolean),
 }) {}
 
 const Text = Schema.String;

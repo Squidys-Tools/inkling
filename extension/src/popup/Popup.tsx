@@ -1,4 +1,4 @@
-import { Settings01Icon } from "@hugeicons/core-free-icons";
+import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, IconButton, SegmentedControl, TextField } from "@inkling/ui";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";

@@ -9,7 +9,7 @@ const file = (filename: string, additions: number, deletions = 0) => ({
 });
 
 test.each([
-  ["counts added and removed source lines", [file("a.ts", 20, 15)], "size:M"],
+  ["counts added and removed source lines", [file("a.ts", 20, 15)], "size:S"],
   [
     "leaves tests and test helpers out while source changed",
     [
@@ -20,14 +20,14 @@ test.each([
     ],
     "size:XS",
   ],
-  ["sizes a test-only PR by its test lines", [file("a.test.ts", 120)], "size:L"],
+  ["sizes a test-only PR by its test lines", [file("a.test.ts", 120)], "size:M"],
   [
     "a file named like a test directory is still source",
     [file("test-data/seed.json", 40)],
-    "size:M",
+    "size:S",
   ],
-  ["5000 lines is XXL", [file("a.ts", 5000)], "size:XXL"],
-  ["past 5000 lines", [file("a.ts", 5001)], "what the hell"],
+  ["8750 lines is XXL", [file("a.ts", 8750)], "size:XXL"],
+  ["past 8750 lines", [file("a.ts", 8751)], "what the hell"],
 ])("%s", (_name, files, label) => {
   expect(sizeLabel(files).label).toBe(label);
 });

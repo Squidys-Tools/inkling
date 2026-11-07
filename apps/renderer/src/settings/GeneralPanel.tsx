@@ -1,4 +1,5 @@
-import { LicenseThirdPartyIcon, PlayIcon } from "@hugeicons/core-free-icons";
+import LicenseThirdPartyIcon from "@hugeicons/core-free-icons/LicenseThirdPartyIcon";
+import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
 import { Panel, PanelBody, Row, TextAction } from "./parts.tsx";
 
 export function GeneralPanel({

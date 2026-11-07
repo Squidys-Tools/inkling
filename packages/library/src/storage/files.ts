@@ -66,8 +66,8 @@ export function makeFiles(ctx: StorageContext) {
     if (bytes.length > maxFileBytes)
       return yield* invalidInput("file exceeds the 50 MB input limit");
     if (bytes.length === 0) return yield* invalidInput("file bytes cannot be empty");
-    // Header only: it refuses a non-image or oversized one and gives the card its
-    // shape. Resizing is the image_thumbnail job's work, never capture's.
+    // Header only: it refuses a non-image and gives the card its shape.
+    // Resizing is the image_thumbnail job's work, never capture's.
     const inspectImage = ctx.media.inspectImage;
     const size =
       kind === "image" && inspectImage ? yield* attempt(() => inspectImage(bytes)) : null;

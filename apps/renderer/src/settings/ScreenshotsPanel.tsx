@@ -1,4 +1,5 @@
-import { Camera01Icon, Folder01Icon } from "@hugeicons/core-free-icons";
+import Camera01Icon from "@hugeicons/core-free-icons/Camera01Icon";
+import Folder01Icon from "@hugeicons/core-free-icons/Folder01Icon";
 import type { ScreenshotImportState } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

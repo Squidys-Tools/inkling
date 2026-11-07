@@ -1,12 +1,10 @@
 import { Menu } from "@base-ui/react/menu";
-import {
-  Bookmark01Icon,
-  Camera01Icon,
-  FileTextIcon,
-  Image01Icon,
-  Link01Icon,
-  PlusSignIcon,
-} from "@hugeicons/core-free-icons";
+import Bookmark01Icon from "@hugeicons/core-free-icons/Bookmark01Icon";
+import Camera01Icon from "@hugeicons/core-free-icons/Camera01Icon";
+import FileTextIcon from "@hugeicons/core-free-icons/FileTextIcon";
+import Image01Icon from "@hugeicons/core-free-icons/Image01Icon";
+import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
+import PlusSignIcon from "@hugeicons/core-free-icons/PlusSignIcon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";

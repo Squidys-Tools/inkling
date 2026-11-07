@@ -141,7 +141,8 @@ function migrateItemColumns(db: DatabaseSync, migrationNeeded: boolean) {
     for (const row of rows) {
       const body = row.body?.trim() ? row.body : row.kind === "note" ? (row.description ?? "") : "";
       const bodyFormat = row.body_format?.trim() ? row.body_format : "md";
-      update.run(body, bodyFormat, row.id);
+      // A row holds its full metadata, so rewriting one that did not change is not free.
+      if (body !== row.body || bodyFormat !== row.body_format) update.run(body, bodyFormat, row.id);
     }
     db.exec("COMMIT");
   } catch (error) {
@@ -154,10 +155,11 @@ function migrateItemColumns(db: DatabaseSync, migrationNeeded: boolean) {
 // bookkeeping. metadata.html is the markup of metadata.text. Unparseable legacy metadata is
 // indexed as it is, because a JSON error here would fail the write that fired the trigger.
 export const searchableMetadata = (column: string) => `CASE WHEN json_valid(${column}) THEN (
-  SELECT group_concat(atom, ' ') FROM json_tree(${column}) WHERE atom IS NOT NULL AND (
-    fullkey IN ('$.text', '$.quoteText', '$.attribution', '$.author', '$.publishedDate', '$.fileName',
-      '$.sourceUrl', '$.social.authorName', '$.social.authorHandle', '$.social.text') OR path = '$.tags'
-    OR (fullkey = '$.extractedText' AND atom IS NOT json_extract(${column}, '$.text')))
+  SELECT group_concat(atom, ' ') FROM json_tree(${column})
+  WHERE fullkey IN ('$.text', '$.quoteText', '$.attribution', '$.author', '$.publishedDate',
+      '$.fileName', '$.sourceUrl', '$.social.authorName', '$.social.authorHandle', '$.social.text')
+    OR path = '$.tags'
+    OR (fullkey = '$.extractedText' AND atom IS NOT json_extract(${column}, '$.text'))
 ) ELSE ${column} END`;
 
 function dropFts(db: DatabaseSync) {
@@ -169,12 +171,38 @@ function dropFts(db: DatabaseSync) {
   `);
 }
 
+const indexColumns = "rowid, item_id, title, description, source_label, ocr_text, metadata, body";
+const indexedValues = (
+  where: string,
+) => `SELECT rowid, id, title, description, source_label, ocr_text,
+  ${searchableMetadata("metadata")}, body FROM items i WHERE ${where}
+  AND NOT EXISTS (SELECT 1 FROM items_fts f WHERE f.rowid = i.rowid)`;
+
+// While this setting exists the index is partial: the triggers keep every item they touch
+// indexed, and Library.buildSearchIndex adds the rest, so a library opens without waiting for it.
+export const searchIndexPendingKey = "search_index_pending";
+
+export const searchIndexBatch = (rowids: string) =>
+  `INSERT INTO items_fts(${indexColumns}) ${indexedValues(`i.rowid IN (${rowids})`)}`;
+
 function setupFts(db: DatabaseSync) {
   try {
     db.exec("BEGIN IMMEDIATE");
-    const exists = Boolean(
+    let exists = Boolean(
       db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'items_fts'").get(),
     );
+    const pending = db
+      .prepare("SELECT 1 FROM app_settings WHERE key = ?")
+      .get(searchIndexPendingKey);
+    if (exists && !pending) {
+      const itemCount = (db.prepare("SELECT COUNT(*) AS count FROM items").get() as Row).count;
+      const indexedCount = (db.prepare("SELECT COUNT(*) AS count FROM items_fts").get() as Row)
+        .count;
+      if (itemCount !== indexedCount) {
+        dropFts(db);
+        exists = false;
+      }
+    }
     // An index row shares its item's rowid: item_id is UNINDEXED, so finding a row by it reads
     // every item's text. items has no INTEGER PRIMARY KEY, so a plain VACUUM of the live library
     // could renumber its rowids and would have to rebuild this index.
@@ -204,15 +232,10 @@ function setupFts(db: DatabaseSync) {
         VALUES (new.rowid, new.id, new.title, new.description, new.source_label, new.ocr_text, ${searchableMetadata("new.metadata")}, new.body);
       END;
     `);
-    const itemCount = (db.prepare("SELECT COUNT(*) AS count FROM items").get() as Row).count;
-    const indexedCount = (db.prepare("SELECT COUNT(*) AS count FROM items_fts").get() as Row).count;
-    if (!exists || itemCount !== indexedCount) {
-      db.exec(`
-        DELETE FROM items_fts;
-        INSERT INTO items_fts(rowid, item_id, title, description, source_label, ocr_text, metadata, body)
-        SELECT rowid, id, title, description, source_label, ocr_text, ${searchableMetadata("metadata")}, body FROM items;
-      `);
-    }
+    if (!exists && db.prepare("SELECT 1 FROM items LIMIT 1").get())
+      db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, '1')").run(
+        searchIndexPendingKey,
+      );
     db.exec("COMMIT");
     return true;
   } catch {
@@ -241,7 +264,7 @@ export function openDatabase(databasePath: string, { syncToDisk = true } = {}) {
     } catch {}
   }
   // Before the backfill below: its per-row updates would otherwise each fire the old trigger,
-  // which scans the whole library. setupFts rebuilds the index on item rowids afterwards.
+  // which scans the whole library. setupFts starts a new index on item rowids afterwards.
   if (version < 11) dropFts(db);
   db.exec(jobsSchema);
   ensureColumns(db, "jobs", [

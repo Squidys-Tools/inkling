@@ -4,7 +4,6 @@ import {
   BrowserWindow,
   clipboard,
   ClipboardItem,
-  nativeImage,
   desktopCapturer,
   dialog,
   type IpcMainInvokeEvent,
@@ -84,13 +83,12 @@ export function registerNativeHandlers({
   };
   ipcMain.handle(channels.copyItemImage, async (event, id: unknown) => {
     trustedTransfer(event);
-    const bytes = await (await transfer()).image(text(id));
+    const { png, scaled } = await (await transfer()).image(text(id));
     trustedTransfer(event);
-    const image = nativeImage.createFromBuffer(bytes);
-    if (image.isEmpty()) throw new Error("This image cannot be copied.");
     await clipboard.write([
-      new ClipboardItem({ "image/png": new Blob([Uint8Array.from(bytes)], { type: "image/png" }) }),
+      new ClipboardItem({ "image/png": new Blob([new Uint8Array(png)], { type: "image/png" }) }),
     ]);
+    return { scaled };
   });
   ipcMain.handle(channels.startItemDrag, async (event, id: unknown) => {
     trustedTransfer(event);

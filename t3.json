@@ -32,6 +32,12 @@
       "runOnWorktreeCreate": false
     },
     {
+      "name": "Build Chrome extension",
+      "command": "bun run build:extension",
+      "icon": "build",
+      "runOnWorktreeCreate": false
+    },
+    {
       "name": "Check changed files",
       "command": "bun run check:changed",
       "icon": "test",
@@ -80,8 +86,8 @@
       "runOnWorktreeCreate": false
     },
     {
-      "name": "Clean verification scratch (.dev)",
-      "command": "bun .claude/skills/verify-inkling/scripts/clean-dev.ts --settle",
+      "name": "Clean up worktree",
+      "command": "bun tools/repo/clean-worktree.ts",
       "icon": "debug",
       "runOnWorktreeCreate": false,
       "runOnSettle": true

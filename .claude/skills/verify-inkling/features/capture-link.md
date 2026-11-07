@@ -9,7 +9,7 @@ Capture a link saves a URL as a card at once, then fills in title and descriptio
 
 ## How to get to it (user POV)
 
-- Choose **Add**, then **Link**. (Paste, drag and drop, deep link, extension: not driven.)
+- Choose **Add**, then **Link**. (Paste and drag and drop: not driven. The deep link and the extension receiver are [capture-deep-link](./capture-deep-link.md) and [capture-extension](./capture-extension.md).)
 
 ## Driving it with agent-desktop
 

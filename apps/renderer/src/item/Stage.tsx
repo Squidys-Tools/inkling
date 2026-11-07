@@ -4,6 +4,7 @@ import { lazy, type ReactNode, Suspense } from "react";
 import { PostArtwork } from "../cards/PostArtwork.tsx";
 import { QuoteArtwork } from "../cards/QuoteArtwork.tsx";
 import { TypedArtworkFor } from "../cards/TypedArtwork.tsx";
+import { useProcessing } from "../library/jobs.ts";
 import type { DescribedItem } from "./model.ts";
 import { LocalVideo, VideoPlayer } from "./VideoPlayer.tsx";
 import { XPostFrame } from "./XPostFrame.tsx";
@@ -31,6 +32,7 @@ export function Stage({
   pdfOpen: boolean;
   onClosePdf: () => void;
 }) {
+  const processing = useProcessing(item.id);
   if (pdfOpen && item.file)
     return (
       <Suspense fallback={null}>
@@ -79,7 +81,7 @@ export function Stage({
     );
   return (
     <ArtBox>
-      <TypedArtworkFor view={item} />
+      <TypedArtworkFor view={item} waiting={processing?.active} />
     </ArtBox>
   );
 }

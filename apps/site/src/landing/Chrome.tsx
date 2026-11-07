@@ -1,5 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import { GithubIcon } from "@hugeicons/core-free-icons";
+import GithubIcon from "@hugeicons/core-free-icons/GithubIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { landingColor } from "@inkling/ui/tokens.stylex";
 import { Link } from "@tanstack/react-router";

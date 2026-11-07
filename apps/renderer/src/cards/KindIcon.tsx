@@ -1,12 +1,10 @@
-import {
-  AtSignIcon,
-  Bookmark01Icon,
-  FileTextIcon,
-  Image01Icon,
-  Link01Icon,
-  PlayIcon,
-  SparklesIcon,
-} from "@hugeicons/core-free-icons";
+import AtSignIcon from "@hugeicons/core-free-icons/AtSignIcon";
+import Bookmark01Icon from "@hugeicons/core-free-icons/Bookmark01Icon";
+import FileTextIcon from "@hugeicons/core-free-icons/FileTextIcon";
+import Image01Icon from "@hugeicons/core-free-icons/Image01Icon";
+import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
+import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
+import SparklesIcon from "@hugeicons/core-free-icons/SparklesIcon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import type { ItemKind } from "../library/cardModel.ts";
 

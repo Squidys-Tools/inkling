@@ -80,6 +80,41 @@ function ringBalls(seconds: number, grow: number, aspect: number) {
   });
 }
 
+/**
+ * The same ring on a canvas the size of an icon. Its blobs sit further out and stay small
+ * for their spread, or at this size they merge into a solid disc. `ink` is a CSS `rgb()` colour.
+ */
+export function drawSmallRing(
+  context: CanvasRenderingContext2D,
+  image: ImageData,
+  seconds: number,
+  ink: string,
+) {
+  const [red = 0, green = 0, blue = 0] = ink.match(/[\d.]+/g)?.map(Number) ?? [];
+  const blobs = ringBalls(seconds, 1, 1).map((blob) => ({
+    x: 0.5 + (blob.x - 0.5) * 1.75,
+    y: 0.5 + (blob.y - 0.46) * 1.75,
+    r: blob.r * 1.4,
+  }));
+  const { width, height, data } = image;
+  for (let row = 0; row < height; row++) {
+    for (let column = 0; column < width; column++) {
+      let field = 0;
+      for (const blob of blobs) {
+        const dx = (column + 0.5) / width - blob.x;
+        const dy = (row + 0.5) / height - blob.y;
+        field += (blob.r * blob.r) / (dx * dx + dy * dy + 1e-4);
+      }
+      const offset = (row * width + column) * 4;
+      data[offset] = red;
+      data[offset + 1] = green;
+      data[offset + 2] = blue;
+      data[offset + 3] = smooth(0.75, 1.15, field) * 255;
+    }
+  }
+  context.putImageData(image, 0, 0);
+}
+
 export type Mosaic = {
   width: number;
   height: number;

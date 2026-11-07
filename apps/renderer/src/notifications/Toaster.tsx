@@ -1,5 +1,5 @@
 import { Toast } from "@base-ui/react/toast";
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
