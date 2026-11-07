@@ -113,6 +113,7 @@ jobs:
       # Made with the workflow token, which GitHub does not let start the tag-push trigger. A
       # personal or app token here would start a second run.
       - run: bun tools/release/tag.ts
+      - run: bun tools/release/feed.ts release-assets
       # The release starts as a draft so a channel's feed goes live only once every asset is
       # attached. A nightly publishes right after; a stable stays a draft a maintainer reviews.
       - name: Create the release as a draft

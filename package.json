@@ -188,7 +188,8 @@
       "icon": "build/icon.ico",
       "target": [
         "nsis"
-      ]
+      ],
+      "artifactName": "${name}-${version}-win-${arch}.${ext}"
     },
     "mac": {
       "icon": "build/icon.icns",
