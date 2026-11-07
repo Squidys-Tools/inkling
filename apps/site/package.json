@@ -8,7 +8,7 @@
     "build": "vite build --config ../renderer/vite.config.ts --mode site && vite build"
   },
   "dependencies": {
-    "@clerk/tanstack-react-start": "1.7.4",
+    "@clerk/tanstack-react-start": "1.7.11",
     "motion": "14.9.1",
     "react": "19.3.1",
     "react-dom": "19.3.1"
