@@ -7,7 +7,7 @@ import { IMAGE_DIMENSION, IMAGE_MODEL, TEXT_DIMENSION, TEXT_MODEL } from "@inkli
 import { downloadModelAsset, hasSha256, type ModelAsset } from "./model-assets.ts";
 import models from "./model-manifest.json" with { type: "json" };
 import { startTextInference } from "./text-inference.ts";
-import { sharpImageInput, validateImageDimensions } from "./thumbnail.ts";
+import { maxImagePixels, sharpImageInput } from "./thumbnail.ts";
 
 const maxTokens = 8192;
 const imageEdge = 224;
@@ -102,9 +102,7 @@ export function hasEmbeddableCharacters(value: string) {
 
 async function imageTensor(bytes: Buffer) {
   const input = await sharpImageInput(bytes);
-  const { width, height } = await sharp(input, { limitInputPixels: 32_000_000 }).metadata();
-  validateImageDimensions(width, height);
-  const { data } = await sharp(input, { limitInputPixels: 32_000_000 })
+  const { data } = await sharp(input, { limitInputPixels: maxImagePixels })
     .rotate()
     .resize(imageEdge, imageEdge, { fit: "cover", kernel: "cubic" })
     .removeAlpha()
@@ -208,7 +206,7 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
   async function embedText(text: string, prefix = "search_document:", allowDownload = true) {
     const content = text.trim();
     if (!content || !hasEmbeddableCharacters(content))
-      throw new Error("text contains no embeddable characters");
+      throw Object.assign(new Error("text contains no embeddable characters"), { permanent: true });
     const { tokenizer, infer } = textRuntime ?? (await loadTextRuntime(allowDownload));
     // Mean of every token's state across all windows; one window is the plain mean pool.
     const vector = new Float32Array(TEXT_DIMENSION);

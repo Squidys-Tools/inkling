@@ -79,6 +79,7 @@ export function CardFace({
               view={view}
               layout={list ? "list" : "grid"}
               priority={index < priorityCount}
+              waiting={processing?.active}
             />
           </div>
         )}

@@ -96,6 +96,8 @@ const transfer = createItemTransfer({
     if (id === "note") return { ...base, kind: "note", body: "# My note", localAssetPath: null };
     if (id === "escape") return { ...base, localAssetPath: "assets/escape.txt" };
     if (id === "large") return { ...base, localAssetPath: "assets/large.jpg" };
+    if (id === "wide") return { ...base, localAssetPath: "assets/wide.png" };
+    if (id === "huge") return { ...base, localAssetPath: "assets/huge.jpg" };
     return base;
   },
 });
@@ -138,7 +140,8 @@ test("closing fences a delayed export and drains it before removing plaintext", 
 });
 
 test("copy decodes a saved original to PNG without modifying it", async () => {
-  const png = await transfer.image("photo");
+  const { png, scaled } = await transfer.image("photo");
+  expect(scaled).toBe(false);
   expect(await sharp(png).metadata()).toMatchObject({ format: "png", width: 3, height: 2 });
   expect(await readFile(join(assets, "photo.jpg"))).toEqual(original);
   expect(await transfer.file("photo")).toBe(await realpath(join(assets, "photo.jpg")));
@@ -146,10 +149,42 @@ test("copy decodes a saved original to PNG without modifying it", async () => {
 
 test("missing, non-image, escaped and oversized copy inputs fail closed", async () => {
   await writeFile(join(assets, "large.jpg"), "x");
-  await truncate(join(assets, "large.jpg"), 33 * 1024 * 1024);
+  await truncate(join(assets, "large.jpg"), 51 * 1024 * 1024);
   for (const id of ["", "missing", "note", "escape", "large"])
     await expect(transfer.image(id)).rejects.toBeInstanceOf(Error);
   await expect(transfer.file("escape")).rejects.toBeInstanceOf(Error);
+  await sharp({ create: { width: 7000, height: 6000, channels: 3, background: "red" } })
+    .png()
+    .toFile(join(assets, "wide.png"));
+  const wide = await transfer.image("wide");
+  expect(wide.scaled).toBe(true);
+  const { width = 0, height = 0 } = await sharp(wide.png).metadata();
+  expect(width * height).toBeLessThanOrEqual(40_000_000);
+  expect(width * height).toBeGreaterThan(39_000_000);
+  // Only the header is read: a real 525 MP encode would take the whole test budget.
+  const tooLarge = await sharp({
+    create: { width: 16, height: 16, channels: 3, background: "red" },
+  })
+    .jpeg()
+    .toBuffer();
+  const frame = tooLarge.indexOf(Buffer.from([0xff, 0xc0]));
+  tooLarge.writeUInt16BE(21_000, frame + 5);
+  tooLarge.writeUInt16BE(25_000, frame + 7);
+  await writeFile(join(assets, "huge.jpg"), tooLarge);
+  await expect(transfer.image("huge")).rejects.toThrow("too large to copy");
+  // A GIF is decoded whole, so it stops at 100 MP as its jobs do, well short of 500 MP.
+  const wholeDecode = await sharp({
+    create: { width: 16, height: 16, channels: 3, background: "red" },
+  })
+    .gif()
+    .toBuffer();
+  const descriptor = wholeDecode.indexOf(Buffer.from([0x2c, 0, 0, 0, 0, 16, 0, 16, 0]));
+  for (const at of [6, descriptor + 5]) {
+    wholeDecode.writeUInt16LE(12_000, at);
+    wholeDecode.writeUInt16LE(10_000, at + 2);
+  }
+  await writeFile(join(assets, "huge.jpg"), wholeDecode);
+  await expect(transfer.image("huge")).rejects.toThrow("too large to copy");
 });
 
 test("text drag exports are sanitized, bounded, unique beyond capacity and cleaned up", async () => {
