@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite build --config ../renderer/vite.config.ts --mode site && vite",
+    "dev": "bun ../../tools/dev/site-demo.ts && vite",
     "build": "vite build --config ../renderer/vite.config.ts --mode site && vite build"
   },
   "dependencies": {

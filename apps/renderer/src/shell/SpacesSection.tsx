@@ -1,4 +1,5 @@
-import { Cancel01Icon, PlusSignIcon } from "@hugeicons/core-free-icons";
+import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
+import PlusSignIcon from "@hugeicons/core-free-icons/PlusSignIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
