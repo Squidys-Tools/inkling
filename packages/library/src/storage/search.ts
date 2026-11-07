@@ -12,6 +12,7 @@ import {
   selectCards,
 } from "./rows.ts";
 import { clampLimit } from "./shared.ts";
+import { searchableMetadata } from "./schema.ts";
 import { invalidInput } from "./errors.ts";
 
 const semanticMatchFloor = 0.55;
@@ -106,7 +107,8 @@ export function makeSearch(ctx: StorageContext) {
   const likeClause = (pattern: string, prefix = "") => {
     const column = (name: string) =>
       sql`${sql.literal(`${prefix}${name}`)} COLLATE NOCASE LIKE ${pattern} ESCAPE char(92)`;
-    return sql`(${sql.or(["title", "description", "body", "source_label", "ocr_text", "metadata"].map(column))})`;
+    const metadata = sql`${sql.literal(searchableMetadata(`${prefix}metadata`))} COLLATE NOCASE LIKE ${pattern} ESCAPE char(92)`;
+    return sql`(${sql.or([...["title", "description", "body", "source_label", "ocr_text"].map(column), metadata])})`;
   };
 
   // Every embedding write goes through storeEmbedding, which bumps the generation;

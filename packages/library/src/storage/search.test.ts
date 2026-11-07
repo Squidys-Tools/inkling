@@ -242,3 +242,78 @@ test("exact-score ties across the result cap keep the newest items first", async
   );
   expect(await library.searchSimilar("dup-00", "text", 12)).toHaveLength(12);
 });
+
+test("search matches saved words in metadata, never its keys, markup or bookkeeping", async () => {
+  for (const useFts5 of [true, false]) {
+    const { library } = await temporaryLibrary({ useFts5 });
+    const metadata = {
+      text: "readablebody",
+      extractedText: "olderextraction",
+      html: '<article class="markupclass"><p>markuponly</p></article>',
+      tags: ["tagone", "tagtwo"],
+      author: "authorname",
+      publishedDate: "1987-06-05",
+      attribution: "attributedperson",
+      quoteText: "quotedwords",
+      fileName: "originalfile.pdf",
+      sourceUrl: "https://example.org/urlslug",
+      social: { authorName: "socialname", authorHandle: "socialhandle", text: "socialtext" },
+      imageUrls: ["https://example.org/imagepath.png"],
+      palette: ["#abcdef"],
+      ocrEngine: "tesseractengine",
+      screenshotHash: "hashvalue",
+      pendingUrlCapture: { initialTitle: "pendingtitle" },
+    };
+    const insert = library.db.prepare(
+      "INSERT INTO items (id, kind, metadata, created_at, updated_at) VALUES (?, 'url', ?, 1, 1)",
+    );
+    insert.run("full", JSON.stringify(metadata));
+    insert.run("legacy-unparseable", "not json legacyword");
+    for (const word of [
+      "readablebody",
+      "olderextraction",
+      "tagone",
+      "tagtwo",
+      "authorname",
+      "1987-06-05",
+      "attributedperson",
+      "quotedwords",
+      "originalfile",
+      "urlslug",
+      "socialname",
+      "socialhandle",
+      "socialtext",
+    ]) {
+      expect(ids(await library.searchItems(word))).toEqual(["full"]);
+    }
+    for (const word of [
+      "markuponly",
+      "markupclass",
+      "article",
+      "html",
+      "imageUrls",
+      "imagepath",
+      "abcdef",
+      "tesseractengine",
+      "hashvalue",
+      "pendingUrlCapture",
+      "pendingtitle",
+      "extractedText",
+    ]) {
+      expect(ids(await library.searchItems(word))).toEqual([]);
+    }
+    expect(ids(await library.searchItems("legacyword"))).toEqual(["legacy-unparseable"]);
+
+    const write = (value: string) => {
+      const total = () => Number(library.db.prepare("SELECT total_changes() AS n").get()?.n);
+      const before = total();
+      library.db.prepare("UPDATE items SET metadata = ? WHERE id = 'full'").run(value);
+      return total() - before;
+    };
+    // Palette and size writes follow every image capture and change no searchable word.
+    expect(write(JSON.stringify({ ...metadata, palette: ["#123456"] }))).toBe(1);
+    expect(write(JSON.stringify({ ...metadata, tags: ["tagthree"] }))).toBeGreaterThan(1);
+    expect(ids(await library.searchItems("tagthree"))).toEqual(["full"]);
+    expect(ids(await library.searchItems("tagone"))).toEqual([]);
+  }
+});

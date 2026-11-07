@@ -90,10 +90,13 @@ test("a library from a newer schema is refused without writing to it", async () 
   ]);
 });
 
-test("a v9 library rebuilds its search index on item rowids without reindexing during the backfill", async () => {
-  const databasePath = join(temporaryRoot(), "v9.sqlite3");
-  const db = trackDatabase(new DatabaseSync(databasePath));
-  db.exec(`
+// Both versions indexed raw metadata JSON, so each must rebuild its index on open.
+test.each([9, 10])(
+  "a v%i library rebuilds its search index on item rowids, without article markup, skipping the old trigger",
+  async (version) => {
+    const databasePath = join(temporaryRoot(), `v${version}.sqlite3`);
+    const db = trackDatabase(new DatabaseSync(databasePath));
+    db.exec(`
     CREATE TABLE items (
       id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, title TEXT, description TEXT,
       body TEXT NOT NULL DEFAULT '', body_format TEXT NOT NULL DEFAULT 'md', source_url TEXT,
@@ -107,38 +110,41 @@ test("a v9 library rebuilds its search index on item rowids without reindexing d
     );
     CREATE TABLE old_trigger_fired (id TEXT);
     CREATE TRIGGER items_fts_after_insert AFTER INSERT ON items BEGIN
-      INSERT INTO items_fts(item_id, title) VALUES (new.id, new.title);
+      INSERT INTO items_fts(item_id, title, metadata) VALUES (new.id, new.title, new.metadata);
     END;
     CREATE TRIGGER items_fts_after_update AFTER UPDATE ON items BEGIN
       DELETE FROM items_fts WHERE item_id = old.id;
-      INSERT INTO items_fts(item_id, title) VALUES (new.id, new.title);
+      INSERT INTO items_fts(item_id, title, metadata) VALUES (new.id, new.title, new.metadata);
       INSERT INTO old_trigger_fired VALUES (new.id);
     END;
-    INSERT INTO items (id, kind, title, created_at, updated_at) VALUES
-      ('first', 'note', 'alpha', 1, 1), ('second', 'note', 'bravo', 1, 1),
-      ('third', 'note', 'charlie', 1, 1);
+    INSERT INTO items (id, kind, title, metadata, created_at, updated_at) VALUES
+      ('first', 'note', 'alpha', '{"html":"<p>markupword</p>","text":"plainword"}', 1, 1),
+      ('second', 'note', 'bravo', '{}', 1, 1), ('third', 'note', 'charlie', '{}', 1, 1);
     -- The old trigger gives an updated item a new index rowid, so the two tables drift apart.
     UPDATE items SET title = 'bravo renamed' WHERE id = 'second';
     DELETE FROM old_trigger_fired;
-    PRAGMA user_version = 9;
+    PRAGMA user_version = ${version};
   `);
-  closeDatabase(db);
+    closeDatabase(db);
 
-  const migrated = await trackedLibrary(databasePath);
-  expect(migrated.db.prepare("SELECT COUNT(*) AS fired FROM old_trigger_fired").get()).toEqual({
-    fired: 0,
-  });
-  expect(
-    migrated.db
-      .prepare(
-        `SELECT i.id FROM items i JOIN items_fts f ON f.rowid = i.rowid AND f.item_id = i.id
+    const migrated = await trackedLibrary(databasePath);
+    expect(migrated.db.prepare("SELECT COUNT(*) AS fired FROM old_trigger_fired").get()).toEqual({
+      fired: 0,
+    });
+    expect(
+      migrated.db
+        .prepare(
+          `SELECT i.id FROM items i JOIN items_fts f ON f.rowid = i.rowid AND f.item_id = i.id
          ORDER BY i.id`,
-      )
-      .all()
-      .map((row) => row.id),
-  ).toEqual(["first", "second", "third"]);
-  expect(ids(await migrated.searchItems("renamed"))).toEqual(["second"]);
-});
+        )
+        .all()
+        .map((row) => row.id),
+    ).toEqual(["first", "second", "third"]);
+    expect(ids(await migrated.searchItems("renamed"))).toEqual(["second"]);
+    expect(ids(await migrated.searchItems("plainword"))).toEqual(["first"]);
+    expect(ids(await migrated.searchItems("markupword"))).toEqual([]);
+  },
+);
 
 test("the search index follows indexed columns only and each write touches only its own row", async () => {
   const library = await trackedLibrary(join(temporaryRoot(), "library.sqlite3"));
@@ -173,7 +179,7 @@ test("the search index follows indexed columns only and each write touches only 
     ["description", "'descriptionword'", "descriptionword"],
     ["source_label", "'labelword'", "labelword"],
     ["ocr_text", "'ocrword'", "ocrword"],
-    ["metadata", `'{"note":"metadataword"}'`, "metadataword"],
+    ["metadata", `'{"text":"metadataword"}'`, "metadataword"],
     ["body", "'bodyword'", "bodyword"],
   ]) {
     write(`${column} = ${value}`);
