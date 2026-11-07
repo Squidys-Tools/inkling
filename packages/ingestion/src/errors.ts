@@ -15,6 +15,12 @@ export interface UrlIngestionErrorDetails {
   url?: string;
 }
 
+const permanentCodes: ReadonlySet<UrlIngestionErrorCode> = new Set([
+  "content-too-large",
+  "invalid-url",
+  "unsupported-content-type",
+]);
+
 export class UrlIngestionError extends Error {
   readonly name = "UrlIngestionError";
 
@@ -24,6 +30,15 @@ export class UrlIngestionError extends Error {
     readonly details: UrlIngestionErrorDetails = {},
   ) {
     super(message);
+  }
+
+  // A page that refuses or no longer exists answers the same way a minute later.
+  get permanent() {
+    const { status } = this.details;
+    return (
+      permanentCodes.has(this.code) ||
+      (status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429)
+    );
   }
 }
 

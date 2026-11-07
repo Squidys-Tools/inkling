@@ -263,3 +263,21 @@ test("text the old single window may have cut is re-embedded once, short text is
   expect(queued).toEqual([{ item_id: long.id }]);
   expect(await library.run(enqueueLongTextEmbeddings)).toBe(0);
 });
+
+test("a page that is gone fails on its first attempt", async () => {
+  const { root, library } = await temporaryLibrary();
+  const captured = await library.captureUrl({ sourceUrl: "https://example.com/gone", title: "T" });
+  let attempts = 0;
+  const jobs = await createJobs(root, {
+    extractUrl: async () => {
+      attempts += 1;
+      throw Object.assign(new Error("The page returned HTTP 404."), { permanent: true });
+    },
+  });
+  await (await library.worker({ processors: jobs.processors, workerId: "gone" })).drain();
+  expect(attempts).toBe(1);
+  expect((await library.jobs.getForItem(captured.id))[0]).toMatchObject({
+    status: "failed",
+    retryCount: 0,
+  });
+});
