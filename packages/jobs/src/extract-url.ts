@@ -15,32 +15,80 @@ const threadUrl = new URL(
 
 // Under the job's two minutes, so a page that never finishes parsing costs a retry, not a thread.
 const extractionMillis = 100_000;
+// Starting a thread takes about 0.6 s, so a run of saves shares one; its memory goes when it ends.
+const threadIdleMillis = 30_000;
 
 /**
  * Parsing a large page holds its thread for up to 40 s, and on the worker's own thread that stops
- * every download, thumbnail and reply. Each page gets a thread, so its memory goes when it ends.
+ * every download, thumbnail and reply. A thread reads one page at a time and at most one is kept.
  */
-export function extractUrlOnThread(url: string, timeoutMillis = extractionMillis) {
-  return new Promise<NormalizedArticle>((resolve, reject) => {
-    const thread = new Worker(threadUrl, { workerData: { url } });
+export function createUrlExtractor({
+  idleMillis = threadIdleMillis,
+  startThread = () => new Worker(threadUrl),
+}: { idleMillis?: number; startThread?: () => Worker } = {}) {
+  let kept: { thread: Worker; forget: () => void } | undefined;
+
+  const keep = (thread: Worker) => {
+    if (kept) return void thread.terminate();
     const timer = setTimeout(() => {
-      reject(new Error("the page took too long to read"));
+      kept?.forget();
       void thread.terminate();
-    }, timeoutMillis);
-    thread.unref();
-    thread.once("message", (reply: ExtractUrlReply) => {
+    }, idleMillis);
+    timer.unref();
+    const forget = () => {
       clearTimeout(timer);
-      if ("article" in reply) resolve(reply.article);
-      else reject(Object.assign(new Error(reply.error), { permanent: reply.permanent }));
-      void thread.terminate();
+      thread.off("exit", forget);
+      thread.off("error", forget);
+      kept = undefined;
+    };
+    // A kept thread that dies between pages must not be handed the next one, and with no listener
+    // its uncaught error would throw here, in the process running every other job.
+    thread.once("exit", forget);
+    thread.once("error", forget);
+    kept = { thread, forget };
+  };
+
+  const take = () => {
+    if (!kept) return startThread();
+    const { thread, forget } = kept;
+    forget();
+    return thread;
+  };
+
+  return (url: string, timeoutMillis = extractionMillis) =>
+    new Promise<NormalizedArticle>((resolve, reject) => {
+      const thread = take();
+      const onMessage = (reply: ExtractUrlReply) => {
+        finish();
+        if ("article" in reply) resolve(reply.article);
+        else reject(Object.assign(new Error(reply.error), { permanent: reply.permanent }));
+        keep(thread);
+      };
+      const onError = (error: Error) => {
+        finish();
+        reject(error);
+      };
+      const onExit = (code: number) => {
+        finish();
+        reject(new Error(`page extraction stopped with code ${code}`));
+      };
+      const timer = setTimeout(() => {
+        finish();
+        reject(new Error("the page took too long to read"));
+        void thread.terminate();
+      }, timeoutMillis);
+      const finish = () => {
+        clearTimeout(timer);
+        thread.off("message", onMessage);
+        thread.off("error", onError);
+        thread.off("exit", onExit);
+      };
+      thread.unref();
+      thread.on("message", onMessage);
+      thread.on("error", onError);
+      thread.on("exit", onExit);
+      thread.postMessage(url);
     });
-    thread.once("error", (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    thread.once("exit", (code) => {
-      clearTimeout(timer);
-      reject(new Error(`page extraction stopped with code ${code}`));
-    });
-  });
 }
+
+export const extractUrlOnThread = createUrlExtractor();

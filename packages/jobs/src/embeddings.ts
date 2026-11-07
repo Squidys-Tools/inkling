@@ -10,6 +10,7 @@ import { startTextInference } from "./text-inference.ts";
 import { sharpImageInput, validateImageDimensions } from "./thumbnail.ts";
 
 const maxTokens = 8192;
+const documentLaneIdleMillis = 30_000;
 const imageEdge = 224;
 const imageMean = [0.4814547, 0.4578275, 0.4082107];
 const imageStd = [0.26862954, 0.2613026, 0.2757771];
@@ -149,8 +150,9 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
   }
 
   // Each lane has its own thread: a search must not queue behind a document's window, which
-  // can take a minute, when it has five seconds before it falls back to text alone.
-  function textLane(allowDownload: boolean) {
+  // can take a minute, when it has five seconds before it falls back to text alone. Each thread
+  // holds 160 MB, so the document lane closes between runs; search stays open to answer at once.
+  function textLane(allowDownload: boolean, idleMillis?: number) {
     let runtime: TextRuntime | undefined;
     let opening: Promise<TextRuntime> | undefined;
     return () =>
@@ -160,9 +162,13 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
           // A stopped thread answers nothing more, so the next embedding opens a new one.
           const started: TextRuntime = {
             tokenizer,
-            infer: startTextInference(modelPath, () => {
-              if (runtime === started) runtime = undefined;
-            }),
+            infer: startTextInference(
+              modelPath,
+              () => {
+                if (runtime === started) runtime = undefined;
+              },
+              { idleMillis },
+            ),
           };
           runtime = started;
           return started;
@@ -171,7 +177,7 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
           opening = undefined;
         }));
   }
-  const documentLane = textLane(true);
+  const documentLane = textLane(true, documentLaneIdleMillis);
   const queryLane = textLane(false);
 
   async function openImageSession() {
