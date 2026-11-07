@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import sharp from "sharp";
-import { createImageThumbnail, inspectImage, validateImageDimensions } from "./thumbnail.ts";
+import { createImageThumbnail, inspectImage } from "./thumbnail.ts";
 
 test("image thumbnails resize asynchronously and preserve source dimensions", async () => {
   const source = await sharp({
@@ -48,7 +48,7 @@ test("image thumbnails apply EXIF orientation before resizing", async () => {
   expect(output).toMatchObject({ width: 384, height: 512, format: "webp" });
 });
 
-test("inspecting an image reads the oriented size and refuses what capture must not keep", async () => {
+test("inspecting an image reads the oriented size and refuses only what is not an image", async () => {
   const jpeg = await sharp({
     create: { width: 1024, height: 768, channels: 3, background: "#335577" },
   })
@@ -57,12 +57,12 @@ test("inspecting an image reads the oriented size and refuses what capture must 
     .toBuffer();
   expect(await inspectImage(jpeg)).toEqual({ width: 768, height: 1024 });
 
-  const tooWide = await sharp({
+  const panorama = await sharp({
     create: { width: 20_001, height: 1, channels: 3, background: "#335577" },
   })
     .png()
     .toBuffer();
-  await expect(inspectImage(tooWide)).rejects.toThrow("safe limits");
+  expect(await inspectImage(panorama)).toEqual({ width: 20_001, height: 1 });
   await expect(inspectImage(Buffer.from("definitely not an image"))).rejects.toThrow();
 });
 
@@ -78,14 +78,34 @@ test("inspecting a BMP checks its header and leaves the size to the thumbnail", 
   bitmap.writeUInt16LE(24, 24);
   expect(await inspectImage(bitmap)).toBeNull();
 
+  // Past what a job would unpack, it is still saved, and its jobs stop at once.
   bitmap.writeUInt16LE(20_001, 18);
-  await expect(inspectImage(bitmap)).rejects.toThrow("safe limits");
+  bitmap.writeUInt16LE(20_000, 20);
+  expect(await inspectImage(bitmap)).toBeNull();
+  await expect(createImageThumbnail(bitmap)).rejects.toMatchObject({ permanent: true });
 });
 
-test("image dimensions respect side and decoded-allocation limits", () => {
-  expect(() => validateImageDimensions(20_001, 1)).toThrow("safe limits");
-  expect(() => validateImageDimensions(8193, 4096)).toThrow("safe limits");
-  expect(() => validateImageDimensions(8192, 4096)).not.toThrow();
+// regression: an image over 33.5 MP was refused at save, whatever its format's cost to read.
+test("jobs read past the old limit, and stop at the limit their format can afford", async () => {
+  const solid = (width: number, height: number) =>
+    sharp({ create: { width, height, channels: 3, background: "#335577" } });
+  const large = await solid(10_000, 5000).jpeg().toBuffer();
+  expect(await createImageThumbnail(large)).toMatchObject({ width: 10_000, height: 5000 });
+
+  // Only the header is read: a real 525 MP encode would take the whole test budget.
+  const tooLarge = await solid(16, 16).jpeg().toBuffer();
+  const frame = tooLarge.indexOf(Buffer.from([0xff, 0xc0]));
+  tooLarge.writeUInt16BE(21_000, frame + 5);
+  tooLarge.writeUInt16BE(25_000, frame + 7);
+  expect(await inspectImage(tooLarge)).toEqual({ width: 25_000, height: 21_000 });
+  await expect(createImageThumbnail(tooLarge)).rejects.toMatchObject({
+    message: expect.stringContaining("too large"),
+    permanent: true,
+  });
+
+  await expect(createImageThumbnail(Buffer.from("not an image"))).rejects.toMatchObject({
+    permanent: true,
+  });
 });
 
 test("OS/2 core-header BMP dimensions use their 16-bit fields", async () => {
@@ -157,7 +177,8 @@ test("Sharp thumbnails retain BMP, GIF, ICO, JPEG, PNG, TIFF, and WebP inputs", 
 
   const oversizedPng = Buffer.from(png);
   oversizedPng.writeUInt32BE(20_001, 16);
+  oversizedPng.writeUInt32BE(20_001, 20);
   await expect(createImageThumbnail(Buffer.concat([iconHeader, oversizedPng]))).rejects.toThrow(
-    "safe limits",
+    "too large",
   );
 });

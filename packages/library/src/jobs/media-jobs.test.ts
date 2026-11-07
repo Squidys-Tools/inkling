@@ -90,7 +90,7 @@ test("a failed thumbnail keeps the item and the OCR and embedding work, with not
     library.db
       .prepare("SELECT status, retry_count FROM jobs WHERE kind = ?")
       .get(IMAGE_THUMBNAIL_JOB),
-  ).toEqual({ status: "failed", retry_count: 3 });
+  ).toEqual({ status: "failed", retry_count: 0 });
   expect(
     library.db.prepare("SELECT 1 FROM jobs WHERE kind = ?").get(IMAGE_PALETTE_JOB),
   ).toBeUndefined();

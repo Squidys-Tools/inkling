@@ -172,8 +172,10 @@ const styles = stylex.create({
   retry: {
     display: "inline-flex",
     alignItems: "center",
+    flexShrink: 0,
     gap: "4px",
     marginLeft: "auto",
+    whiteSpace: "nowrap",
     paddingBlock: "3px",
     paddingInline: "8px",
     borderRadius: radius.round,
