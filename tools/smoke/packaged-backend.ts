@@ -169,6 +169,17 @@ if (!process.versions.electron) {
     }
     console.log("PASS packaged text inference thread");
 
+    // Its failure on a bad address proves the extraction bundle loads inside the archive.
+    const extraction = new Worker(join(chunks, "extract-url-thread.mjs"));
+    try {
+      extraction.postMessage("not a url");
+      const [{ error }] = await once(extraction, "message");
+      assert.match(error, /url/i);
+    } finally {
+      await extraction.terminate();
+    }
+    console.log("PASS packaged page extraction thread");
+
     const pixels = await sharp(thumbnail)
       .resize(224, 224, { fit: "cover" })
       .removeAlpha()

@@ -24,18 +24,20 @@ const results = await Promise.all([
       outdir,
       target: "node",
       format: "esm",
-      // Lazy imports (PDF, thumbnails, URL extraction) become chunks loaded on first use.
+      // Lazy imports (PDF, thumbnails) become chunks loaded on first use.
       // The module's name stays in the chunk's, so the packaged smokes find `worker-pdf-*.mjs`.
       splitting: true,
       naming: { entry: `${name}.mjs`, chunk: `${name}-[name]-[hash].mjs` },
       external,
     }),
   ),
-  // Each process starts its thread beside its own bundle: export snapshots and text embeddings.
+  // Each process starts its threads beside its own bundle: export snapshots, text embeddings
+  // and page extraction.
   Bun.build({
     entrypoints: [
       "packages/library/src/storage/sqlite-snapshot-worker.ts",
       "packages/jobs/src/text-inference-thread.ts",
+      "packages/jobs/src/extract-url-thread.ts",
     ],
     outdir,
     target: "node",

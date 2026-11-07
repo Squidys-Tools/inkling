@@ -10,6 +10,7 @@ import { startTextInference } from "./text-inference.ts";
 import { maxImagePixels, sharpImageInput } from "./thumbnail.ts";
 
 const maxTokens = 8192;
+const documentLaneIdleMillis = 30_000;
 const imageEdge = 224;
 const imageMean = [0.4814547, 0.4578275, 0.4082107];
 const imageStd = [0.26862954, 0.2613026, 0.2757771];
@@ -120,17 +121,11 @@ async function imageTensor(bytes: Buffer) {
   return values;
 }
 
-type TextRuntime = ReturnType<typeof startTextInference> & {
-  tokenizer: TokenizerLike;
-  stopped: boolean;
-};
+type TextRuntime = { tokenizer: TokenizerLike; infer: ReturnType<typeof startTextInference> };
 
 export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelDirectory?: string) {
   const modelCache = resolve(modelCacheDirectory);
   const bundledModels = bundledModelDirectory ? resolve(bundledModelDirectory) : null;
-  let textRuntimePromise: Promise<TextRuntime> | undefined;
-  let textQueryRuntimePromise: Promise<TextRuntime> | undefined;
-  let textRuntime: TextRuntime | undefined;
   let imageSessionPromise: Promise<ort.InferenceSession> | undefined;
 
   const modelAsset = (name: string, asset: ModelAsset, allowDownload: boolean) =>
@@ -141,7 +136,7 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
       bundledModels ? join(bundledModels, name, asset.path) : undefined,
     );
 
-  async function openTextRuntime(allowDownload: boolean): Promise<TextRuntime> {
+  async function openTextModel(allowDownload: boolean) {
     const { name, model, tokenizer: tokenizerAsset } = models.text;
     const [modelPath, tokenizerPath] = await Promise.all([
       modelAsset(name, model, allowDownload),
@@ -149,50 +144,39 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     ]);
     const tokenizerJson = JSON.parse(await readFile(tokenizerPath, "utf8"));
     const tokenizer = new Tokenizer(tokenizerJson, {});
-    // A stopped thread answers nothing more, so the next embedding opens a new one.
-    const runtime: TextRuntime = {
-      tokenizer,
-      stopped: false,
-      ...startTextInference(modelPath, () => {
-        runtime.stopped = true;
-        if (textRuntime === runtime) textRuntime = undefined;
-        textQueryRuntimePromise = undefined;
-      }),
-    };
-    return runtime;
+    return { tokenizer, modelPath };
   }
 
-  // A thread can stop before its open resolves, and keeping it then would fail every later embed.
-  // A search during a document's first open starts a second thread; the one not kept must end.
-  const keepTextRuntime = (runtime: TextRuntime) => {
-    if (runtime.stopped) return runtime;
-    textRuntime ??= runtime;
-    if (textRuntime !== runtime) runtime.close();
-    return textRuntime;
-  };
-
-  function loadTextRuntime(allowDownload: boolean) {
-    if (allowDownload) {
-      textRuntimePromise ??= (async () => {
-        const cachedRuntime = textQueryRuntimePromise
-          ? await textQueryRuntimePromise.catch(() => null)
-          : null;
-        return cachedRuntime ?? openTextRuntime(true);
-      })()
-        .then(keepTextRuntime)
+  // Each lane has its own thread: a search must not queue behind a document's window, which
+  // can take a minute, when it has five seconds before it falls back to text alone. Each thread
+  // holds 160 MB, so the document lane closes between runs; search stays open to answer at once.
+  function textLane(allowDownload: boolean, idleMillis?: number) {
+    let runtime: TextRuntime | undefined;
+    let opening: Promise<TextRuntime> | undefined;
+    return () =>
+      runtime ??
+      (opening ??= openTextModel(allowDownload)
+        .then(({ tokenizer, modelPath }) => {
+          // A stopped thread answers nothing more, so the next embedding opens a new one.
+          const started: TextRuntime = {
+            tokenizer,
+            infer: startTextInference(
+              modelPath,
+              () => {
+                if (runtime === started) runtime = undefined;
+              },
+              { idleMillis },
+            ),
+          };
+          runtime = started;
+          return started;
+        })
         .finally(() => {
-          textRuntimePromise = undefined;
-        });
-      return textRuntimePromise;
-    }
-    textQueryRuntimePromise ??= openTextRuntime(false)
-      .then(keepTextRuntime)
-      .catch((error) => {
-        textQueryRuntimePromise = undefined;
-        throw error;
-      });
-    return textQueryRuntimePromise;
+          opening = undefined;
+        }));
   }
+  const documentLane = textLane(true, documentLaneIdleMillis);
+  const queryLane = textLane(false);
 
   async function openImageSession() {
     const { name, model } = models.image;
@@ -203,11 +187,11 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
     });
   }
 
-  async function embedText(text: string, prefix = "search_document:", allowDownload = true) {
+  async function embedText(text: string, prefix = "search_document:", lane = documentLane) {
     const content = text.trim();
     if (!content || !hasEmbeddableCharacters(content))
       throw Object.assign(new Error("text contains no embeddable characters"), { permanent: true });
-    const { tokenizer, infer } = textRuntime ?? (await loadTextRuntime(allowDownload));
+    const { tokenizer, infer } = await lane();
     // Mean of every token's state across all windows; one window is the plain mean pool.
     const vector = new Float32Array(TEXT_DIMENSION);
     let tokens = 0;
@@ -265,7 +249,7 @@ export function createEmbeddingEngine(modelCacheDirectory: string, bundledModelD
 
   return {
     embedText,
-    embedQuery: (text: string) => embedText(text, "search_query:", false),
+    embedQuery: (text: string) => embedText(text, "search_query:", queryLane),
     embedImage,
   };
 }
