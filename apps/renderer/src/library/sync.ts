@@ -90,6 +90,12 @@ function applyChange(change: LibraryChange) {
       return;
     case "SearchIndexReady":
       void search.rerun();
+      // A Smart Space read while the index was partial may be missing older items.
+      reloadSpaceScopes((spaceId) =>
+        spacesStore.get().spaces.find((space) => space.id === spaceId)?.kind === "smart"
+          ? "stale"
+          : null,
+      );
       return;
   }
 }
