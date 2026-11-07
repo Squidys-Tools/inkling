@@ -53,11 +53,16 @@ export function latestRelease(): Plugin {
   let release: ReturnType<typeof lookUp> | undefined;
   return {
     name: "inkling-latest-release",
-    resolveId: (source) => (source === id ? `\0${id}` : undefined),
-    async load(resolved) {
-      if (resolved !== `\0${id}`) return;
-      release ??= lookUp();
-      return `export default ${JSON.stringify(await release)};`;
+    resolveId: {
+      filter: { id: /^virtual:latest-release$/u },
+      handler: () => `\0${id}`,
+    },
+    load: {
+      filter: { id: /^\0virtual:latest-release$/u },
+      async handler() {
+        release ??= lookUp();
+        return `export default ${JSON.stringify(await release)};`;
+      },
     },
   };
 }

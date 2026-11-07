@@ -64,7 +64,7 @@ The usual defect works on the tested path and is missing elsewhere. Before calli
 - A logic, data, state or protocol bug gets a test that fails on `main`, then the fix; mark it `// regression: #NNN` if its name does not say so. A visual bug gets before and after screenshots instead. Capture and background changes ship with focused tests.
 - Add a row or assertion to an existing test before writing a new `it`, at the lowest layer that fails.
 - Wait for the real signal of async work: a job drain, a lease state, an event. No sleeps, retries, polling or clock deltas.
-- Check a UI change once in the running app with the `verify-inkling` skill, preview for layout and the full app for native behavior, and include a screenshot. Subagents leave this to the primary agent.
+- A UI change is not done until you have driven it once in the running app with the `verify-inkling` skill (preview for layout, the full app for anything native), run its cleanup, and put the screenshot in your report. Subagents do not launch the app, since a worktree has one harness instance: after integrating a subagent's work, run the check yourself, even when the subagent reports success. If the check cannot run here, say so in the report instead of skipping it.
 - The demo seed in `apps/renderer/src/library/preview/seed.ts` and `seed-demo/` beside it is the default data for UI work.
 
 ## Docs

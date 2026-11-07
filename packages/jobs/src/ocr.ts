@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { createWorker } from "tesseract.js";
-import { sharpImageInput } from "./thumbnail.ts";
+import { maxImagePixels, sharpImageInput } from "./thumbnail.ts";
 
 const tesseractEntry = fileURLToPath(import.meta.resolve("tesseract.js"));
 const tesseractDirectory = dirname(tesseractEntry);
@@ -39,6 +39,8 @@ const defaultOcrWorkers = () =>
 // worker that ran one is replaced afterwards. Small images keep the full pool.
 const LARGE_OCR_PIXELS = 6_000_000;
 const LARGE_OCR_PASSES = 1;
+// Past this, every pass would hold gigabytes. A larger image is read at this size.
+const MAX_OCR_PIXELS = 33_554_432;
 
 export function createTesseractOcr({
   cacheDirectory,
@@ -175,7 +177,11 @@ export function createTesseractOcr({
   async function recognizeImage(input: Buffer) {
     // Decoded before the worker: tesseract.js can otherwise emit an uncaught
     // main-process exception for corrupt bytes.
-    const image = await sharp(await sharpImageInput(input))
+    const source = sharp(await sharpImageInput(input), { limitInputPixels: maxImagePixels });
+    const { width: sourceWidth = 0, height: sourceHeight = 0 } = await source.metadata();
+    const scale = Math.min(1, Math.sqrt(MAX_OCR_PIXELS / (sourceWidth * sourceHeight)));
+    const image = await source
+      .resize(scale < 1 ? { width: Math.floor(sourceWidth * scale) } : {})
       .png()
       .toBuffer();
     const { width = 0, height = 0 } = await sharp(image).metadata();

@@ -1,16 +1,14 @@
 import { Menu } from "@base-ui/react/menu";
-import {
-  Archive03Icon,
-  ArrowRight01Icon,
-  ArrowUpRight01Icon,
-  Bookmark01Icon,
-  Copy01Icon,
-  Delete02Icon,
-  FileTextIcon,
-  Folder01Icon,
-  Image01Icon,
-  Link01Icon,
-} from "@hugeicons/core-free-icons";
+import Archive03Icon from "@hugeicons/core-free-icons/Archive03Icon";
+import ArrowRight01Icon from "@hugeicons/core-free-icons/ArrowRight01Icon";
+import ArrowUpRight01Icon from "@hugeicons/core-free-icons/ArrowUpRight01Icon";
+import Bookmark01Icon from "@hugeicons/core-free-icons/Bookmark01Icon";
+import Copy01Icon from "@hugeicons/core-free-icons/Copy01Icon";
+import Delete02Icon from "@hugeicons/core-free-icons/Delete02Icon";
+import FileTextIcon from "@hugeicons/core-free-icons/FileTextIcon";
+import Folder01Icon from "@hugeicons/core-free-icons/Folder01Icon";
+import Image01Icon from "@hugeicons/core-free-icons/Image01Icon";
+import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ContextMenuItem } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";

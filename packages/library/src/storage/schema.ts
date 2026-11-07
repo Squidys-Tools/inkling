@@ -155,10 +155,11 @@ function migrateItemColumns(db: DatabaseSync, migrationNeeded: boolean) {
 // bookkeeping. metadata.html is the markup of metadata.text. Unparseable legacy metadata is
 // indexed as it is, because a JSON error here would fail the write that fired the trigger.
 export const searchableMetadata = (column: string) => `CASE WHEN json_valid(${column}) THEN (
-  SELECT group_concat(atom, ' ') FROM json_tree(${column}) WHERE atom IS NOT NULL AND (
-    fullkey IN ('$.text', '$.quoteText', '$.attribution', '$.author', '$.publishedDate', '$.fileName',
-      '$.sourceUrl', '$.social.authorName', '$.social.authorHandle', '$.social.text') OR path = '$.tags'
-    OR (fullkey = '$.extractedText' AND atom IS NOT json_extract(${column}, '$.text')))
+  SELECT group_concat(atom, ' ') FROM json_tree(${column})
+  WHERE fullkey IN ('$.text', '$.quoteText', '$.attribution', '$.author', '$.publishedDate',
+      '$.fileName', '$.sourceUrl', '$.social.authorName', '$.social.authorHandle', '$.social.text')
+    OR path = '$.tags'
+    OR (fullkey = '$.extractedText' AND atom IS NOT json_extract(${column}, '$.text'))
 ) ELSE ${column} END`;
 
 function dropFts(db: DatabaseSync) {

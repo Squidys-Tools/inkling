@@ -46,7 +46,16 @@ const wordCount = (value: string) => {
 };
 
 /** The art a card draws when it has no image: by kind, for PDFs, notes, files and the rest. */
-export function TypedArtworkFor({ view, compact }: { view: CardView; compact?: boolean }) {
+export function TypedArtworkFor({
+  view,
+  compact,
+  waiting,
+}: {
+  view: CardView;
+  compact?: boolean;
+  /** Jobs are still running, so a missing thumbnail may yet arrive. */
+  waiting?: boolean;
+}) {
   if (view.kind === "PDF")
     return (
       <TypedArtwork
@@ -72,7 +81,7 @@ export function TypedArtworkFor({ view, compact }: { view: CardView; compact?: b
   return (
     <TypedArtwork
       label={extension || view.kind.toUpperCase()}
-      title={pdfPreviewTitle(view.title) || view.kind}
+      title={view.noPreview && !waiting ? "No preview" : pdfPreviewTitle(view.title) || view.kind}
       footnote={view.fileSizeBytes ? formatFileSize(view.fileSizeBytes) : undefined}
       compact={compact}
     />

@@ -165,7 +165,7 @@ export function Aperture() {
               </clipPath>
             </defs>
             <image
-              href="/media/library.png"
+              href="/media/library.webp"
               width="1920"
               height="1080"
               clipPath="url(#inkling-window)"
@@ -233,7 +233,7 @@ export function Aperture() {
       </div>
       <noscript>
         <p {...stylex.props(base.flush, styles.noScript)}>
-          <a href="/media/library.png" {...stylex.props(base.link, base.focus)}>
+          <a href="/media/library.webp" {...stylex.props(base.link, base.focus)}>
             Open the Inkling library screenshot
           </a>
         </p>

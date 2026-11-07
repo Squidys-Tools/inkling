@@ -15,7 +15,11 @@ const libraries = new Set<TestLibrary>();
 const databases = new Set<DatabaseSync>();
 
 export async function trackedLibrary(path: string, options: Options = {}) {
-  const library = await openTestLibrary(path, options);
+  const library = await openTestLibrary(path, {
+    ...options,
+    // A test drains a retry at once; the delays themselves have their own test.
+    jobQueue: { retryDelaysMillis: [0], ...options.jobQueue },
+  });
   libraries.add(library);
   return library;
 }

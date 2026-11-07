@@ -1,4 +1,5 @@
-import { Bookmark01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import Bookmark01Icon from "@hugeicons/core-free-icons/Bookmark01Icon";
+import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Glass } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";

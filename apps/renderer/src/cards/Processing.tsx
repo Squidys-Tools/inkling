@@ -1,4 +1,5 @@
-import { AlertCircleIcon, RotateCwIcon } from "@hugeicons/core-free-icons";
+import AlertCircleIcon from "@hugeicons/core-free-icons/AlertCircleIcon";
+import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, radius } from "@inkling/ui/tokens.stylex";
@@ -171,8 +172,10 @@ const styles = stylex.create({
   retry: {
     display: "inline-flex",
     alignItems: "center",
+    flexShrink: 0,
     gap: "4px",
     marginLeft: "auto",
+    whiteSpace: "nowrap",
     paddingBlock: "3px",
     paddingInline: "8px",
     borderRadius: radius.round,
