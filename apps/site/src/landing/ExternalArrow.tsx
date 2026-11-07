@@ -1,4 +1,4 @@
-import { ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
+import ArrowUpRight01Icon from "@hugeicons/core-free-icons/ArrowUpRight01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { landing, media } from "./landing.stylex.ts";

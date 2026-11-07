@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius } from "@inkling/ui/tokens.stylex";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import release from "virtual:latest-release";
 import { extensionGuide, latestRelease } from "../layout/links.ts";
 import { page } from "../layout/page.ts";
@@ -106,7 +106,7 @@ function Download() {
           </section>
         ))}
       </div>
-      <section {...stylex.props(styles.extension)}>
+      <section {...stylex.props(styles.aside)}>
         <h2 {...stylex.props(type.subheading)}>Save from Chrome</h2>
         <p {...stylex.props(type.body)}>
           The companion extension saves the page you are on, or a link you right-click, straight
@@ -115,6 +115,16 @@ function Download() {
             load it from the source
           </a>
           . It talks only to inkling on your own computer.
+        </p>
+      </section>
+      <section {...stylex.props(styles.aside)}>
+        <h2 {...stylex.props(type.subheading)}>Get an email when a stable beta is ready</h2>
+        <p {...stylex.props(type.body)}>
+          Leave your address on the{" "}
+          <Link to="/waitlist" {...stylex.props(action.inline)}>
+            beta waitlist
+          </Link>
+          . We will write once, and only about the beta.
         </p>
       </section>
       <p {...stylex.props(type.small)}>
@@ -171,5 +181,5 @@ const styles = stylex.create({
     fontSize: "14px",
     lineHeight: 1.55,
   },
-  extension: { display: "flex", flexDirection: "column", gap: "12px", marginTop: "24px" },
+  aside: { display: "flex", flexDirection: "column", gap: "12px", marginTop: "24px" },
 });

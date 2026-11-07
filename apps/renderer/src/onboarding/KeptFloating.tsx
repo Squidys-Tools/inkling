@@ -1,5 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import { PlayIcon } from "@hugeicons/core-free-icons";
+import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { color, font, onboardingColor } from "@inkling/ui/tokens.stylex";
 import { type ReactNode, useLayoutEffect, useRef } from "react";

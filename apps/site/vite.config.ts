@@ -5,6 +5,7 @@ import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { imagetools } from "vite-imagetools";
+import { demoIndex } from "./demoIndex.ts";
 import { latestRelease } from "./latestRelease.ts";
 
 const workspace = fileURLToPath(new URL("../..", import.meta.url));
@@ -20,6 +21,7 @@ export default defineConfig(({ command }) => ({
       include: /\/seed-demo\/[^?]+\.jpg\?/u,
       defaultDirectives: () => new URLSearchParams({ w: "480", format: "webp", quality: "70" }),
     }),
+    demoIndex(),
     latestRelease(),
     stylex.vite({
       useCSSLayers: true,
@@ -35,6 +37,7 @@ export default defineConfig(({ command }) => ({
         { path: "/features" },
         { path: "/privacy" },
         { path: "/credits" },
+        { path: "/waitlist", sitemap: { exclude: true } },
         { path: "/404", prerender: { outputPath: "/404.html" }, sitemap: { exclude: true } },
       ],
       sitemap: { enabled: siteUrl !== "", host: siteUrl },

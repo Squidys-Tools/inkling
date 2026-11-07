@@ -5,12 +5,12 @@ import { env, gh, type GitHub } from "./github.ts";
 type File = { filename: string; additions: number; deletions: number };
 
 const SIZES = [
-  { label: "size:XS", below: 10 },
-  { label: "size:S", below: 30 },
-  { label: "size:M", below: 100 },
-  { label: "size:L", below: 500 },
-  { label: "size:XL", below: 1000 },
-  { label: "size:XXL", below: 5001 },
+  { label: "size:XS", below: 25 },
+  { label: "size:S", below: 75 },
+  { label: "size:M", below: 250 },
+  { label: "size:L", below: 875 },
+  { label: "size:XL", below: 1500 },
+  { label: "size:XXL", below: 8751 },
   { label: "what the hell", below: Infinity },
 ];
 // test-library.ts and friends are test helpers, not source.
