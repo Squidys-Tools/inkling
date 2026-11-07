@@ -1,4 +1,4 @@
-import { RotateCwIcon } from "@hugeicons/core-free-icons";
+import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
 import type { UpdateChannel } from "@inkling/contracts/desktop";
 import { SegmentedControl } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";

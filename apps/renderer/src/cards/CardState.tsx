@@ -1,4 +1,4 @@
-import { RotateCwIcon } from "@hugeicons/core-free-icons";
+import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { useCallback, useEffect, useRef, useState } from "react";

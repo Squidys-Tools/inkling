@@ -18,7 +18,6 @@ export interface UrlIngestionErrorDetails {
 const permanentCodes: ReadonlySet<UrlIngestionErrorCode> = new Set([
   "content-too-large",
   "invalid-url",
-  "unsupported-content-type",
 ]);
 
 export class UrlIngestionError extends Error {

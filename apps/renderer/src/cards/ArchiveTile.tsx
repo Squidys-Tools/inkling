@@ -1,5 +1,6 @@
 /* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-noninteractive-element-interactions -- A tile holds its Restore and Delete buttons, so the article cannot be a button; Enter opens the focused tile. */
-import { Delete02Icon, RotateLeft01Icon } from "@hugeicons/core-free-icons";
+import Delete02Icon from "@hugeicons/core-free-icons/Delete02Icon";
+import RotateLeft01Icon from "@hugeicons/core-free-icons/RotateLeft01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
