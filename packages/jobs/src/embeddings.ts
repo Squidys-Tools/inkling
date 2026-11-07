@@ -6,7 +6,7 @@ import * as ort from "onnxruntime-node";
 import { IMAGE_DIMENSION, IMAGE_MODEL, TEXT_DIMENSION, TEXT_MODEL } from "@inkling/contracts/jobs";
 import { downloadModelAsset, hasSha256, type ModelAsset } from "./model-assets.ts";
 import models from "./model-manifest.json" with { type: "json" };
-import { sharpImageInput, validateImageDimensions } from "./thumbnail.ts";
+import { maxImagePixels, sharpImageInput } from "./thumbnail.ts";
 
 const maxTokens = 8192;
 const imageEdge = 224;
@@ -101,9 +101,7 @@ export function hasEmbeddableCharacters(value: string) {
 
 async function imageTensor(bytes: Buffer) {
   const input = await sharpImageInput(bytes);
-  const { width, height } = await sharp(input, { limitInputPixels: 32_000_000 }).metadata();
-  validateImageDimensions(width, height);
-  const { data } = await sharp(input, { limitInputPixels: 32_000_000 })
+  const { data } = await sharp(input, { limitInputPixels: maxImagePixels })
     .rotate()
     .resize(imageEdge, imageEdge, { fit: "cover", kernel: "cubic" })
     .removeAlpha()

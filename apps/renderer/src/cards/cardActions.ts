@@ -128,8 +128,10 @@ export async function openCardMenu(
       if (view.kind === "Image")
         add("copy-image", "Copy image", () =>
           run("Couldn’t copy the image", async () => {
-            await bridge.copyItemImage(view.id);
-            notify("Image copied", { id: "copy-image" });
+            const { scaled } = await bridge.copyItemImage(view.id);
+            notify(scaled ? "Image copied at a smaller size" : "Image copied", {
+              id: "copy-image",
+            });
           }),
         );
       if (view.hasLocalFile)

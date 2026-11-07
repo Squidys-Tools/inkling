@@ -34,6 +34,12 @@ describe("loadingPhase", () => {
     ).toBe("processing");
   });
 
+  it("keeps a failed picture whole, with the corner badge", () => {
+    expect(
+      loadingPhase({ treatment: "media", image: "a.png", createdAt: 1000 }, failed),
+    ).toBeNull();
+  });
+
   it("leaves work queued long after the capture, like a re-index, to the corner badge", () => {
     const later = { ...running, startedAt: 1000 + 11 * 60 * 1000 };
     expect(loadingPhase({ treatment: "media", image: "a.png", createdAt: 1000 }, later)).toBeNull();

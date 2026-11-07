@@ -1,19 +1,31 @@
 import sharp, { type Metadata } from "sharp";
 
-const maxImageDimension = 20_000;
-const maxImageAllocation = 256 * 1024 * 1024;
-const maxImagePixels = Math.floor(maxImageAllocation / 8);
+// Limits on what the jobs unpack, never on what the library keeps. These formats can
+// be read at reduced size: a 500 MP JPEG took 255 MB. The rest are decoded whole, as
+// AVIF's 650 MB at 48 MP was, and BMP and ICO go through a full canvas.
+export const maxImagePixels = 500_000_000;
+const maxWholeDecodePixels = 100_000_000;
+const readsAtReducedSize = new Set(["jpeg", "png", "webp"]);
 const thumbnailEdge = 512;
 
-export function validateImageDimensions(width: number | undefined, height: number | undefined) {
-  if (!width || !height) throw new Error("image processing error: unable to decode image");
-  if (
-    width > maxImageDimension ||
-    height > maxImageDimension ||
-    width * height * 8 > maxImageAllocation
-  ) {
-    throw new Error("image processing error: image dimensions exceed safe limits");
+class ImageTooLarge extends Error {
+  readonly permanent = true;
+  constructor() {
+    super("This image is too large to read its text or match by what it shows.");
   }
+}
+
+function validateImageDimensions(
+  width: number | undefined,
+  height: number | undefined,
+  format?: string,
+) {
+  if (!width || !height)
+    throw Object.assign(new Error("image processing error: unable to decode image"), {
+      permanent: true,
+    });
+  const limit = format && readsAtReducedSize.has(format) ? maxImagePixels : maxWholeDecodePixels;
+  if (width * height > limit) throw new ImageTooLarge();
 }
 
 function validateIconImage(bytes: Buffer) {
@@ -83,27 +95,35 @@ function orientedSize({
 }
 
 // Capture's gate. It reads the header only, so even a 50 MB original costs
-// milliseconds; resizing is left to the background thumbnail job. BMP and ICO
-// have no cheap size read, so they return null and gain their size with the
-// thumbnail.
+// milliseconds; resizing is left to the background thumbnail job. It refuses what
+// is not an image, never what is merely large. BMP and ICO have no cheap size read,
+// so they return null and gain their size with the thumbnail.
 export async function inspectImage(bytes: Buffer) {
   let metadata: Metadata;
   try {
-    metadata = await sharp(bytes, { limitInputPixels: maxImagePixels }).metadata();
+    metadata = await sharp(bytes, { limitInputPixels: false }).metadata();
   } catch (error) {
-    if (!validateLegacyImageHeader(bytes)) throw error;
+    try {
+      if (!validateLegacyImageHeader(bytes)) throw error;
+    } catch (legacyError) {
+      if (!(legacyError instanceof ImageTooLarge)) throw legacyError;
+    }
     return null;
   }
-  validateImageDimensions(metadata.width, metadata.height);
+  if (!metadata.width || !metadata.height) throw new Error("unable to decode image");
   return orientedSize(metadata);
 }
 
+/** Every decoding job's gate: bytes sharp can read, or a failure that retrying cannot fix. */
 export async function sharpImageInput(bytes: Buffer) {
+  let metadata: Metadata;
   try {
-    await sharp(bytes, { limitInputPixels: maxImagePixels }).metadata();
-    return bytes;
+    metadata = await sharp(bytes, { limitInputPixels: false }).metadata();
   } catch (error) {
-    if (!validateLegacyImageHeader(bytes)) throw error;
+    if (!validateLegacyImageHeader(bytes))
+      throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+        permanent: true,
+      });
     // The deep imports skip the package entry, which scans every system font on load.
     const [{ CanvasElement }, { default: loadImage }] = await Promise.all([
       import("@napi-rs/canvas/js-binding.js"),
@@ -115,13 +135,14 @@ export async function sharpImageInput(bytes: Buffer) {
     canvas.getContext("2d").drawImage(image, 0, 0);
     return canvas.encode("png");
   }
+  validateImageDimensions(metadata.width, metadata.height, metadata.format);
+  return bytes;
 }
 
 export async function createImageThumbnail(bytes: Buffer) {
   const input = await sharpImageInput(bytes);
   const image = sharp(input, { limitInputPixels: maxImagePixels });
   const metadata = await image.metadata();
-  validateImageDimensions(metadata.width, metadata.height);
   const thumbnail = await image
     .rotate()
     .resize({
