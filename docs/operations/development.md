@@ -84,7 +84,7 @@ dashboard, set the access mode to Waitlist and keep email enabled, since
 invitation emails need it.
 
 Iterate on the site with `bun run dev:site` (hot reload; read the port from its
-output). It builds `/demo/` once at start, so restart it to see renderer changes there. Vercel's automatic Git deployments are disabled in
+output). At start it rebuilds `/demo/` only if something the demo is built from changed, so restart it to see renderer changes there. Vercel's automatic Git deployments are disabled in
 `apps/site/vercel.json`. The `Site preview` workflow invokes Vercel only for a
 same-repository PR targeting `main` that changes `apps/site`,
 `apps/renderer`, the site's imported `packages/contracts`, `packages/ingestion`,
