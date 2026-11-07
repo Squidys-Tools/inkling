@@ -76,6 +76,7 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
   let fromMenu = (_command: string) => {};
   let escaped = 0;
   const router = {
+    state: { location: { pathname: "/" } },
     navigate: ({ to }: { to: string }) => calls.push(to),
     history: { back: () => calls.push("back"), forward: () => {} },
   };
@@ -194,6 +195,17 @@ test("nonmodal notifications preserve commands and page Escape, but own focused 
     });
     expect(calls.slice(5)).toEqual(["/add/note"]);
     field.remove();
+    // The welcome demos these shortcuts; running one would leave onboarding unfinished.
+    router.state.location.pathname = "/welcome";
+    await act(async () => {
+      fromMenu("search");
+      page.dispatchEvent(
+        new f.dom.window.KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
+      );
+      sideBack();
+    });
+    expect(calls).toHaveLength(6);
+    router.state.location.pathname = "/";
     for (const error of [false, true]) {
       await act(async () => {
         notices.dismiss("archive");
@@ -222,7 +234,7 @@ test("on macOS desktop, Cmd shortcuts reach commands only through the menu", asy
     {
       useEffect: React.useEffect,
       useHotkeys,
-      useRouter: () => ({}),
+      useRouter: () => ({ state: { location: { pathname: "/" } } }),
       desktop: { onCommand: () => () => {} },
       platform: "darwin",
       bindingsFor,

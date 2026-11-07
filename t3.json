@@ -32,6 +32,12 @@
       "runOnWorktreeCreate": false
     },
     {
+      "name": "Build Chrome extension",
+      "command": "bun run build:extension",
+      "icon": "build",
+      "runOnWorktreeCreate": false
+    },
+    {
       "name": "Check changed files",
       "command": "bun run check:changed",
       "icon": "test",

@@ -11,15 +11,16 @@ function syncRevealDocument(doc: Document | null | undefined, active: boolean, c
 }
 
 // Hides the demo's search and view controls while the mask still covers them.
+// The search field is hidden whole: its glass surface is a sibling of the label.
 function prepareRevealDocument(doc: Document | null | undefined): doc is Document {
   if (!doc?.head || new URL(doc.URL).pathname !== "/demo/") return false;
   if (!doc.getElementById("embedded-reveal-chrome")) {
     const style = doc.createElement("style");
     style.id = "embedded-reveal-chrome";
-    style.textContent = `label:has(input[type=search]),[aria-label="View options"]{transition:opacity 180ms ease-out}
-      html[data-reveal=masked] label:has(input[type=search]),html[data-reveal=masked] [aria-label="View options"]{opacity:0;pointer-events:none}
-      html[data-reveal-motion=calm] label:has(input[type=search]),html[data-reveal-motion=calm] [aria-label="View options"]{transition:none}
-      @media(prefers-reduced-motion:reduce){label:has(input[type=search]),[aria-label="View options"]{transition:none}}`;
+    style.textContent = `div:has(>label input[type=search]),[aria-label="View options"]{transition:opacity 180ms ease-out}
+      html[data-reveal=masked] div:has(>label input[type=search]),html[data-reveal=masked] [aria-label="View options"]{opacity:0;pointer-events:none}
+      html[data-reveal-motion=calm] div:has(>label input[type=search]),html[data-reveal-motion=calm] [aria-label="View options"]{transition:none}
+      @media(prefers-reduced-motion:reduce){div:has(>label input[type=search]),[aria-label="View options"]{transition:none}}`;
     doc.head.appendChild(style);
   }
   return true;

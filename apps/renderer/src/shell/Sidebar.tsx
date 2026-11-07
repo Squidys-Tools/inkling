@@ -1,10 +1,8 @@
-import {
-  Archive01Icon,
-  Loading01Icon,
-  RotateCwIcon,
-  Settings01Icon,
-  SidebarLeftIcon,
-} from "@hugeicons/core-free-icons";
+import Archive01Icon from "@hugeicons/core-free-icons/Archive01Icon";
+import Loading01Icon from "@hugeicons/core-free-icons/Loading01Icon";
+import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
+import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
+import SidebarLeftIcon from "@hugeicons/core-free-icons/SidebarLeftIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useNavigate, useSearch as useRouteSearch } from "@tanstack/react-router";
 import { useLayoutEffect, useRef } from "react";

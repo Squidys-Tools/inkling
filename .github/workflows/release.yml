@@ -13,17 +13,13 @@ on:
       version:
         description: Stable version override; defaults to the version the latest nightly previewed
         type: string
-  schedule:
-    # Every 30 minutes; tools/release/resolve.ts ships at most one nightly per 8-hour slot, so a
-    # late or dropped tick is caught by the next one in the same slot.
-    - cron: "8,38 * * * *"
 
 # Nightly and preview runs share one group and stable gets its own, so a nightly never blocks a
 # stable. Publishers are never canceled, and `queue: max` keeps every pending run instead of only
 # the newest, so a queued stable tag cannot be dropped.
 concurrency:
   group: >-
-    inkling-release-${{ (github.event_name == 'schedule' || inputs.channel == 'nightly' || inputs.channel == 'preview') && 'nightly' || 'stable' }}
+    inkling-release-${{ (inputs.channel == 'nightly' || inputs.channel == 'preview') && 'nightly' || 'stable' }}
   cancel-in-progress: false
   queue: max
 
