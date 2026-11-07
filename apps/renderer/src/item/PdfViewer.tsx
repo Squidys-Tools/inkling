@@ -1,10 +1,8 @@
-import {
-  Cancel01Icon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  MinusSignIcon,
-  PlusSignIcon,
-} from "@hugeicons/core-free-icons";
+import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
+import ChevronLeftIcon from "@hugeicons/core-free-icons/ChevronLeftIcon";
+import ChevronRightIcon from "@hugeicons/core-free-icons/ChevronRightIcon";
+import MinusSignIcon from "@hugeicons/core-free-icons/MinusSignIcon";
+import PlusSignIcon from "@hugeicons/core-free-icons/PlusSignIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { IconButton } from "@inkling/ui";

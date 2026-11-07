@@ -1,5 +1,6 @@
 import { Menu } from "@base-ui/react/menu";
-import { PlusSignCircleIcon, Tick02Icon } from "@hugeicons/core-free-icons";
+import PlusSignCircleIcon from "@hugeicons/core-free-icons/PlusSignCircleIcon";
+import Tick02Icon from "@hugeicons/core-free-icons/Tick02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";

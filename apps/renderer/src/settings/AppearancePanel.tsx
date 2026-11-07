@@ -1,4 +1,5 @@
-import { GridViewIcon, Layout01Icon } from "@hugeicons/core-free-icons";
+import GridViewIcon from "@hugeicons/core-free-icons/GridViewIcon";
+import Layout01Icon from "@hugeicons/core-free-icons/Layout01Icon";
 import * as stylex from "@stylexjs/stylex";
 import { SegmentedControl } from "@inkling/ui";
 import { chrome } from "../desktop.ts";

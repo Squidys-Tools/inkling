@@ -1,11 +1,11 @@
 ---
 name: verify-inkling
-description: Drive the real inkling Electron desktop app as a user would (agent-desktop accessibility automation, no CDP) on a throwaway seeded library under the worktree's .dev/, and prove a feature with screenshots plus read-only database rows. Use when a change touches capture, note editing, search, Spaces, archive, or any user-visible behavior and you need launch, doctor, drive, evidence and cleanup on Windows.
+description: Drive the real inkling Electron desktop app as a user would (agent-desktop accessibility automation, no CDP) on a throwaway seeded library under the worktree's .dev/, and prove a feature with screenshots plus read-only database rows. Use for any change the user can see or operate, including visual-only ones (layout, styling, card treatment, controls) that no feature file names, and for flows such as capture, note editing, search, Spaces or archive. Needs launch, doctor, drive, evidence and cleanup on Windows.
 ---
 
 # verify-inkling
 
-Launches `bun run dev:app`'s app (build + Electron) against a scratch library, drives it through the OS accessibility tree with the `agent-desktop` CLI, and records evidence. Start at [features/README.md](features/README.md) and drive one feature per run. Written and proven on Windows 11; macOS and Linux are untested (the helpers have untested POSIX branches).
+Launches `bun run dev:app`'s app (build + Electron) against a scratch library, drives it through the OS accessibility tree with the `agent-desktop` CLI, and records evidence. Start at [features/README.md](features/README.md) and drive one feature per run. If no feature file covers the surface you changed, drive that surface with the same launch, drive, evidence and cleanup steps, and record its entry point in `PROOF.md` where a feature ID would go. Written and proven on Windows 11; macOS and Linux are untested (the helpers have untested POSIX branches).
 
 ## Rules
 
