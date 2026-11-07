@@ -1,0 +1,27 @@
+# Capture a link
+
+Capture a link saves a URL as a card at once, then fills in title and description in the background. Status: **driven** on 2026-11-02. This is the only mapped capture that uses the network (it fetches the URL you type).
+
+## Sub-features
+
+- `link-instant` the card appears immediately with the domain as its title.
+- `link-enrich` a background job replaces the title and description from the page.
+
+## How to get to it (user POV)
+
+- Choose **Add**, then **Link**. (Paste, drag and drop, deep link, extension: not driven.)
+
+## Driving it with agent-desktop
+
+Preconditions: seeded library; the machine can reach `https://example.com/`.
+
+- **Open.** `$I ad expand "$($I ref menubutton Add)"`, then `$I ad click "$($I ref menuitem Link)"`. Route `#/add/link`; textfields `URL to save` and `Title`.
+- **Fill and save.** `$I ad set-value "$($I ref textfield 'URL to save')" 'https://example.com/'`, then `$I ad click "$($I ref button 'Save to library')"`.
+- **Instant proof.** `$I tree | grep -E 'Everything|Article:'` shows `Everything` +1 and group `Article: example.com`; `db "SELECT kind,title,source_url,source_label FROM items ORDER BY created_at DESC LIMIT 1"` → kind `url`, title `example.com`, source_url `https://example.com/`.
+- **Enrichment proof.** Re-run the same `db` query until `title` is `Example Domain` (about 5 s); `db "SELECT kind,status FROM jobs ORDER BY created_at DESC LIMIT 4"` lists an `enrich_url` job `completed`. Poll the query; do not assume a fixed delay.
+
+## Gotchas
+
+- The card is named `Article: <title>` and its title changes after enrichment, so re-resolve it by the current title.
+- Offline, the card keeps the domain title (partial result) and the job fails or retries: check `jobs.status`.
+- Several jobs run per capture (embedding, poster, enrichment); wait on the specific `enrich_url` row.

@@ -1,4 +1,4 @@
-import { PlayIcon } from "@hugeicons/core-free-icons";
+import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, motion, radius, text } from "@inkling/ui/tokens.stylex";

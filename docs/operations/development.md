@@ -77,8 +77,14 @@ latest GitHub release, looked up once per build. Build it with
 `bun run build:site`, which runs Vite on Node: under the Bun runtime, StyleX's
 production media-query parser fails.
 
+The `/waitlist` page needs `VITE_CLERK_PUBLISHABLE_KEY` in the Vercel project's
+environment variables and in `apps/site/.env.local` for local runs (`*.local` is
+ignored by git). Without it the page says the waitlist is not open. In the Clerk
+dashboard, set the access mode to Waitlist and keep email enabled, since
+invitation emails need it.
+
 Iterate on the site with `bun run dev:site` (hot reload; read the port from its
-output). It builds `/demo/` once at start, so restart it to see renderer changes there. Vercel's automatic Git deployments are disabled in
+output). At start it rebuilds `/demo/` only if something the demo is built from changed, so restart it to see renderer changes there. Vercel's automatic Git deployments are disabled in
 `apps/site/vercel.json`. The `Site preview` workflow invokes Vercel only for a
 same-repository PR targeting `main` that changes `apps/site`,
 `apps/renderer`, the site's imported `packages/contracts`, `packages/ingestion`,
@@ -147,7 +153,7 @@ Checking, downloading, canceling and installing are separate actions the user ta
 
 To cut a release:
 
-1. Push a `vX.Y.Z` tag, or run the Release workflow with the `stable` channel; a dispatched stable builds the latest published nightly's commit, so stable only ever ships a build nightly users already ran (`version` overrides the nightly-derived version). Nightlies ship in 8-hour slots that open at midnight, 8am and 4pm EST. Scheduled runs check every 30 minutes, and a slot ships a nightly only when main has commits the last published nightly does not and no nightly has been published since the slot opened; run the workflow with the `nightly` channel to ship one by hand. Their version is the next patch with a `-nightly.YYYYMMDD.<run>` suffix. The `preview` channel exercises the whole flow from any branch and releases nothing.
+1. Push a `vX.Y.Z` tag, or run the Release workflow with the `stable` channel; a dispatched stable builds the latest published nightly's commit, so stable only ever ships a build nightly users already ran (`version` overrides the nightly-derived version). Nightlies have no schedule: run the workflow with the `nightly` channel to ship one from `main`, whether or not `main` has changed since the last nightly. Their version is the next patch with a `-nightly.YYYYMMDD.<run>` suffix. The `preview` channel exercises the whole flow from any branch and releases nothing.
 2. The workflow runs the same typecheck, lint, unit-test and web-build gates as CI, builds the Windows installer, the Linux `.deb` and AppImage, and the macOS disk image, runs the packaged smoke checks and launches each build, creates the release tag at the built commit, then a draft GitHub release. Nothing is published unless every gate passes. A nightly publishes itself once every asset is attached; a stable release stays a draft, with its tag already in place. If you discard a stable draft, delete its tag too.
 3. For stable, review the draft, which holds notes generated from merged PR titles, and publish it. Until a channel has a published release, update checks on it show an error.
 4. For a stable release, add its section to `docs/changelog.md` from those notes, following the rules at the top of that file.
@@ -168,7 +174,7 @@ Never add signing secrets. Nightlies publish themselves; a stable release is pub
 | Lint and format | `bun run lint` (`bun run lint:fix` to apply) | oxlint, with inkling rules in `tools/oxlint-plugin/`, then oxfmt |
 | Bun pin | `bun tools/repo/check-bun-version.ts` | running Bun must match `.bun-version` |
 | Documented commands | `bun tools/repo/command-refs.ts` | every `bun run` in the docs and `t3.json` exists |
-| Extension build | `bun run --cwd extension build` | |
+| Extension build | `bun run build:extension` | |
 
 ## CI
 

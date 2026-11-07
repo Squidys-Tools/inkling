@@ -60,9 +60,8 @@ export function Grid({
     lanes: Math.max(columns, 1),
     // A card takes the shortest column once its real height is known, not by its estimate.
     laneAssignmentMode: "measured",
-    // A list row's title sits at its top, so the first row starts below GradualBlur's 70px
-    // strip. A pinned search has its own row under the bar.
-    paddingStart: pinnedOffset ? 136 : layout === "list" ? 70 : 8,
+    // The first row starts below the floating search bar. A pinned search has its own row under the bar.
+    paddingStart: pinnedOffset ? 136 : 70,
     paddingEnd: 72,
     overscan: 2,
     // A cell's new height arrives in a ResizeObserver callback, whose update React renders

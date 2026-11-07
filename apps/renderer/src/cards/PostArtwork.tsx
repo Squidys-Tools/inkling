@@ -1,10 +1,8 @@
-import {
-  CheckmarkBadge01Icon,
-  HeartIcon,
-  Message01Icon,
-  RepeatIcon,
-  Share08Icon,
-} from "@hugeicons/core-free-icons";
+import CheckmarkBadge01Icon from "@hugeicons/core-free-icons/CheckmarkBadge01Icon";
+import HeartIcon from "@hugeicons/core-free-icons/HeartIcon";
+import Message01Icon from "@hugeicons/core-free-icons/Message01Icon";
+import RepeatIcon from "@hugeicons/core-free-icons/RepeatIcon";
+import Share08Icon from "@hugeicons/core-free-icons/Share08Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, font, radius } from "@inkling/ui/tokens.stylex";
