@@ -1,9 +1,7 @@
-import {
-  Download04Icon,
-  Folder01Icon,
-  Loading01Icon,
-  Upload04Icon,
-} from "@hugeicons/core-free-icons";
+import Download04Icon from "@hugeicons/core-free-icons/Download04Icon";
+import Folder01Icon from "@hugeicons/core-free-icons/Folder01Icon";
+import Loading01Icon from "@hugeicons/core-free-icons/Loading01Icon";
+import Upload04Icon from "@hugeicons/core-free-icons/Upload04Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";

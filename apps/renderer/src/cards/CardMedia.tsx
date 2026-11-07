@@ -1,4 +1,4 @@
-import { PlayIcon } from "@hugeicons/core-free-icons";
+import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { useLayoutEffect, useRef } from "react";

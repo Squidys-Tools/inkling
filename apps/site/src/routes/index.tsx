@@ -15,16 +15,9 @@ export const Route = createFileRoute("/")({
         ...tags.links,
         {
           rel: "preload",
-          href: "/media/red-hat-400.ttf",
+          href: "/media/red-hat.woff2",
           as: "font",
-          type: "font/ttf",
-          crossOrigin: "anonymous",
-        },
-        {
-          rel: "preload",
-          href: "/media/red-hat-700.ttf",
-          as: "font",
-          type: "font/ttf",
+          type: "font/woff2",
           crossOrigin: "anonymous",
         },
       ],

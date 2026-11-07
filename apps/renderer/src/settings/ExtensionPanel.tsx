@@ -1,4 +1,4 @@
-import { Link01Icon } from "@hugeicons/core-free-icons";
+import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import type { DesktopBridge } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
