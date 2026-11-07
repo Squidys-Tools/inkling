@@ -15,7 +15,7 @@ To pair, open the popup's settings button (or **Details → Extension options**)
 ## Load unpacked
 
 1. Install the repository dependencies with `bun install`.
-2. Build the extension from the repository root: `bun run --cwd extension build`.
+2. Build the extension from the repository root: `bun run build:extension`.
 3. In Chrome, open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `extension/dist/`.
 
 The popup gets access to the tab you open it on through `activeTab`, and only then. The loopback host permission is limited to `127.0.0.1`; there are no persistent page scripts or broad website permissions.

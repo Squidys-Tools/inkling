@@ -174,7 +174,7 @@ Never add signing secrets. Nightlies publish themselves; a stable release is pub
 | Lint and format | `bun run lint` (`bun run lint:fix` to apply) | oxlint, with inkling rules in `tools/oxlint-plugin/`, then oxfmt |
 | Bun pin | `bun tools/repo/check-bun-version.ts` | running Bun must match `.bun-version` |
 | Documented commands | `bun tools/repo/command-refs.ts` | every `bun run` in the docs and `t3.json` exists |
-| Extension build | `bun run --cwd extension build` | |
+| Extension build | `bun run build:extension` | |
 
 ## CI
 
