@@ -2,7 +2,8 @@ import sharp, { type Metadata } from "sharp";
 
 // Limits on what the jobs unpack, never on what the library keeps. These formats can
 // be read at reduced size: a 500 MP JPEG took 255 MB. The rest are decoded whole, as
-// AVIF's 650 MB at 48 MP was, and BMP and ICO go through a full canvas.
+// AVIF's 650 MB at 48 MP was, and BMP and ICO go through a full canvas. Copying in
+// apps/desktop/src/item-transfer.ts keeps the same limits.
 export const maxImagePixels = 500_000_000;
 const maxWholeDecodePixels = 100_000_000;
 const readsAtReducedSize = new Set(["jpeg", "png", "webp"]);

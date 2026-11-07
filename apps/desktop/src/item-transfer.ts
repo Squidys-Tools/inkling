@@ -13,8 +13,11 @@ type TransferItem = Pick<
 const maxImageBytes = 50 * 1024 * 1024;
 // At 200 MP the clipboard reports success and holds nothing; 40 MP pastes back whole.
 const maxCopyPixels = 40_000_000;
-// The most the jobs read, so copying asks no more of sharp than saving did.
+// The most the jobs read, so copying asks no more of sharp than saving did. These match
+// packages/jobs/src/thumbnail.ts: formats outside the set are decoded whole.
 const maxSourcePixels = 500_000_000;
+const maxWholeDecodePixels = 100_000_000;
+const readsAtReducedSize = new Set(["jpeg", "png", "webp"]);
 const maxExportBytes = 1024 * 1024;
 
 /** Only main resolves files; the page supplies an item id, never an OS path. */
@@ -81,14 +84,17 @@ export function createItemTransfer({
               if (!result.bytesRead) throw new Error("The image changed while being copied.");
               offset += result.bytesRead;
             }
-            const { autoOrient } = await sharp(bytes, { limitInputPixels: false }).metadata();
+            const { autoOrient, format } = await sharp(bytes, {
+              limitInputPixels: false,
+            }).metadata();
             const pixels = autoOrient.width * autoOrient.height;
-            if (pixels > maxSourcePixels)
+            const limit = readsAtReducedSize.has(format) ? maxSourcePixels : maxWholeDecodePixels;
+            if (pixels > limit)
               throw new Error("This image is too large to copy. Drag its file instead.");
             const scale = Math.sqrt(maxCopyPixels / pixels);
             const scaled = scale < 1;
             // Decode in native workers, without fetching remote URLs or changing the original.
-            const png = await sharp(bytes, { limitInputPixels: maxSourcePixels })
+            const png = await sharp(bytes, { limitInputPixels: limit })
               .rotate()
               .resize(scaled ? { width: Math.floor(autoOrient.width * scale) } : {})
               .png()

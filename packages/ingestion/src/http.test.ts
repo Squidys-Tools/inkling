@@ -185,5 +185,5 @@ test("a page that refuses is permanent, one that may recover is not", () => {
   expect([408, 429, 500, 503].map(http)).toEqual([false, false, false, false]);
   expect(new UrlIngestionError("network-error", "").permanent).toBe(false);
   expect(new UrlIngestionError("timeout", "").permanent).toBe(false);
-  expect(new UrlIngestionError("unsupported-content-type", "").permanent).toBe(true);
+  expect(new UrlIngestionError("content-too-large", "").permanent).toBe(true);
 });

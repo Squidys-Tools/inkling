@@ -1,4 +1,5 @@
-import { AlertCircleIcon, RotateCwIcon } from "@hugeicons/core-free-icons";
+import AlertCircleIcon from "@hugeicons/core-free-icons/AlertCircleIcon";
+import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, radius } from "@inkling/ui/tokens.stylex";

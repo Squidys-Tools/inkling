@@ -62,8 +62,9 @@ fails if a dev seed file still reaches it.
 `dev:app` runs the app on `.dev-library/` in the worktree, which
 `tools/dev/seeded-library.ts` fills with the same seed on first run, so both dev
 modes show the same library and a dev run can never touch or stamp the real one.
-Delete `.dev-library/` to reseed. Passing `dev:app` a `--user-data-dir=<dir>`
-points at another library instead and never seeds it.
+Delete `.dev-library/` to reseed. The worktree's settle action (`Clean up worktree`
+in `t3.json`) deletes it too, with `dist/` and `node_modules/`. Passing `dev:app` a
+`--user-data-dir=<dir>` points at another library instead and never seeds it.
 `build:app` writes `dist/renderer` and `dist/desktop`, then runs
 `tools/repo/assert-no-demo-seed.ts`, which fails the build if any seed file or
 reference reached them. electron-builder packs only those two folders, and every
@@ -84,7 +85,7 @@ dashboard, set the access mode to Waitlist and keep email enabled, since
 invitation emails need it.
 
 Iterate on the site with `bun run dev:site` (hot reload; read the port from its
-output). It builds `/demo/` once at start, so restart it to see renderer changes there. Vercel's automatic Git deployments are disabled in
+output). At start it rebuilds `/demo/` only if something the demo is built from changed, so restart it to see renderer changes there. Vercel's automatic Git deployments are disabled in
 `apps/site/vercel.json`. The `Site preview` workflow invokes Vercel only for a
 same-repository PR targeting `main` that changes `apps/site`,
 `apps/renderer`, the site's imported `packages/contracts`, `packages/ingestion`,
@@ -174,7 +175,7 @@ Never add signing secrets. Nightlies publish themselves; a stable release is pub
 | Lint and format | `bun run lint` (`bun run lint:fix` to apply) | oxlint, with inkling rules in `tools/oxlint-plugin/`, then oxfmt |
 | Bun pin | `bun tools/repo/check-bun-version.ts` | running Bun must match `.bun-version` |
 | Documented commands | `bun tools/repo/command-refs.ts` | every `bun run` in the docs and `t3.json` exists |
-| Extension build | `bun run --cwd extension build` | |
+| Extension build | `bun run build:extension` | |
 
 ## CI
 

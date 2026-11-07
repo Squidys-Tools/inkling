@@ -1,4 +1,5 @@
-import { GridViewIcon, ListViewIcon } from "@hugeicons/core-free-icons";
+import GridViewIcon from "@hugeicons/core-free-icons/GridViewIcon";
+import ListViewIcon from "@hugeicons/core-free-icons/ListViewIcon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Glass } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";

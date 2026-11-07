@@ -1,11 +1,9 @@
-import {
-  Camera01Icon,
-  Database02Icon,
-  Link01Icon,
-  PaintBoardIcon,
-  RotateCwIcon,
-  Settings01Icon,
-} from "@hugeicons/core-free-icons";
+import Camera01Icon from "@hugeicons/core-free-icons/Camera01Icon";
+import Database02Icon from "@hugeicons/core-free-icons/Database02Icon";
+import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
+import PaintBoardIcon from "@hugeicons/core-free-icons/PaintBoardIcon";
+import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
+import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 
 /** The rail, in order. Licenses opens from General and keeps General selected. */
 export const railSections = [

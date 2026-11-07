@@ -89,3 +89,110 @@ test("a library from a newer schema is refused without writing to it", async () 
     { name: "items" },
   ]);
 });
+
+// Both versions indexed raw metadata JSON, so each must rebuild its index on open.
+test.each([9, 10])(
+  "a v%i library rebuilds its search index on item rowids, without article markup, skipping the old trigger",
+  async (version) => {
+    const databasePath = join(temporaryRoot(), `v${version}.sqlite3`);
+    const db = trackDatabase(new DatabaseSync(databasePath));
+    db.exec(`
+    CREATE TABLE items (
+      id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, title TEXT, description TEXT,
+      body TEXT NOT NULL DEFAULT '', body_format TEXT NOT NULL DEFAULT 'md', source_url TEXT,
+      source_label TEXT, local_asset_path TEXT, thumbnail_path TEXT,
+      ocr_text TEXT NOT NULL DEFAULT '', metadata TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      archived INTEGER NOT NULL DEFAULT 0, favorite INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE VIRTUAL TABLE items_fts USING fts5(
+      item_id UNINDEXED, title, description, source_label, ocr_text, metadata, body
+    );
+    CREATE TABLE old_trigger_fired (id TEXT);
+    CREATE TRIGGER items_fts_after_insert AFTER INSERT ON items BEGIN
+      INSERT INTO items_fts(item_id, title, metadata) VALUES (new.id, new.title, new.metadata);
+    END;
+    CREATE TRIGGER items_fts_after_update AFTER UPDATE ON items BEGIN
+      DELETE FROM items_fts WHERE item_id = old.id;
+      INSERT INTO items_fts(item_id, title, metadata) VALUES (new.id, new.title, new.metadata);
+      INSERT INTO old_trigger_fired VALUES (new.id);
+    END;
+    INSERT INTO items (id, kind, title, metadata, created_at, updated_at) VALUES
+      ('first', 'note', 'alpha', '{"html":"<p>markupword</p>","text":"plainword"}', 1, 1),
+      ('second', 'note', 'bravo', '{}', 1, 1), ('third', 'note', 'charlie', '{}', 1, 1);
+    -- The old trigger gives an updated item a new index rowid, so the two tables drift apart.
+    UPDATE items SET title = 'bravo renamed' WHERE id = 'second';
+    DELETE FROM old_trigger_fired;
+    PRAGMA user_version = ${version};
+  `);
+    closeDatabase(db);
+
+    const migrated = await trackedLibrary(databasePath);
+    expect(migrated.db.prepare("SELECT COUNT(*) AS fired FROM old_trigger_fired").get()).toEqual({
+      fired: 0,
+    });
+    expect(
+      migrated.db
+        .prepare(
+          `SELECT i.id FROM items i JOIN items_fts f ON f.rowid = i.rowid AND f.item_id = i.id
+         ORDER BY i.id`,
+        )
+        .all()
+        .map((row) => row.id),
+    ).toEqual(["first", "second", "third"]);
+    expect(ids(await migrated.searchItems("renamed"))).toEqual(["second"]);
+    expect(ids(await migrated.searchItems("plainword"))).toEqual(["first"]);
+    expect(ids(await migrated.searchItems("markupword"))).toEqual([]);
+  },
+);
+
+test("the search index follows indexed columns only and each write touches only its own row", async () => {
+  const library = await trackedLibrary(join(temporaryRoot(), "library.sqlite3"));
+  const note = await library.createNote({ title: "Original", body: "keepsake" });
+  const other = await library.createNote({ title: "Neighbor", body: "bystander" });
+  if (!note || !other) throw new Error("notes were not saved");
+  const write = (assignment: string) => {
+    const totalChanges = () =>
+      Number(library.db.prepare("SELECT total_changes() AS total").get()?.total);
+    const before = totalChanges();
+    library.db.prepare(`UPDATE items SET ${assignment} WHERE id = ?`).run(note.id);
+    return totalChanges() - before;
+  };
+  expect(library.db.prepare("SELECT rowid FROM items_fts WHERE item_id = ?").get(note.id)).toEqual(
+    library.db.prepare("SELECT rowid FROM items WHERE id = ?").get(note.id),
+  );
+
+  // total_changes counts trigger writes, so 1 means the item changed and its index row did not.
+  for (const assignment of [
+    "archived = 1",
+    "archived = 0",
+    "favorite = 1",
+    "thumbnail_path = 'assets/items/x/thumbnail.webp'",
+    "updated_at = 99",
+    "title = title, description = description, metadata = metadata, body = body",
+  ]) {
+    expect(write(assignment)).toBe(1);
+  }
+
+  for (const [column, value, word] of [
+    ["title", "'titleword'", "titleword"],
+    ["description", "'descriptionword'", "descriptionword"],
+    ["source_label", "'labelword'", "labelword"],
+    ["ocr_text", "'ocrword'", "ocrword"],
+    ["metadata", `'{"text":"metadataword"}'`, "metadataword"],
+    ["body", "'bodyword'", "bodyword"],
+  ]) {
+    write(`${column} = ${value}`);
+    expect(ids(await library.searchItems(word))).toEqual([note.id]);
+  }
+  expect(ids(await library.searchItems("keepsake"))).toEqual([]);
+  expect(ids(await library.searchItems("bystander"))).toEqual([other.id]);
+
+  // SQLite reuses the highest rowid after a delete, so the new row must not inherit the old index.
+  library.db.prepare("DELETE FROM items WHERE id = ?").run(other.id);
+  expect(ids(await library.searchItems("bystander"))).toEqual([]);
+  const next = await library.createNote({ title: "Newcomer", body: "arrival" });
+  if (!next) throw new Error("note was not saved");
+  expect(ids(await library.searchItems("arrival"))).toEqual([next.id]);
+  expect(ids(await library.searchItems("bodyword"))).toEqual([note.id]);
+});

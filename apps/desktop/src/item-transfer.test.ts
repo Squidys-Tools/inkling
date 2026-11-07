@@ -172,6 +172,19 @@ test("missing, non-image, escaped and oversized copy inputs fail closed", async 
   tooLarge.writeUInt16BE(25_000, frame + 7);
   await writeFile(join(assets, "huge.jpg"), tooLarge);
   await expect(transfer.image("huge")).rejects.toThrow("too large to copy");
+  // A GIF is decoded whole, so it stops at 100 MP as its jobs do, well short of 500 MP.
+  const wholeDecode = await sharp({
+    create: { width: 16, height: 16, channels: 3, background: "red" },
+  })
+    .gif()
+    .toBuffer();
+  const descriptor = wholeDecode.indexOf(Buffer.from([0x2c, 0, 0, 0, 0, 16, 0, 16, 0]));
+  for (const at of [6, descriptor + 5]) {
+    wholeDecode.writeUInt16LE(12_000, at);
+    wholeDecode.writeUInt16LE(10_000, at + 2);
+  }
+  await writeFile(join(assets, "huge.jpg"), wholeDecode);
+  await expect(transfer.image("huge")).rejects.toThrow("too large to copy");
 });
 
 test("text drag exports are sanitized, bounded, unique beyond capacity and cleaned up", async () => {
