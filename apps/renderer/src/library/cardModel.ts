@@ -30,8 +30,10 @@ export type CardView = {
   date: string;
   createdAt: number;
   tags: readonly string[];
-  /** The managed thumbnail, else the original image, a remote image or a video poster. */
+  /** The managed thumbnail, else an original small enough to draw, a remote image or a video poster. */
   image?: string;
+  /** A saved image with nothing small enough to draw, until or unless its thumbnail exists. */
+  noPreview: boolean;
   imageAlt: string;
   aspectRatio: number;
   pdfPageCount?: number;
@@ -142,6 +144,19 @@ function mediaOf(
   return "paper";
 }
 
+// The browser holds 4 bytes per pixel for each image it draws, so a card waits for the thumbnail.
+const maxDrawnOriginalPixels = 40_000_000;
+
+/** What a card can draw of its own file: the thumbnail, else an original small enough. */
+export function cardAsset(
+  card: Pick<LibraryCard, "thumbnailPath" | "localAssetPath" | "metadata">,
+) {
+  if (card.thumbnailPath) return assetUrl(card.thumbnailPath);
+  const pixels =
+    (positive(card.metadata.mediaWidth) ?? 0) * (positive(card.metadata.mediaHeight) ?? 0);
+  return pixels > maxDrawnOriginalPixels ? undefined : assetUrl(card.localAssetPath);
+}
+
 function remoteImage(metadata: LibraryCard["metadata"]) {
   const urls = Array.isArray(metadata.imageUrls) ? metadata.imageUrls : [];
   return urls.map((url) => webUrl(text(url))).find((url) => url !== undefined);
@@ -167,10 +182,10 @@ export function toCardView(card: LibraryCard, now = Date.now()): CardView {
   const kind = itemKind(card.kind, card.sourceUrl, Boolean(social));
   const remote = remoteImage(metadata);
   const image =
-    assetUrl(card.thumbnailPath) ??
-    (kind === "Image" ? assetUrl(card.localAssetPath) : undefined) ??
+    (kind === "Image" ? cardAsset(card) : assetUrl(card.thumbnailPath)) ??
     remote ??
     video?.posterUrl;
+  const noPreview = kind === "Image" && !image && Boolean(card.localAssetPath);
   const dimensions = remoteDimensions(metadata, remote);
   const width = positive(metadata.mediaWidth) ?? dimensions?.width;
   const height = positive(metadata.mediaHeight) ?? dimensions?.height;
@@ -202,6 +217,7 @@ export function toCardView(card: LibraryCard, now = Date.now()): CardView {
     createdAt: card.createdAt,
     tags,
     image,
+    noPreview,
     imageAlt: card.title?.trim() || "",
     aspectRatio,
     pdfPageCount:
@@ -215,7 +231,7 @@ export function toCardView(card: LibraryCard, now = Date.now()): CardView {
     hasArticleContent: card.hasArticleContent,
     hasLocalFile: Boolean(card.localAssetPath),
     archived: card.archived,
-    treatment: treatmentOf(kind, image, social?.art),
+    treatment: noPreview ? "media" : treatmentOf(kind, image, social?.art),
     media: mediaOf(kind, image, social?.art, Boolean(social)),
   };
 }

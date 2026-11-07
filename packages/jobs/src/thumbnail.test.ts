@@ -92,12 +92,12 @@ test("jobs read past the old limit, and stop at the limit their format can affor
   const large = await solid(10_000, 5000).jpeg().toBuffer();
   expect(await createImageThumbnail(large)).toMatchObject({ width: 10_000, height: 5000 });
 
-  // Only the header is read: a real 210 MP encode would take the whole test budget.
+  // Only the header is read: a real 525 MP encode would take the whole test budget.
   const tooLarge = await solid(16, 16).jpeg().toBuffer();
   const frame = tooLarge.indexOf(Buffer.from([0xff, 0xc0]));
-  tooLarge.writeUInt16BE(14_000, frame + 5);
-  tooLarge.writeUInt16BE(15_000, frame + 7);
-  expect(await inspectImage(tooLarge)).toEqual({ width: 15_000, height: 14_000 });
+  tooLarge.writeUInt16BE(21_000, frame + 5);
+  tooLarge.writeUInt16BE(25_000, frame + 7);
+  expect(await inspectImage(tooLarge)).toEqual({ width: 25_000, height: 21_000 });
   await expect(createImageThumbnail(tooLarge)).rejects.toMatchObject({
     message: expect.stringContaining("too large"),
     permanent: true,

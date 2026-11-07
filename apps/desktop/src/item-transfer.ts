@@ -9,7 +9,12 @@ type TransferItem = Pick<
   ItemDetail,
   "kind" | "title" | "body" | "bodyFormat" | "sourceUrl" | "localAssetPath"
 >;
-const maxImageBytes = 32 * 1024 * 1024;
+// The library's own limit on a saved file.
+const maxImageBytes = 50 * 1024 * 1024;
+// At 200 MP the clipboard reports success and holds nothing; 40 MP pastes back whole.
+const maxCopyPixels = 40_000_000;
+// The most the jobs read, so copying asks no more of sharp than saving did.
+const maxSourcePixels = 500_000_000;
 const maxExportBytes = 1024 * 1024;
 
 /** Only main resolves files; the page supplies an item id, never an OS path. */
@@ -76,13 +81,19 @@ export function createItemTransfer({
               if (!result.bytesRead) throw new Error("The image changed while being copied.");
               offset += result.bytesRead;
             }
-            const { width = 0, height = 0 } = await sharp(bytes, {
-              limitInputPixels: false,
-            }).metadata();
-            if (width * height > 40_000_000)
+            const { autoOrient } = await sharp(bytes, { limitInputPixels: false }).metadata();
+            const pixels = autoOrient.width * autoOrient.height;
+            if (pixels > maxSourcePixels)
               throw new Error("This image is too large to copy. Drag its file instead.");
+            const scale = Math.sqrt(maxCopyPixels / pixels);
+            const scaled = scale < 1;
             // Decode in native workers, without fetching remote URLs or changing the original.
-            return await sharp(bytes, { limitInputPixels: 40_000_000 }).rotate().png().toBuffer();
+            const png = await sharp(bytes, { limitInputPixels: maxSourcePixels })
+              .rotate()
+              .resize(scaled ? { width: Math.floor(autoOrient.width * scale) } : {})
+              .png()
+              .toBuffer();
+            return { png, scaled };
           } finally {
             await file.close();
           }
