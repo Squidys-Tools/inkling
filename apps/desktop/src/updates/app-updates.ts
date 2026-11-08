@@ -6,9 +6,9 @@ import { createUpdateController, createUpdatePreferences } from "./controller.ts
 import { installDebianUpdate, updateDisabledReason } from "./install.ts";
 
 /**
- * The `updates.*` bridge calls. electron-updater loads on the first one, so a
- * launch that never opens update settings never pays for it, and nothing
- * checks, downloads or installs unless the user asks.
+ * The `updates.*` bridge calls. electron-updater loads on the first one, which
+ * the sidebar makes once per launch with a check. Nothing downloads or installs
+ * unless the user asks.
  */
 export function appUpdates({
   libraryDirectory,

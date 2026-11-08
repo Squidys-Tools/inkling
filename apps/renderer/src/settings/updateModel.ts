@@ -151,8 +151,6 @@ export function createUpdateStore(bridge: UpdateBridge | undefined) {
       start();
       return observe(listener);
     },
-    /** Follows the state without asking main for it, which would load the updater there. */
-    observe,
     check: () => run("check", (updates) => updates.check()),
     setChannel: (channel: UpdateChannel) =>
       run("channel", (updates) => updates.setChannel(channel)),

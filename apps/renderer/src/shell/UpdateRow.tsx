@@ -6,6 +6,7 @@ import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
 import SecurityCheckIcon from "@hugeicons/core-free-icons/SecurityCheckIcon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
+import { useEffect, useRef } from "react";
 import { cardColor, color, font, loadingColor, motion, radius } from "@inkling/ui/tokens.stylex";
 import { Beam, Dim } from "../cards/CardState.tsx";
 import { useAppUpdate } from "../settings/useAppUpdate.ts";
@@ -39,7 +40,16 @@ const toneOf: Record<UpdateNavPhase, "quiet" | "offer" | "ready" | "failed"> = {
  * ink from the left, verifying and installing wait under the card's beam, and a failure is drained.
  */
 export function UpdateRow({ compact }: { compact: boolean }) {
-  const update = useAppUpdate({ start: false });
+  const update = useAppUpdate();
+  const { check, isLoading } = update;
+  // One check per launch, after the saved state loads (the store ignores actions before that).
+  // A failed check leaves no row, so an offline start stays quiet.
+  const checkedOnLaunch = useRef(false);
+  useEffect(() => {
+    if (isLoading || checkedOnLaunch.current) return;
+    checkedOnLaunch.current = true;
+    void check();
+  }, [isLoading, check]);
   const row = update.navRow;
   if (!row) return null;
   const tone = toneOf[row.phase];

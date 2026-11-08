@@ -7,12 +7,10 @@ const updates = createUpdateStore(desktop?.updates);
 /**
  * Update state and actions, shared by Settings and the sidebar. `navRow` is the
  * sidebar's offer of a new version (null when there is none); `runNavRow` runs
- * what that row offers. With `start: false` it only follows state Settings loaded.
+ * what that row offers.
  */
-export function useAppUpdate({ start = true } = {}) {
-  const view = updateView(
-    useSyncExternalStore(start ? updates.subscribe : updates.observe, updates.get),
-  );
+export function useAppUpdate() {
+  const view = updateView(useSyncExternalStore(updates.subscribe, updates.get));
   const navRow = updateNavRow(view);
   const run = (action: Exclude<UpdateAction, "channel">) =>
     action === "check"
