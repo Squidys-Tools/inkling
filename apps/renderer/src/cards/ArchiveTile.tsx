@@ -17,6 +17,7 @@ import {
   retryProcessing,
   setArchived,
 } from "./cardActions.ts";
+import { cardKeyDown } from "./cardKeys.ts";
 import { CardMedia } from "./CardMedia.tsx";
 import { ProcessingBadge } from "./Processing.tsx";
 
@@ -37,14 +38,9 @@ export function ArchiveTile({ view, index }: { view: CardView; index: number }) 
         data-item-id={view.id}
         onClick={() => openItem(view, navigate)}
         onContextMenu={menu}
-        onKeyDown={(event) => {
-          if (event.target !== event.currentTarget) return;
-          if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey))
-            return menu(event);
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          openItem(view, navigate);
-        }}
+        onKeyDown={(event) =>
+          cardKeyDown(event, { onOpen: () => openItem(view, navigate), onMenu: menu })
+        }
         {...stylex.props(styles.tile, tileMarker)}
       >
         <div {...stylex.props(styles.media)}>

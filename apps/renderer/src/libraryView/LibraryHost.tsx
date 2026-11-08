@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { srOnly } from "@inkling/ui";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { loadScope, showScope, shownScope, useScope } from "../library/cards.ts";
 import { scopeFromPath, scopeKey } from "../library/scope.ts";
@@ -161,7 +162,7 @@ export function LibraryHost({
       {!archive && ids.length > 0 && <ViewDock />}
 
       {/* Screen readers hear the count of what the grid shows. */}
-      <p role="status" {...stylex.props(styles.srOnly)}>
+      <p role="status" {...stylex.props(srOnly)}>
         {ready ? `${count.toLocaleString()} ${count === 1 ? "item" : "items"}` : ""}
       </p>
     </section>
@@ -232,15 +233,4 @@ const styles = stylex.create({
     color: color.danger,
   },
   errorBelowFilter: { top: "136px" },
-  srOnly: {
-    position: "absolute",
-    width: "1px",
-    height: "1px",
-    margin: "-1px",
-    padding: 0,
-    overflow: "hidden",
-    clip: "rect(0 0 0 0)",
-    whiteSpace: "nowrap",
-    borderWidth: 0,
-  },
 });
