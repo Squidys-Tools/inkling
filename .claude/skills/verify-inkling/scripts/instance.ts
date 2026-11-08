@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { Database } from "bun:sqlite";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   cleanDev,
   devDir,
@@ -24,9 +24,11 @@ import {
   root,
   runHasLiveProcess,
   runStates,
+  SETUP_VERIFY_GUID,
   type RunState,
 } from "./clean-dev.ts";
 import { seedLibrary } from "../../../../tools/dev/seeded-library.ts";
+import { packSetup } from "../../../../tools/installer/pack.ts";
 
 const takeFlag = (args: string[], flag: string) => {
   const at = args.indexOf(flag);
@@ -87,17 +89,26 @@ const findWindowId = (run: RunState) => {
   return windows[0]?.id;
 };
 
+// WebView2 nests the setup page past agent-desktop's default depth of 10.
+const depth = (run: RunState) => (run.installDir ? ["--max-depth", "25"] : []);
+
+// A snapshot is read-only, so a failure agent-desktop marks retry:safe (os error 1175) is repeated.
 const snapshotText = (run: RunState, windowId: string) => {
-  const snap = agentDesktop(run, [
-    "snapshot",
-    "--window-id",
-    windowId,
-    "-i",
-    "--compact",
-    "--timeout-ms",
-    "10000",
-  ]);
-  return snap.status === 0 ? snap.stdout : "";
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const snap = agentDesktop(run, [
+      "snapshot",
+      "--window-id",
+      windowId,
+      "-i",
+      "--compact",
+      "--timeout-ms",
+      "10000",
+      ...depth(run),
+    ]);
+    if (snap.stdout.includes('"ok":true')) return snap.stdout;
+    if (!snap.stdout.includes('"retry":"safe"')) return "";
+  }
+  return "";
 };
 
 const readyMarker = (run: RunState) => (run.seeded ? "Everything" : "Skip");
@@ -135,7 +146,158 @@ const startDetached = (library: string, logPath: string, extraArgs: string[] = [
   return pid;
 };
 
+const setupVerifyDir = join(root, ".artifacts", "setup-verify");
+const unpackedApp = join(root, ".artifacts", "electron", "win-unpacked");
+
+// The real win-unpacked app under another identity: its own appId, guid and uninstall name,
+// no inkling:// handler and no shortcuts, so installing it never touches the user's install.
+const buildTestNsis = (logPath: string) => {
+  const nsisPath = join(setupVerifyDir, "inkling-setup-verify-nsis.exe");
+  const asar = join(unpackedApp, "resources", "app.asar");
+  if (!existsSync(asar)) throw new Error(`no packaged app at ${unpackedApp}; run \`bun run dist\``);
+  if (existsSync(nsisPath) && statSync(nsisPath).mtimeMs > statSync(asar).mtimeMs) return nsisPath;
+  mkdirSync(setupVerifyDir, { recursive: true });
+  const build = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).build;
+  const config = {
+    ...build,
+    appId: "com.inkling.setup-verify",
+    protocols: [],
+    directories: { ...build.directories, output: setupVerifyDir },
+    win: { ...build.win, artifactName: "inkling-setup-verify-nsis.${ext}" },
+    nsis: {
+      ...build.nsis,
+      guid: SETUP_VERIFY_GUID,
+      uninstallDisplayName: "inkling setup verify",
+      createDesktopShortcut: false,
+      createStartMenuShortcut: false,
+      runAfterFinish: false,
+    },
+  };
+  const configPath = join(setupVerifyDir, "builder.json");
+  writeFileSync(configPath, JSON.stringify(config, null, 2));
+  const log = openSync(logPath, "w");
+  const built = spawnSync(
+    "bun",
+    ["x", "electron-builder", "--publish", "never", "--win", "nsis", "--x64"].concat([
+      "--prepackaged",
+      unpackedApp,
+      "--config",
+      configPath,
+    ]),
+    { cwd: root, stdio: ["ignore", log, log] },
+  );
+  closeSync(log);
+  if (built.status !== 0 || !existsSync(nsisPath))
+    throw new Error(`test NSIS build failed; see ${logPath}`);
+  return nsisPath;
+};
+
+const launchInstaller = async (flags: string[]) => {
+  if (process.platform !== "win32") fail("--installer needs Windows");
+  const livePids = new Set(liveOwned().map((p) => p.pid));
+  if (runStates().some((s) => runHasLiveProcess(s, livePids)))
+    fail("a verification run is already live in this worktree; run `cleanup` first");
+  const cleared = await cleanDev();
+  if (cleared.removed) console.log(`launch: cleared stale ${devDir}`);
+
+  const runId = `${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 6)}`;
+  const base = join(devDir, "verify-inkling", runId);
+  const installDir = join(base, "install");
+  // NSIS takes /D= unquoted as the last argument, so the path cannot hold a space.
+  if (/\s/u.test(installDir)) fail(`the worktree path has a space; NSIS cannot take ${installDir}`);
+  const run: RunState = {
+    runId,
+    library: join(base, "library"),
+    agentHome: join(base, "agent-desktop"),
+    evidenceDir: join(root, ".artifacts", "verify-inkling", runId),
+    seeded: false,
+    startedAt: new Date().toISOString(),
+    installDir,
+  };
+  mkdirSync(run.agentHome, { recursive: true });
+  mkdirSync(run.evidenceDir, { recursive: true });
+  writeFileSync(join(base, "run.json"), JSON.stringify(run, null, 2));
+
+  try {
+    console.log("launch: test-identity NSIS (cached until win-unpacked changes; log: build.log)");
+    const nsisPath = buildTestNsis(join(base, "build.log"));
+    const setupExe = join(setupVerifyDir, "inkling-setup-verify.exe");
+    await packSetup({ nsisPath, unpackedDir: unpackedApp, outPath: setupExe });
+    // A file where the install folder belongs makes NSIS fail, for the failed screen.
+    if (flags.includes("--fail")) writeFileSync(installDir, "blocks the install folder\n");
+    const script = `(Start-Process -FilePath '${setupExe.replaceAll("'", "''")}' -ArgumentList '/D=${installDir.replaceAll("'", "''")}' -PassThru).Id`;
+    const started = spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          INKLING_SETUP_DEV: base,
+        },
+      },
+    );
+    const pid = Number(started.stdout.trim());
+    if (started.status !== 0 || !Number.isInteger(pid))
+      throw new Error(`could not start the setup window: ${started.stderr}`);
+    run.launcherPid = pid;
+    run.electronPid = pid;
+    writeFileSync(join(base, "run.json"), JSON.stringify(run, null, 2));
+
+    // A freshly packed 330 MB exe can sit in an antivirus scan before its window appears.
+    const deadline = Date.now() + 90_000;
+    while (Date.now() < deadline) {
+      await Bun.sleep(500);
+      if (!listProcesses().some((p) => p.pid === pid))
+        throw new Error("the setup window exited early");
+      const windowId = findWindowId(run);
+      if (windowId && snapshotText(run, windowId).includes('"Install"')) {
+        run.windowId = windowId;
+        writeFileSync(join(base, "run.json"), JSON.stringify(run, null, 2));
+        console.log(JSON.stringify({ ready: true, ...run }, null, 2));
+        return;
+      }
+    }
+    throw new Error("the setup window did not show Install within 90s");
+  } catch (error) {
+    console.error(`verify-inkling: ${(error as Error).message}; cleaning up the failed launch`);
+    await cleanDev().catch((cleanError: Error) =>
+      console.error(`verify-inkling: ${cleanError.message}`),
+    );
+    process.exit(1);
+  }
+};
+
+// Reads the stub's INKLING_SETUP_DEV samples: the bar at each tenth of the install's real
+// duration (an even pace climbs about 10 points a row) and where it ended.
+const progressReport = () => {
+  const run = currentRun();
+  const path = join(dirname(run.library), "progress.log");
+  if (!existsSync(path)) fail(`no ${path}; click Install first`);
+  const lines = readFileSync(path, "utf8").trim().split(/\r?\n/u);
+  const samples = lines
+    .filter((l) => l.startsWith("sample") || l.startsWith("end"))
+    .map((l) => ({
+      ms: Number(/ms=(\d+)/u.exec(l)?.[1]),
+      bar: Number(/bar=([\d.]+)/u.exec(l)?.[1]),
+    }));
+  const last = samples.at(-1);
+  if (!last) fail("progress.log has no samples yet");
+  const ended = lines.some((l) => l.startsWith("end"));
+  console.log(
+    `${ended ? "finished" : "still running"} after ${(last.ms / 1000).toFixed(1)}s, bar at ${(last.bar * 100).toFixed(0)}%`,
+  );
+  for (let tenth = 1; tenth <= 10; tenth++) {
+    const at = samples.findLast((s) => s.ms <= (last.ms * tenth) / 10) ?? samples[0];
+    console.log(
+      `  ${String(tenth * 10).padStart(3)}% of the time: bar ${(at.bar * 100).toFixed(0)}%`,
+    );
+  }
+  console.log(`opened: ${lines.includes("open") ? "yes (app not started: dev mode)" : "no"}`);
+};
+
 const launch = async (flags: string[]) => {
+  if (flags.includes("--installer")) return launchInstaller(flags);
   const linkAt = flags.indexOf("--link");
   const link = linkAt < 0 ? undefined : flags[linkAt + 1];
   if (linkAt >= 0 && !SAFE_LINK.test(link ?? ""))
@@ -259,6 +421,28 @@ const doctor = () => {
   const check = (label: string, ok: boolean, detail = "") => checks.push({ label, ok, detail });
   const launcher = run.launcherPid === undefined ? undefined : table.get(run.launcherPid);
   const main = run.electronPid === undefined ? undefined : table.get(run.electronPid);
+  if (run.installDir) {
+    check(
+      "setup window pid alive and owns our .dev path",
+      Boolean(main && mentionsDev(main)),
+      `pid ${run.electronPid}`,
+    );
+    const windowId = findWindowId(run);
+    check(
+      "setup window found via agent-desktop list-windows",
+      Boolean(windowId),
+      String(windowId ?? ""),
+    );
+    if (windowId)
+      check(
+        'setup window snapshot shows "Minimize"',
+        snapshotText(run, windowId).includes('"Minimize"'),
+      );
+    for (const c of checks)
+      console.log(`${c.ok ? "PASS" : "FAIL"}  ${c.label}${c.detail ? `  (${c.detail})` : ""}`);
+    console.log(`run ${run.runId}\ninstall ${run.installDir}\nevidence ${run.evidenceDir}`);
+    process.exit(checks.every((c) => c.ok) ? 0 : 1);
+  }
   check(
     "launcher pid alive and owns our .dev path",
     Boolean(launcher && mentionsDev(launcher)),
@@ -307,6 +491,9 @@ switch (command) {
     break;
   case "doctor":
     doctor();
+    break;
+  case "progress":
+    progressReport();
     break;
   case "window": {
     const id = findWindowId(currentRun());
@@ -397,6 +584,7 @@ switch (command) {
         "--compact",
         "--timeout-ms",
         "10000",
+        ...depth(run),
         ...args,
       ]);
       try {
@@ -473,7 +661,7 @@ switch (command) {
   }
   default:
     console.error(
-      "usage: instance.ts launch [--empty] [--skip-build] [--link <inkling://capture?url=...>] | doctor | window | windows | ref <role> <name> [--contains] [--in <ref>] [--window <id>] | tree [--window <id>] [snapshot args] | ad <args> | shot <name> | db <sql> | capture <url> | cleanup",
+      "usage: instance.ts launch [--empty] [--skip-build] [--link <inkling://capture?url=...>] | launch --installer [--fail] | doctor | progress | window | windows | ref <role> <name> [--contains] [--in <ref>] [--window <id>] | tree [--window <id>] [snapshot args] | ad <args> | shot <name> | db <sql> | capture <url> | cleanup",
     );
     process.exit(64);
 }

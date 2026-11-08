@@ -104,14 +104,19 @@
         opacity: 0;
         transform: translateY(6px);
         pointer-events: none;
+        /* visibility takes hidden screens' buttons out of Tab and the accessibility tree; its delay lets the fade out play. */
+        visibility: hidden;
         transition:
           opacity 0.28s ease,
-          transform 0.28s ease;
+          transform 0.28s ease,
+          visibility 0s linear 0.28s;
       }
       .screen.on {
         opacity: 1;
         transform: none;
         pointer-events: auto;
+        visibility: visible;
+        transition-delay: 0s;
       }
       .blot {
         width: 132px;
@@ -283,7 +288,8 @@
       </section>
     </main>
     <script>
-      const ipc = (message) => {
+      // wry already defines a global `ipc`; redeclaring it is a SyntaxError that kills this whole script.
+      const send = (message) => {
         if (window.ipc) window.ipc.postMessage(message);
       };
       const screens = {
@@ -303,7 +309,7 @@
 
       function show(name) {
         for (const key of Object.keys(screens)) screens[key].classList.toggle("on", key === name);
-        closeButton.style.visibility = name === "installing" ? "hidden" : "visible";
+        closeButton.style.display = name === "installing" ? "none" : "";
       }
 
       function install() {
@@ -311,7 +317,7 @@
         bar.style.width = "0%";
         pct.textContent = "0%";
         status.textContent = "Installing\u2026";
-        ipc("install");
+        send("install");
       }
 
       function ready() {
@@ -327,7 +333,7 @@
           }
           clearInterval(countdownTimer);
           countdown.textContent = "Opening\u2026";
-          ipc("open");
+          send("open");
         }, 1000);
       }
 
@@ -364,16 +370,16 @@
       document.getElementById("retry").addEventListener("click", install);
       document.getElementById("open").addEventListener("click", () => {
         clearInterval(countdownTimer);
-        ipc("open");
+        send("open");
       });
       document.getElementById("copy").addEventListener("click", copyDetails);
-      document.getElementById("min").addEventListener("click", () => ipc("minimize"));
-      document.getElementById("close").addEventListener("click", () => ipc("close"));
+      document.getElementById("min").addEventListener("click", () => send("minimize"));
+      document.getElementById("close").addEventListener("click", () => send("close"));
 
       document.addEventListener("mousedown", (event) => {
         if (event.button !== 0) return;
         if (event.target.closest("button, a, .capsule")) return;
-        ipc("drag");
+        send("drag");
       });
       document.addEventListener("contextmenu", (event) => event.preventDefault());
 
@@ -392,7 +398,7 @@
         },
       };
 
-      ipc("ready");
+      send("ready");
     </script>
   </body>
 </html>

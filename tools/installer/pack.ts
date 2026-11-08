@@ -87,17 +87,21 @@ async function setupHtml(version: string) {
   );
 }
 
-export async function packSetup() {
+// The verify-inkling skill passes its test-identity NSIS and a scratch output path.
+export async function packSetup(
+  options: { nsisPath?: string; unpackedDir?: string; outPath?: string } = {},
+) {
   await cargoBuild();
   const pkg = JSON.parse(await readFile(join(workspace, "package.json"), "utf8")) as {
     version: string;
   };
-  const nsisPath = await findNsisInstaller();
+  const nsisPath = options.nsisPath ?? (await findNsisInstaller());
   const nsisBytes = (await stat(nsisPath)).size;
-  const installedBytes = await dirBytes(join(electronOut, "win-unpacked"));
+  const installedBytes = await dirBytes(options.unpackedDir ?? join(electronOut, "win-unpacked"));
   const html = await setupHtml(pkg.version);
   const arch = /-win-(x64|arm64|ia32)\.exe$/u.exec(nsisPath)?.[1] ?? "x64";
-  const outPath = join(electronOut, `inkling-setup-${pkg.version}-win-${arch}.exe`);
+  const outPath =
+    options.outPath ?? join(electronOut, `inkling-setup-${pkg.version}-win-${arch}.exe`);
 
   // Layout the stub reads back from the tail: html, nsis, three u64 lengths,
   // magic. The stub exe itself is first so Windows sees a normal PE file.

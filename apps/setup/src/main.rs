@@ -2,8 +2,9 @@
 
 use std::env;
 use std::ffi::OsString;
-use std::fs::{self, File};
-use std::io::{self, Read, Seek, SeekFrom};
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::os::windows::io::AsRawHandle;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Child, Command, Stdio};
@@ -18,22 +19,23 @@ use tao::platform::run_return::EventLoopExtRunReturn;
 use tao::platform::windows::{IconExtWindows, WindowExtWindows};
 use tao::window::{Icon, Window, WindowBuilder};
 use wry::{WebContext, WebViewBuilder};
-use windows_sys::Win32::Foundation::{CloseHandle, HWND};
+use windows_sys::Win32::Foundation::{HANDLE, HWND};
 use windows_sys::Win32::Graphics::Dwm::{
     DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
 };
 use windows_sys::Win32::System::Threading::{
-    GetProcessIoCounters, IO_COUNTERS, OpenProcess, WaitForSingleObject,
-    PROCESS_QUERY_LIMITED_INFORMATION,
+    GetProcessIoCounters, WaitForSingleObject, IO_COUNTERS,
 };
 
 // pack.ts appends `[html][nsis][u64 htmlLen][u64 nsisLen][u64 installedBytes][magic]`.
 const MAGIC: &[u8; 8] = b"INKSETUP";
 const TRAILER_LEN: u64 = 32;
 const DETACHED_PROCESS: u32 = 0x0000_0008;
-const WAIT_OBJECT_0: u32 = 0;
 const WAIT_TIMEOUT: u32 = 0x102;
 const POLL_MS: u32 = 150;
+// Set by the verify-inkling harness: samples go to <dir>/progress.log and "open"
+// never starts the installed app, which would open the real library.
+const DEV_ENV: &str = "INKLING_SETUP_DEV";
 
 enum UserEvent {
     Ipc(String),
@@ -221,7 +223,9 @@ fn gui(exe: &Path, payload: &Payload, args: &[OsString]) -> Result<i32, String> 
                     }
                 }
                 "open" => {
-                    if let Some(exe) = &app_exe {
+                    if let Some(dir) = env::var_os(DEV_ENV) {
+                        dev_log(Path::new(&dir), "open");
+                    } else if let Some(exe) = &app_exe {
                         spawn_app(exe);
                     }
                     *control_flow = ControlFlow::Exit;
@@ -290,8 +294,12 @@ fn run_install(job: InstallJob) {
     let outcome = install_inner(&job);
     let _ = fs::remove_dir_all(temp_dir());
     job.installing.store(false, Ordering::SeqCst);
+    // NSIS exits 0 even when it could not create the install folder, so success
+    // also needs the app on disk.
+    let installed = app_exe(&job.args).is_some_and(|exe| exe.is_file());
     let _ = job.proxy.send_event(match outcome {
-        Ok(0) => UserEvent::Done,
+        Ok(0) if installed => UserEvent::Done,
+        Ok(0) => UserEvent::Failed("Setup finished but inkling was not installed".into()),
         Ok(code) => UserEvent::Failed(format!("Setup exited with code {code}")),
         Err(detail) => UserEvent::Failed(detail),
     });
@@ -300,7 +308,11 @@ fn run_install(job: InstallJob) {
 fn install_inner(job: &InstallJob) -> Result<i32, String> {
     let nsis = extract_nsis(&job.exe, job.nsis_offset, job.nsis_len)
         .map_err(|e| format!("Could not unpack the installer: {e}"))?;
+    let scratch = temp_dir().join("t");
+    let _ = fs::create_dir_all(&scratch);
     let mut child = Command::new(nsis)
+        .env("TEMP", &scratch)
+        .env("TMP", &scratch)
         .arg("/S")
         .args(job.args.iter())
         .stdin(Stdio::null())
@@ -317,58 +329,114 @@ fn install_inner(job: &InstallJob) -> Result<i32, String> {
     Ok(code)
 }
 
-// WriteTransferCount over the bytes the install has to move is the progress signal.
+// NSIS's write count varied 1x to 2x between identical installs, so the bar follows
+// its phases, each with an exact target: reading the payload (nsis_len), a running-app
+// check with no byte signal (eased on time), staging into its TEMP, which the stub
+// points at its own folder (nsis_len + installed_bytes), then copying into the install
+// folder (installed_bytes). Shares match the phases' measured durations.
+const READ_SHARE: f64 = 0.10;
+const CHECK_SHARE: f64 = 0.25;
+const STAGE_SHARE: f64 = 0.40;
+const CHECK_EASE_SECS: f64 = 2.5;
+
 fn watch_install(
     child: &mut Child,
     job: &InstallJob,
     proxy: &EventLoopProxy<UserEvent>,
-) -> (u64, u64) {
-    let handle =
-        unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, child.id()) };
-    if handle.is_null() {
-        return (0, 0);
+) {
+    // The Child's own handle carries SYNCHRONIZE; a query-only OpenProcess handle
+    // makes WaitForSingleObject fail at once and the bar never moves.
+    let handle = child.as_raw_handle() as HANDLE;
+    let dir = install_dir(&job.args);
+    let dev = env::var_os(DEV_ENV).map(PathBuf::from);
+    if let Some(log) = &dev {
+        dev_log(log, &format!("start nsis={} installed={}", job.nsis_len, job.installed_bytes));
     }
-    let total = (job.nsis_len + job.installed_bytes) as f64;
-    let mut writes = 0u64;
-    let mut reads = 0u64;
+    let started = std::time::Instant::now();
+    // A reinstall first uninstalls the old copy, so only growth past the folder's
+    // smallest size counts.
+    let mut floor = u64::MAX;
+    let mut staged_max = 0u64;
+    let mut read_done: Option<std::time::Instant> = None;
     let mut last = 0f64;
     loop {
-        let wait = unsafe {
-            WaitForSingleObject(handle, POLL_MS)
-        };
+        let wait = unsafe { WaitForSingleObject(handle, POLL_MS) };
         let mut counters = unsafe { std::mem::zeroed::<IO_COUNTERS>() };
-        unsafe {
-            if GetProcessIoCounters(handle, &mut counters) != 0 {
-                writes = counters.WriteTransferCount;
-                reads = counters.ReadTransferCount;
-            }
+        let reads = if unsafe { GetProcessIoCounters(handle, &mut counters) } != 0 {
+            counters.ReadTransferCount
+        } else {
+            0
+        };
+        let landed = dir.as_deref().map_or(0, dir_bytes);
+        let staged = dir_bytes(&temp_dir().join("t"));
+        floor = floor.min(landed);
+        staged_max = staged_max.max(staged);
+        let read = (reads as f64 / job.nsis_len.max(1) as f64).min(1.0);
+        if read >= 1.0 && read_done.is_none() {
+            read_done = Some(std::time::Instant::now());
         }
-        let progress = ((writes as f64) / total).clamp(0.0, 0.99);
+        let stage_target = (job.nsis_len + job.installed_bytes).max(1) as f64;
+        let stage = (staged_max as f64 / stage_target).min(1.0);
+        // NSIS puts its plugin DLLs in TEMP first; staging starts with the payload.
+        let check = if stage > 0.01 {
+            1.0
+        } else {
+            read_done.map_or(0.0, |at| {
+                1.0 - (-at.elapsed().as_secs_f64() / CHECK_EASE_SECS).exp()
+            })
+        };
+        let copy = ((landed - floor) as f64 / job.installed_bytes.max(1) as f64).min(1.0);
+        let copy_share = 1.0 - READ_SHARE - CHECK_SHARE - STAGE_SHARE;
+        let progress = (READ_SHARE * read
+            + CHECK_SHARE * check
+            + STAGE_SHARE * stage
+            + copy_share * copy)
+            .min(0.99);
+        if let Some(log) = &dev {
+            let ms = started.elapsed().as_millis();
+            let tag = if wait == WAIT_TIMEOUT { "sample" } else { "end" };
+            dev_log(log, &format!("{tag} ms={ms} reads={reads} staged={staged} landed={landed} bar={progress:.3}"));
+        }
         if progress > last {
             last = progress;
             let _ = proxy.send_event(UserEvent::Progress(progress));
         }
-        if wait == WAIT_OBJECT_0 || wait != WAIT_TIMEOUT {
+        if wait != WAIT_TIMEOUT {
             break;
         }
     }
-    let mut counters = unsafe { std::mem::zeroed::<IO_COUNTERS>() };
-    unsafe {
-        if GetProcessIoCounters(handle, &mut counters) != 0 {
-            writes = counters.WriteTransferCount;
-            reads = counters.ReadTransferCount;
-        }
-        CloseHandle(handle);
+}
+
+fn dir_bytes(dir: &Path) -> u64 {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|entry| match entry.file_type() {
+            Ok(kind) if kind.is_dir() => dir_bytes(&entry.path()),
+            Ok(_) => entry.metadata().map_or(0, |meta| meta.len()),
+            Err(_) => 0,
+        })
+        .sum()
+}
+
+fn dev_log(dir: &Path, line: &str) {
+    let path = dir.join("progress.log");
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{line}");
     }
-    (writes, reads)
+}
+
+fn install_dir(args: &[OsString]) -> Option<PathBuf> {
+    install_dir_arg(args).or_else(|| {
+        env::var_os("LOCALAPPDATA")
+            .map(|local| PathBuf::from(local).join("Programs").join("inkling"))
+    })
 }
 
 fn app_exe(args: &[OsString]) -> Option<PathBuf> {
-    let dir = install_dir_arg(args).or_else(|| {
-        env::var_os("LOCALAPPDATA")
-            .map(|local| PathBuf::from(local).join("Programs").join("inkling"))
-    })?;
-    Some(dir.join("inkling.exe"))
+    Some(install_dir(args)?.join("inkling.exe"))
 }
 
 fn install_dir_arg(args: &[OsString]) -> Option<PathBuf> {
