@@ -44,4 +44,14 @@ test("node reuse keeps the existing count, pixel and readiness bounds", () => {
   for (let i = 0; i < 33; i++) retainThumbnail(image(`app://cache-test/bounded-${i}`));
   expect(takeThumbnail("app://cache-test/bounded-0")).toBeUndefined();
   expect(takeThumbnail("app://cache-test/bounded-32")).toBeDefined();
+  const taken = image("app://cache-test/taken-big", false, 2000, 2000);
+  retainThumbnail(taken);
+  expect(takeThumbnail(taken.src)).toBe(taken);
+  for (let i = 0; i < 4; i++)
+    retainThumbnail(image(`app://cache-test/four-big-${i}`, false, 2000, 2000));
+  for (let i = 0; i < 4; i++) expect(hasThumbnail(`app://cache-test/four-big-${i}`)).toBe(true);
+  for (let i = 0; i < 5; i++)
+    retainThumbnail(image(`app://cache-test/five-big-${i}`, false, 2000, 2000));
+  expect(hasThumbnail("app://cache-test/five-big-0")).toBe(false);
+  expect(hasThumbnail("app://cache-test/five-big-4")).toBe(true);
 });

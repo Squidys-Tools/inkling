@@ -100,7 +100,8 @@ export function drawSmallRing(
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
       let field = 0;
-      for (const blob of blobs) {
+      for (let index = 0; index < blobs.length; index++) {
+        const blob = blobs[index];
         const dx = (column + 0.5) / width - blob.x;
         const dy = (row + 0.5) / height - blob.y;
         field += (blob.r * blob.r) / (dx * dx + dy * dy + 1e-4);
@@ -206,27 +207,28 @@ export function drawCover(
         ? 1 - smooth(ownOrder * 0.25 + 0.04, ownOrder * 0.25 + 0.18, eased)
         : 0;
       let alpha = mosaicAlpha + baseAlpha * (1 - mosaicAlpha);
-      const mix = (mosaicValue: number, baseValue: number) =>
-        alpha > 0
-          ? (mosaicValue * mosaicAlpha + baseValue * baseAlpha * (1 - mosaicAlpha)) / alpha
-          : 0;
-      let outRed = mix(red, baseInk[0]);
-      let outGreen = mix(green, baseInk[1]);
-      let outBlue = mix(blue, baseInk[2]);
+      // Inlined per channel: a closure here would allocate once per pixel.
+      let outRed =
+        alpha > 0 ? (red * mosaicAlpha + baseInk[0] * baseAlpha * (1 - mosaicAlpha)) / alpha : 0;
+      let outGreen =
+        alpha > 0 ? (green * mosaicAlpha + baseInk[1] * baseAlpha * (1 - mosaicAlpha)) / alpha : 0;
+      let outBlue =
+        alpha > 0 ? (blue * mosaicAlpha + baseInk[2] * baseAlpha * (1 - mosaicAlpha)) / alpha : 0;
       if (ring) {
         let field = 0;
-        for (const blob of ring) {
+        for (let index = 0; index < ring.length; index++) {
+          const blob = ring[index];
           const dx = x * aspect - blob.x;
           const dy = y - blob.y;
           field += (blob.r * blob.r) / (dx * dx + dy * dy + 1e-4);
         }
         const inkAlpha = smooth(0.9, 1.1, field);
         const total = inkAlpha + alpha * (1 - inkAlpha);
-        const blend = (ink: number, under: number) =>
-          total > 0 ? (ink * inkAlpha + under * alpha * (1 - inkAlpha)) / total : 0;
-        outRed = blend(ringInk[0], outRed);
-        outGreen = blend(ringInk[1], outGreen);
-        outBlue = blend(ringInk[2], outBlue);
+        outRed = total > 0 ? (ringInk[0] * inkAlpha + outRed * alpha * (1 - inkAlpha)) / total : 0;
+        outGreen =
+          total > 0 ? (ringInk[1] * inkAlpha + outGreen * alpha * (1 - inkAlpha)) / total : 0;
+        outBlue =
+          total > 0 ? (ringInk[2] * inkAlpha + outBlue * alpha * (1 - inkAlpha)) / total : 0;
         alpha = total;
       }
       data[offset] = outRed;

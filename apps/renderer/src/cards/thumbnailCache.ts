@@ -1,31 +1,37 @@
 // Keep decoded images across virtual-cell remounts, bounded by count and pixels.
-const held = new Map<string, HTMLImageElement>();
+const held = new Map<string, { image: HTMLImageElement; pixels: number }>();
 const pending = new Set<string>();
+const maxImages = 32;
 const maxPixels = 16_000_000;
+let heldPixels = 0;
 export const hasThumbnail = (url: string) => held.has(url);
+
+function release(url: string) {
+  const entry = held.get(url);
+  if (!entry) return undefined;
+  held.delete(url);
+  heldPixels -= entry.pixels;
+  return entry.image;
+}
 
 /** Lease the actual decoded node only after its previous cell released it. */
 export function takeThumbnail(url: string) {
-  const image = held.get(url);
-  if (!image || image.isConnected) return undefined;
-  held.delete(url);
-  return image;
+  const entry = held.get(url);
+  if (!entry || entry.image.isConnected) return undefined;
+  return release(url);
 }
 
 export function retainThumbnail(image: HTMLImageElement) {
   if (!image.complete || !image.naturalWidth) return;
   const url = image.currentSrc || image.src;
-  held.delete(url);
-  held.set(url, image);
-  let pixels = [...held.values()].reduce(
-    (sum, value) => sum + value.naturalWidth * value.naturalHeight,
-    0,
-  );
-  while (held.size > 32 || pixels > maxPixels) {
-    const first = held.entries().next().value;
-    if (!first) break;
-    held.delete(first[0]);
-    pixels -= first[1].naturalWidth * first[1].naturalHeight;
+  release(url);
+  const pixels = image.naturalWidth * image.naturalHeight;
+  held.set(url, { image, pixels });
+  heldPixels += pixels;
+  while (held.size > maxImages || heldPixels > maxPixels) {
+    const first = held.keys().next();
+    if (first.done) break;
+    release(first.value);
   }
 }
 
