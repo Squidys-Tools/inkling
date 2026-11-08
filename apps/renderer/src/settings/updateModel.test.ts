@@ -93,7 +93,7 @@ describe("update store", () => {
     settle().reject(new Error("offline"));
     await download;
     expect(updateNavRow(updateView(store.get()))).toMatchObject({
-      label: "Download failed · retry",
+      label: "Download failed",
       action: "download",
     });
 
@@ -101,7 +101,7 @@ describe("update store", () => {
     settle().reject(new Error("offline"));
     await check;
     expect(updateNavRow(updateView(store.get()))).toMatchObject({
-      label: "Check failed · retry",
+      label: "Check failed",
       action: "check",
     });
 
@@ -115,12 +115,12 @@ describe("update store", () => {
     const { store, push } = await started(available);
     push({ ...available, status: "error", errorContext: "download", message: "disk full" });
     expect(updateNavRow(updateView(store.get()))).toMatchObject({
-      label: "Download failed · retry",
+      label: "Download failed",
       action: "download",
     });
     push({ ...downloaded, status: "error", errorContext: "install", availableVersion: null });
     expect(updateNavRow(updateView(store.get()))).toMatchObject({
-      label: "Restart and install",
+      label: "Install failed",
       action: "install",
     });
   });
@@ -153,18 +153,35 @@ describe("update store", () => {
 });
 
 test.each([
-  [{ status: "available" }, "Download update"],
-  [{ status: "downloading", progress: 42.4 }, "Downloading 42%"],
-  [{ status: "downloading", progress: null }, "Downloading…"],
-  [{ status: "downloaded", downloadedVersion: "1.1.0" }, "Restart and install"],
-  [{ status: "installing" }, "Installing…"],
+  [{ status: "available" }, { label: "Update available", detail: "1.1.0", progress: null }],
+  [
+    { status: "downloading", progress: 42.4 },
+    { label: "Downloading", detail: "42%", progress: 42.4 },
+  ],
+  [
+    { status: "downloading", progress: null },
+    { label: "Downloading", detail: null, progress: null },
+  ],
+  // Main reports 100% while it still checks the file's SHA512, so that is verifying, not done.
+  [
+    { status: "downloading", progress: 99.7 },
+    { label: "Verifying download", detail: null, progress: 99.7 },
+  ],
+  [
+    { status: "downloaded", downloadedVersion: "1.1.0" },
+    { label: "Restart to update", detail: "1.1.0", progress: null },
+  ],
+  [{ status: "installing" }, { label: "Installing…", detail: null, progress: null }],
   [{ status: "disabled" }, null],
   [{ status: "up-to-date", availableVersion: null }, null],
-] as const)("the sidebar row for %o reads %p", (change, label) => {
+] as const)("the sidebar row for %o reads %p", (change, expected) => {
   const view = updateView({
     state: { ...available, ...change },
     pending: null,
     cancelling: false,
   });
-  expect(updateNavRow(view)?.label ?? null).toBe(label);
+  const row = updateNavRow(view);
+  expect(
+    row === null ? null : { label: row.label, detail: row.detail, progress: row.progress },
+  ).toEqual(expected);
 });

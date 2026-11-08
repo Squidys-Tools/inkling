@@ -3,7 +3,7 @@ import { Link, type LinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 
-type RowLook = { active?: boolean; tone?: "nav" | "footer" | "update"; compact: boolean };
+type RowLook = { active?: boolean; tone?: "nav" | "footer"; compact: boolean };
 
 /** A sidebar destination keeps its name when only its icon is visible. */
 export function NavLink({
@@ -77,7 +77,6 @@ export function NavButton({
       title={description ?? (compact ? label : undefined)}
       aria-label={compact ? label : undefined}
       disabled={disabled}
-      aria-live={tone === "update" ? "polite" : undefined}
       aria-expanded={expanded}
       aria-controls={controls}
       onClick={onClick}
@@ -122,12 +121,6 @@ const styles = stylex.create({
   button: { width: "100%", borderWidth: 0, fontFamily: font.body, textAlign: "left" },
   nav: { fontSize: "14px", color: { default: color.inkSoft, ":hover": color.ink } },
   footer: { fontSize: "13px", color: { default: color.muted, ":hover": color.ink } },
-  update: {
-    fontSize: "13px",
-    color: { default: color.success, ":hover": color.successStrong, ":disabled": color.success },
-    cursor: { default: "pointer", ":disabled": "progress" },
-    opacity: { default: 1, ":disabled": 0.7 },
-  },
   active: { fontWeight: 600, color: { default: color.inkStrong, ":hover": color.inkStrong } },
   icon: { display: "grid", placeItems: "center", width: "16px", flexShrink: 0, color: color.muted },
   activeIcon: { color: color.accent },

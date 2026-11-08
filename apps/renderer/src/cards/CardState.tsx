@@ -21,8 +21,8 @@ import {
 import { loadingPhase, startsReveal } from "./cardLoading.ts";
 import { ProcessingBadge } from "./Processing.tsx";
 
-/** A thin light travelling the card's edge while it waits for its thumbnail. */
-function Beam({ label }: { label: string }) {
+/** A thin light travelling the edge of whatever it covers while that waits for its thumbnail. */
+export function Beam({ label, corners = radius.card }: { label: string; corners?: string }) {
   const element = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const release = beamSlot();
@@ -35,16 +35,29 @@ function Beam({ label }: { label: string }) {
       ref={element}
       role="status"
       aria-label={label}
-      {...stylex.props(styles.layer, styles.beam)}
+      {...stylex.props(styles.layer, styles.corners(corners), styles.beam)}
     >
       <span
         {...stylex.props(
           styles.stroke,
+          styles.corners(corners),
           styles.paint(beamStroke, `${beamWindow}, ${solid}, ${solid}`),
         )}
       />
-      <span {...stylex.props(styles.glow, styles.paint(beamGlow, `${beamWindow}, ${beamEdges}`))} />
-      <span {...stylex.props(styles.bloom, styles.paint(beamBloom, `${solid}, ${solid}`))} />
+      <span
+        {...stylex.props(
+          styles.glow,
+          styles.corners(corners),
+          styles.paint(beamGlow, `${beamWindow}, ${beamEdges}`),
+        )}
+      />
+      <span
+        {...stylex.props(
+          styles.bloom,
+          styles.corners(corners),
+          styles.paint(beamBloom, `${solid}, ${solid}`),
+        )}
+      />
     </span>
   );
 }
@@ -186,11 +199,17 @@ function Rim() {
 }
 
 /** A card still waiting for its thumbnail: dimmed and greyed, but still readable. */
-function Dim() {
+export function Dim({ corners = radius.card }: { corners?: string }) {
   return (
     <>
-      <span aria-hidden="true" {...stylex.props(styles.layer, styles.drain, styles.half)} />
-      <span aria-hidden="true" {...stylex.props(styles.layer, styles.dimVeil)} />
+      <span
+        aria-hidden="true"
+        {...stylex.props(styles.layer, styles.corners(corners), styles.drain, styles.half)}
+      />
+      <span
+        aria-hidden="true"
+        {...stylex.props(styles.layer, styles.corners(corners), styles.dimVeil)}
+      />
     </>
   );
 }
@@ -304,6 +323,8 @@ const fadeIn = stylex.keyframes({ from: { opacity: 0 }, to: { opacity: 1 } });
 const styles = stylex.create({
   // The gradients are built in code from the colour tokens, so they arrive as values.
   paint: (backgroundImage: string, maskImage: string) => ({ backgroundImage, maskImage }),
+  // The waiting layers round their corners to match what they cover, a card's or a row's.
+  corners: (value: string) => ({ borderRadius: value, clipPath: `inset(0 round ${value})` }),
   layer: {
     position: "absolute",
     inset: 0,

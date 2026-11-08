@@ -268,12 +268,7 @@ function tick(now: number) {
   handle = live.size > 0 ? requestAnimationFrame(tick) : 0;
 }
 
-/**
- * Runs `frame` each animation frame until it returns true. Past the cap, or
- * under reduced motion, it draws once and reports `animated: false`, leaving a still cover.
- */
-export function animate(frame: Frame) {
-  const release = reducedMotion() ? null : canvasSlot();
+function startFrame(frame: Frame, release: (() => void) | null) {
   if (!release) {
     frame(performance.now() / 1000);
     return { animated: false, stop: () => {} };
@@ -287,4 +282,17 @@ export function animate(frame: Frame) {
       release();
     },
   };
+}
+
+/**
+ * Runs `frame` each animation frame until it returns true. Past the cap, or
+ * under reduced motion, it draws once and reports `animated: false`, leaving a still cover.
+ */
+export function animate(frame: Frame) {
+  return startFrame(frame, reducedMotion() ? null : canvasSlot());
+}
+
+/** Runs `frame` on the shared loop outside the canvas cap. It still draws once under reduced motion. */
+export function animateUncapped(frame: Frame) {
+  return startFrame(frame, reducedMotion() ? null : () => {});
 }
