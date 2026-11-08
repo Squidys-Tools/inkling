@@ -124,72 +124,130 @@ export type Mosaic = {
   image: ImageData;
   /** Whether the dark base is drawn, or left clear for a ring layer beneath to show through. */
   base: boolean;
+  /** Scratch buffers for coverScene, allocated on the first draw and reused after. */
+  scene?: CoverScene;
 };
 
 export const mosaicPhases = (seed: number) =>
   Array.from({ length: mosaicColumns * mosaicRows }, (_, cell) => hash(seed + 3, cell));
 
 /**
- * One frame of the card's cover: the mosaic of thumbnail colours growing and
- * shrinking over a dark base (`progress` 0 is all base), with the ring of blobs on top.
+ * Everything about a cover frame that does not depend on the pixel, in flat arrays a
+ * renderer can upload: per cell centre x/y, size (0 skips the cell) and base alpha in
+ * `cells` (4 floats each), colour in `colors` (3 each), ring blobs in `rings` (3 each).
  */
-export function drawCover(
-  context: CanvasRenderingContext2D,
+export type CoverScene = {
+  cells: Float64Array;
+  colors: Float64Array;
+  rings: Float64Array;
+  ringCount: number;
+  aspect: number;
+  stretchX: number;
+  stretchY: number;
+  idle: boolean;
+};
+
+const newCoverScene = (): CoverScene => ({
+  cells: new Float64Array(mosaicColumns * mosaicRows * 4),
+  colors: new Float64Array(mosaicColumns * mosaicRows * 3),
+  rings: new Float64Array(ringBlobs * 3),
+  ringCount: 0,
+  aspect: 1,
+  stretchX: 1,
+  stretchY: 1,
+  idle: true,
+});
+
+/** Fills the mosaic's reusable scene buffers with this frame's pixel-independent values. */
+export function coverScene(
   mosaic: Mosaic,
   seconds: number,
   progress: number,
   ringGrow: number,
-) {
-  const { width, height, cells, phases, image } = mosaic;
-  const data = image.data;
-  const aspect = width / height;
-  const ring = ringGrow > 0.01 ? ringBalls(seconds, ringGrow, aspect) : null;
-  // Cells are not square on a card that is not 3:4; stretching distances keeps the blobs round.
-  const stretchX = Math.sqrt(width / mosaicColumns / (height / mosaicRows));
-  const stretchY = 1 / stretchX;
+): CoverScene {
+  const scene = (mosaic.scene ??= newCoverScene());
+  const { width, height, cells, phases } = mosaic;
+  const cellData = scene.cells;
+  const colorData = scene.colors;
   const eased = ((progress - 0.1) / 0.9) * 1.06;
   // Before the reveal begins no cell has grown, so the ring needs none of the mosaic maths.
-  const idle = eased <= 0;
+  scene.idle = eased <= 0;
+  scene.aspect = width / height;
+  // Cells are not square on a card that is not 3:4; stretching distances keeps the blobs round.
+  scene.stretchX = Math.sqrt(width / mosaicColumns / (height / mosaicRows));
+  scene.stretchY = 1 / scene.stretchX;
+  for (let cell = 0; cell < mosaicColumns * mosaicRows; cell++) {
+    const column = cell % mosaicColumns;
+    const row = Math.floor(cell / mosaicColumns);
+    const phase = phases[cell] ?? 0;
+    const order = clamp((column / mosaicColumns + row / mosaicRows) * 0.35 + phase * 0.3);
+    const growAt = order * 0.25;
+    const shrinkAt = 0.4 + order * 0.45;
+    const live =
+      smooth(growAt, growAt + 0.18, eased) * (1 - smooth(shrinkAt, shrinkAt + 0.2, eased));
+    const offset = cell * 4;
+    cellData[offset] = column + 0.5 + 0.2 * Math.sin(seconds * 1.1 + phase * 6.28);
+    cellData[offset + 1] = row + 0.5 + 0.2 * Math.cos(seconds * 0.9 + phase * 5);
+    cellData[offset + 2] =
+      live <= 0 ? 0 : 0.64 * live * (1 + 0.1 * Math.sin(seconds * 2 + phase * 9));
+    cellData[offset + 3] = mosaic.base ? 1 - smooth(growAt + 0.04, growAt + 0.18, eased) : 0;
+    const color = cells?.[cell] ?? baseInk;
+    const tint = cell * 3;
+    colorData[tint] = color[0];
+    colorData[tint + 1] = color[1];
+    colorData[tint + 2] = color[2];
+  }
+  const ring = ringGrow > 0.01 ? ringBalls(seconds, ringGrow, scene.aspect) : null;
+  scene.ringCount = ring === null ? 0 : ringBlobs;
+  if (ring !== null) {
+    for (const [index, blob] of ring.entries()) {
+      const offset = index * 3;
+      scene.rings[offset] = blob.x;
+      scene.rings[offset + 1] = blob.y;
+      scene.rings[offset + 2] = blob.r;
+    }
+  }
+  return scene;
+}
+
+/** The per-pixel pass over a cover scene: sums each pixel's 3x3 cell shares into mosaic.image. */
+export function shadeCover(context: CanvasRenderingContext2D, mosaic: Mosaic, scene: CoverScene) {
+  const { width, height, image } = mosaic;
+  const data = image.data;
+  const { cells, colors, rings, ringCount, aspect, stretchX, stretchY, idle } = scene;
   for (let row = 0; row < height; row++) {
     const y = (row + 0.5) / height;
+    const cellY = y * mosaicRows;
+    const baseRow = Math.floor(cellY);
     for (let column = 0; column < width; column++) {
       const x = (column + 0.5) / width;
       const offset = (row * width + column) * 4;
       const cellX = x * mosaicColumns;
-      const cellY = y * mosaicRows;
       const baseColumn = Math.floor(cellX);
-      const baseRow = Math.floor(cellY);
       let weight = 0;
       let red = 0;
       let green = 0;
       let blue = 0;
-      for (let dy = idle ? 2 : -1; dy <= 1; dy++) {
-        const neighborRow = baseRow + dy;
-        if (neighborRow < 0 || neighborRow >= mosaicRows) continue;
-        for (let dx = -1; dx <= 1; dx++) {
-          const neighborColumn = baseColumn + dx;
-          if (neighborColumn < 0 || neighborColumn >= mosaicColumns) continue;
-          const cell = neighborRow * mosaicColumns + neighborColumn;
-          const phase = phases[cell] ?? 0;
-          const order = clamp(
-            (neighborColumn / mosaicColumns + neighborRow / mosaicRows) * 0.35 + phase * 0.3,
-          );
-          const growAt = order * 0.25;
-          const shrinkAt = 0.4 + order * 0.45;
-          const live =
-            smooth(growAt, growAt + 0.18, eased) * (1 - smooth(shrinkAt, shrinkAt + 0.2, eased));
-          if (live <= 0) continue;
-          const centerX = neighborColumn + 0.5 + 0.2 * Math.sin(seconds * 1.1 + phase * 6.28);
-          const centerY = neighborRow + 0.5 + 0.2 * Math.cos(seconds * 0.9 + phase * 5);
-          const size = 0.64 * live * (1 + 0.1 * Math.sin(seconds * 2 + phase * 9));
-          const offsetX = (cellX - centerX) * stretchX;
-          const offsetY = (cellY - centerY) * stretchY;
-          const share = (size * size) / (offsetX * offsetX + offsetY * offsetY + 0.02);
-          const color = cells?.[cell] ?? baseInk;
-          weight += share;
-          red += color[0] * share;
-          green += color[1] * share;
-          blue += color[2] * share;
+      if (!idle) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const neighborRow = baseRow + dy;
+          if (neighborRow < 0 || neighborRow >= mosaicRows) continue;
+          for (let dx = -1; dx <= 1; dx++) {
+            const neighborColumn = baseColumn + dx;
+            if (neighborColumn < 0 || neighborColumn >= mosaicColumns) continue;
+            const cell = neighborRow * mosaicColumns + neighborColumn;
+            const at = cell * 4;
+            const size = cells[at + 2];
+            if (size === 0) continue;
+            const offsetX = (cellX - cells[at]) * stretchX;
+            const offsetY = (cellY - cells[at + 1]) * stretchY;
+            const share = (size * size) / (offsetX * offsetX + offsetY * offsetY + 0.02);
+            const tint = cell * 3;
+            weight += share;
+            red += colors[tint] * share;
+            green += colors[tint + 1] * share;
+            blue += colors[tint + 2] * share;
+          }
         }
       }
       const mosaicAlpha = smooth(0.7, 1.05, weight);
@@ -198,29 +256,23 @@ export function drawCover(
         green /= weight;
         blue /= weight;
       }
-      const ownCell = baseRow * mosaicColumns + baseColumn;
-      const ownPhase = phases[ownCell] ?? 0;
-      const ownOrder = clamp(
-        (baseColumn / mosaicColumns + baseRow / mosaicRows) * 0.35 + ownPhase * 0.3,
-      );
-      const baseAlpha = mosaic.base
-        ? 1 - smooth(ownOrder * 0.25 + 0.04, ownOrder * 0.25 + 0.18, eased)
-        : 0;
+      const own = (baseRow * mosaicColumns + baseColumn) * 4;
+      const baseAlpha = cells[own + 3];
       let alpha = mosaicAlpha + baseAlpha * (1 - mosaicAlpha);
-      // Inlined per channel: a closure here would allocate once per pixel.
       let outRed =
         alpha > 0 ? (red * mosaicAlpha + baseInk[0] * baseAlpha * (1 - mosaicAlpha)) / alpha : 0;
       let outGreen =
         alpha > 0 ? (green * mosaicAlpha + baseInk[1] * baseAlpha * (1 - mosaicAlpha)) / alpha : 0;
       let outBlue =
         alpha > 0 ? (blue * mosaicAlpha + baseInk[2] * baseAlpha * (1 - mosaicAlpha)) / alpha : 0;
-      if (ring) {
+      if (ringCount > 0) {
+        const reach = x * aspect;
         let field = 0;
-        for (let index = 0; index < ring.length; index++) {
-          const blob = ring[index];
-          const dx = x * aspect - blob.x;
-          const dy = y - blob.y;
-          field += (blob.r * blob.r) / (dx * dx + dy * dy + 1e-4);
+        for (let index = 0; index < ringCount; index++) {
+          const blob = index * 3;
+          const dx = reach - rings[blob];
+          const dy = y - rings[blob + 1];
+          field += (rings[blob + 2] * rings[blob + 2]) / (dx * dx + dy * dy + 1e-4);
         }
         const inkAlpha = smooth(0.9, 1.1, field);
         const total = inkAlpha + alpha * (1 - inkAlpha);
@@ -238,6 +290,20 @@ export function drawCover(
     }
   }
   context.putImageData(image, 0, 0);
+}
+
+/**
+ * One frame of the card's cover: the mosaic of thumbnail colours growing and
+ * shrinking over a dark base (`progress` 0 is all base), with the ring of blobs on top.
+ */
+export function drawCover(
+  context: CanvasRenderingContext2D,
+  mosaic: Mosaic,
+  seconds: number,
+  progress: number,
+  ringGrow: number,
+) {
+  shadeCover(context, mosaic, coverScene(mosaic, seconds, progress, ringGrow));
 }
 
 export const ringGrowAt = (elapsed: number) => smooth(0, 0.9, elapsed);
