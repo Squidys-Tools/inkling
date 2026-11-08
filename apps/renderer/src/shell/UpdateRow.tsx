@@ -23,7 +23,7 @@ const icons: Record<UpdateNavPhase, IconSvgElement> = {
   failed: Alert02Icon,
 };
 
-// Each state borrows a card's own look: an offer is lit, a finished update is solid ink,
+// Each state borrows a card's own look: an offer is outlined, a finished update is solid ink,
 // and a failure is drained and veiled like a failed card.
 const toneOf: Record<UpdateNavPhase, "quiet" | "offer" | "ready" | "failed"> = {
   available: "offer",
@@ -146,7 +146,7 @@ const styles = stylex.create({
     overflow: "hidden",
   },
   quiet: { backgroundColor: color.raised, boxShadow: `inset 0 0 0 1px ${color.borderStrong}` },
-  offer: { backgroundColor: color.accentSoft, boxShadow: `inset 0 0 0 1px ${color.focusRing}` },
+  offer: { backgroundColor: "transparent", boxShadow: `inset 0 0 0 1px ${color.borderStrong}` },
   ready: { backgroundColor: color.ink },
   failed: {
     backgroundColor: color.raised,
