@@ -1,0 +1,24 @@
+[package]
+name = "inkling-setup"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+tao = "=0.37.2"
+wry = "=0.57.1"
+windows-sys = { version = "=0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Dwm",
+  "Win32_System_Threading",
+] }
+
+[build-dependencies]
+embed-resource = "=3.0.12"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
