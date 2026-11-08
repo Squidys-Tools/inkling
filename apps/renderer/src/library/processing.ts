@@ -49,6 +49,7 @@ const same = (left: Processing | undefined, right: Processing | null) =>
   left.progressCurrent === right.progressCurrent &&
   left.progressTotal === right.progressTotal &&
   left.failedJob?.id === right.failedJob?.id &&
+  left.failedJob?.message === right.failedJob?.message &&
   left.startedAt === right.startedAt;
 
 /** Applies fresh job lists for `itemIds`, keeping unchanged summaries so their cards stay put. */
@@ -58,7 +59,11 @@ export function withJobs(
   jobs: readonly Job[],
 ) {
   const byItem = new Map<string, Job[]>();
-  for (const job of jobs) byItem.set(job.itemId, [...(byItem.get(job.itemId) ?? []), job]);
+  for (const job of jobs) {
+    const held = byItem.get(job.itemId);
+    if (held) held.push(job);
+    else byItem.set(job.itemId, [job]);
+  }
   let next: Map<string, Processing> | null = null;
   for (const id of itemIds) {
     const summary = summarizeJobs(byItem.get(id) ?? []);
