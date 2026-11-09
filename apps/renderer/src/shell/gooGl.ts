@@ -11,13 +11,11 @@ function fragmentSource(maxBlobs: number) {
 precision highp float;
 uniform vec3 uBlobs[MAX_BLOBS];
 uniform int uCount;
-uniform float uHeight;
 uniform vec3 uInk;
 out vec4 outColor;
 void main() {
   float x = gl_FragCoord.x;
-  // WebGL's y grows upward while the field's grows downward, so flip it.
-  float y = uHeight - gl_FragCoord.y;
+  float y = gl_FragCoord.y;
   float field = 0.0;
   for (int i = 0; i < uCount; i++) {
     vec3 blob = uBlobs[i];
@@ -26,7 +24,7 @@ void main() {
     field += (blob.z * blob.z) / (dx * dx + dy * dy + 1e-4);
   }
   float alpha = smoothstep(0.9, 1.3, field);
-  outColor = vec4(uInk * alpha, alpha);
+  outColor = vec4(uInk, alpha);
 }
 `;
     sources.set(maxBlobs, source);
@@ -57,7 +55,6 @@ export function paintGooGl(
     // An empty upload is an INVALID_VALUE for uniform3fv, so skip it at zero blobs.
     if (count > 0) gl.uniform3fv(uniform("uBlobs"), blobData.subarray(0, count * 3));
     gl.uniform1i(uniform("uCount"), count);
-    gl.uniform1f(uniform("uHeight"), gooHeight);
     gl.uniform3f(uniform("uInk"), ink[0] / 255, ink[1] / 255, ink[2] / 255);
   });
 }
