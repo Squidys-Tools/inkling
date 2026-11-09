@@ -80,15 +80,15 @@ function link(gl: WebGL2RenderingContext, fragmentSource: string): Program | nul
 /**
  * Draws `fragmentSource` (straight colour; gl_FragCoord.y is the target's row, top down) on
  * one shared WebGL2 context and copies it into `target`. Returns false, leaving `target`
- * untouched, when WebGL is unavailable, lost or rejects the shader; the caller then paints
- * on the CPU.
+ * untouched, when WebGL is unavailable, lost or rejects the shader, or `setUniforms` returns
+ * false; the caller then paints on the CPU.
  */
 export function paintWithGl(
   target: CanvasRenderingContext2D,
   fragmentSource: string,
   width: number,
   height: number,
-  setUniforms: (gl: WebGL2RenderingContext, uniform: Uniform) => void,
+  setUniforms: (gl: WebGL2RenderingContext, uniform: Uniform) => boolean | void,
 ): boolean {
   if (shared === undefined) shared = create();
   if (!shared || shared.lost || shared.gl.isContextLost()) return false;
@@ -103,7 +103,7 @@ export function paintWithGl(
   if (canvas.width < width) canvas.width = width;
   if (canvas.height < height) canvas.height = height;
   gl.useProgram(program);
-  setUniforms(gl, (name) => {
+  const ready = setUniforms(gl, (name) => {
     let location = uniforms.get(name);
     if (location === undefined) {
       location = gl.getUniformLocation(program, name);
@@ -111,6 +111,7 @@ export function paintWithGl(
     }
     return location;
   });
+  if (ready === false) return false;
   gl.viewport(0, 0, width, height);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   // GL row y lands on target row y on both paths: readback keeps GL's row order, drawImage is flipped.

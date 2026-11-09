@@ -1,4 +1,4 @@
-import { paintWithGl } from "./glPaint.ts";
+import { paintWithGl } from "../cards/glPaint.ts";
 import { eachBlob, gooHeight, maxBlobCount } from "./gooField.ts";
 
 const sources = new Map<number, string>();

@@ -15,6 +15,23 @@ try {
     outdir: scratch,
     naming: "page.js",
     target: "browser",
+    // The colour tokens are StyleX consts the compiler inlines; uncompiled, the values pass through.
+    plugins: [
+      {
+        name: "stylex-passthrough",
+        setup(build) {
+          build.onResolve({ filter: /^@stylexjs\/stylex$/ }, () => ({
+            path: "stylex",
+            namespace: "stylex-passthrough",
+          }));
+          build.onLoad({ filter: /.*/, namespace: "stylex-passthrough" }, () => ({
+            contents:
+              "const same = (value) => value; export { same as defineConsts, same as defineVars };",
+            loader: "js",
+          }));
+        },
+      },
+    ],
   });
   assert.ok(built.success, built.logs.join("\n"));
   await writeFile(
