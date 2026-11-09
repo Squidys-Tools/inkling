@@ -29,7 +29,26 @@ const canvas2d = (width: number, height: number) => {
   return canvas.getContext("2d")!;
 };
 
-type Result = { name: string; usedGl: boolean; worst: number };
+type Result = { name: string; usedGl: boolean; worst: number; detail: string };
+
+const alphaSum = (data: Uint8ClampedArray | Uint8Array) => {
+  let sum = 0;
+  for (let index = 3; index < data.length; index += 4) sum += data[index]!;
+  return sum;
+};
+
+// Tells a shader that drew nothing apart from a copy into the 2D canvas that lost the frame.
+function describe(width: number, got: Uint8ClampedArray, want: Uint8ClampedArray) {
+  const gl = contexts[0];
+  if (!gl) return "no context";
+  const drawn = new Uint8Array(width * gooHeight * 4);
+  gl.readPixels(0, 0, width, gooHeight, gl.RGBA, gl.UNSIGNED_BYTE, drawn);
+  const info = gl.getExtension("WEBGL_debug_renderer_info");
+  const renderer = info
+    ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL)
+    : gl.getParameter(gl.RENDERER);
+  return `renderer=${renderer} error=${gl.getError()} gl=${alphaSum(drawn)} copied=${alphaSum(got)} cpu=${alphaSum(want)}`;
+}
 
 function gooCase(width: number, front: number, seconds: number): Result {
   const context = canvas2d(width, gooHeight);
@@ -41,7 +60,8 @@ function gooCase(width: number, front: number, seconds: number): Result {
   for (let index = 3; index < got.length; index += 4) {
     worst = Math.max(worst, Math.abs(got[index]! - want[index]!));
   }
-  return { name: `goo ${width}px at ${front}`, usedGl, worst };
+  const detail = worst > 2 ? describe(width, got, want) : "";
+  return { name: `goo ${width}px at ${front}`, usedGl, worst, detail };
 }
 
 const results: Result[] = [];

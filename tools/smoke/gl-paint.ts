@@ -52,10 +52,12 @@ app.whenReady().then(() => {
   await child.exited;
   const line = output.split("\n").find((entry) => entry.startsWith("RESULT "));
   assert.ok(line, `no result from the page:\n${output}`);
-  const report: { contexts: number; results: { name: string; usedGl: boolean; worst: number }[] } =
-    JSON.parse(line.slice("RESULT ".length));
+  const report: {
+    contexts: number;
+    results: { name: string; usedGl: boolean; worst: number; detail: string }[];
+  } = JSON.parse(line.slice("RESULT ".length));
   for (const result of report.results)
-    console.log(`${result.name}: gl=${result.usedGl} worst=${result.worst}`);
+    console.log(`${result.name}: gl=${result.usedGl} worst=${result.worst} ${result.detail}`);
   assert.equal(report.contexts, 1, "every painter shares one WebGL2 context");
   for (const result of report.results) {
     assert.ok(result.usedGl, `${result.name} fell back to the CPU`);
