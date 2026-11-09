@@ -32,12 +32,16 @@ function create(): Shared | null {
   });
   if (!gl) return null;
   const state: Shared = { canvas, gl, programs: new Map(), lost: false, frame: null };
-  // drawImage of a WebGL canvas copies nothing on ANGLE's SwiftShader Vulkan, so probe it once.
-  gl.clearColor(0, 0, 0, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+  // drawImage of a WebGL canvas repeats a stale frame on ANGLE's SwiftShader Vulkan, so probe two.
   const probe = document.createElement("canvas").getContext("2d");
-  probe?.drawImage(canvas, 0, 0, 1, 1, 0, 0, 1, 1);
-  if (probe?.getImageData(0, 0, 1, 1).data[3] !== 255) state.frame = new ImageData(1, 1);
+  const copiedAlpha = (alpha: number) => {
+    gl.clearColor(0, 0, 0, alpha);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    probe?.clearRect(0, 0, 1, 1);
+    probe?.drawImage(canvas, 0, 0, 1, 1, 0, 0, 1, 1);
+    return probe?.getImageData(0, 0, 1, 1).data[3];
+  };
+  if (copiedAlpha(1) !== 255 || copiedAlpha(0) !== 0) state.frame = new ImageData(1, 1);
   // A lost context stays lost for the session; every caller falls back to its 2D painter.
   canvas.addEventListener("webglcontextlost", () => {
     state.lost = true;
