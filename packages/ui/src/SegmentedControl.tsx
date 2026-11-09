@@ -1,4 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
+import { srOnly } from "./a11y.ts";
 import { color, font, motion, radius, space, text } from "./tokens.stylex.ts";
 
 /** One choice among a few, as native radios. It has no surface of its own; pass one in `style`. */
@@ -23,7 +24,7 @@ export function SegmentedControl<Value extends string>({
 }) {
   return (
     <fieldset disabled={disabled} {...stylex.props(styles.root, style)}>
-      <legend {...stylex.props(styles.hidden)}>{label}</legend>
+      <legend {...stylex.props(srOnly)}>{label}</legend>
       {options.map((option) => {
         const checked = option.value === value;
         return (
@@ -34,7 +35,7 @@ export function SegmentedControl<Value extends string>({
               value={option.value}
               checked={checked}
               onChange={() => onChange(option.value)}
-              {...stylex.props(styles.hidden)}
+              {...stylex.props(srOnly)}
             />
             {option.label}
           </label>
@@ -84,16 +85,5 @@ const styles = stylex.create({
     color: { default: color.ink, ":hover": color.ink },
     backgroundColor: color.overlayActive,
     boxShadow: `inset 0 1px 0 ${color.glassEdge}, 0 1px 3px ${color.shadow}`,
-  },
-  hidden: {
-    position: "absolute",
-    width: "1px",
-    height: "1px",
-    margin: "-1px",
-    padding: 0,
-    overflow: "hidden",
-    clipPath: "inset(50%)",
-    whiteSpace: "nowrap",
-    borderWidth: 0,
   },
 });

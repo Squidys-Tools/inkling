@@ -5,3 +5,4 @@ export { SegmentedControl } from "./SegmentedControl.tsx";
 export { TextArea, TextField } from "./TextField.tsx";
 export { registerFonts } from "./fonts.ts";
 export { applyRootStyles } from "./root.ts";
+export { srOnly } from "./a11y.ts";

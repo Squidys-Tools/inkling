@@ -64,4 +64,14 @@ describe("job summaries", () => {
     expect(withJobs(first, ["a"], running)).toBe(first);
     expect(withJobs(first, ["a"], []).has("a")).toBe(false);
   });
+
+  it("passes a retried job's new failure message through to the card", () => {
+    const failed = (errorMessage: string) => [
+      job({ id: "1", kind: "ocr", status: "failed", createdAt: 1, errorMessage }),
+    ];
+    const first = withJobs(new Map(), ["item"], failed("broken"));
+    const second = withJobs(first, ["item"], failed("still broken"));
+    expect(second).not.toBe(first);
+    expect(second.get("item")?.failedJob?.message).toBe("still broken");
+  });
 });

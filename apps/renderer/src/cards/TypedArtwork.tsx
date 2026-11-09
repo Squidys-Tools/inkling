@@ -1,11 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius } from "@inkling/ui/tokens.stylex";
-import {
-  type CardView,
-  fileExtensionLabel,
-  formatFileSize,
-  pdfPreviewTitle,
-} from "../library/cardModel.ts";
+import { formatByteSize } from "../format.ts";
+import { type CardView, fileExtensionLabel, pdfPreviewTitle } from "../library/cardModel.ts";
 import texture from "./assets/typed-texture.png";
 
 // PDFs, notes and files share one layout: a mono label and ring, the title in
@@ -82,7 +78,7 @@ export function TypedArtworkFor({
     <TypedArtwork
       label={extension || view.kind.toUpperCase()}
       title={view.noPreview && !waiting ? "No preview" : pdfPreviewTitle(view.title) || view.kind}
-      footnote={view.fileSizeBytes ? formatFileSize(view.fileSizeBytes) : undefined}
+      footnote={view.fileSizeBytes ? formatByteSize(view.fileSizeBytes) : undefined}
       compact={compact}
     />
   );

@@ -1,6 +1,6 @@
 # Capture by deep link
 
-The app's `inkling://capture?url=...` intake saves the URL as a card at once, then enriches it in the background, like Add > Link. Status: **driven** on 2026-11-05, as a launch argument. Not driven: the OS-level handler (a browser or the shell opening `inkling://`), which only a packaged build registers.
+The app's `inkling://capture?url=...` intake saves the URL as a card at once, then enriches it in the background, like Add > Link. Status: **driven** on 2026-11-09 (run `mw8zj6am-987a`), as a launch argument. Not driven: the OS-level handler (a browser or the shell opening `inkling://`), which only a packaged build registers.
 
 ## Sub-features
 
@@ -23,5 +23,6 @@ Preconditions: the machine can reach the URL.
 ## Gotchas
 
 - Only at `launch`: this skill has no route to hand a second link to a running app, and `launch` refuses while a run is live.
+- The app's parser also accepts `&title=`, `&selection=` (saves a quote) and `&image=&alt=` (saves an image), all under `inkling://capture`; the launcher's `SAFE_LINK` admits only the plain `?url=` form, and it can still admit values the app drops (empty `url`, no http(s) scheme). Deep-link and receiver captures write `metadata.captureSource` `browser extension`, not `quick link`.
 - The OS handler is registered only in packaged builds (`apps/desktop/src/capture/outside-captures.ts`), so an unpackaged run never takes `inkling://` from the installed app. Do not add a packaged run to this skill: it opens the user's real library.
 - Offline, the card keeps the domain title and the enrichment job fails or retries: check `jobs.status`.

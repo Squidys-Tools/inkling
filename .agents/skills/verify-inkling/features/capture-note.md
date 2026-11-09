@@ -1,6 +1,6 @@
 # Capture a note
 
-Capture a note saves typed text as a note card in Everything immediately, with a stored `note` row. Status: **driven** (run `mvz69480-dfac`).
+Capture a note saves typed text as a note card in Everything immediately, with a stored `note` row. Status: **driven** (run `mw8z6zu6-9df7`).
 
 ## Sub-features
 
@@ -10,8 +10,8 @@ Capture a note saves typed text as a note card in Everything immediately, with a
 
 ## How to get to it (user POV)
 
-- Choose **Add** in the sidebar, then **Note**. Ctrl+Enter also saves.
-- Paste, drag and drop, and the extension create other kinds; not this feature.
+- Choose **Add** in the sidebar, then **Note**. The `n` / Ctrl+N shortcut opens the same editor. Ctrl+Enter also saves.
+- Paste, drag and drop, and the extension create other kinds; not this feature. (Pasted plain text does create a `note` row straight to the library, with `captureSource` `clipboard` and no editor.)
 
 ## Driving it with agent-desktop
 
@@ -19,7 +19,7 @@ Preconditions: seeded library, `doctor` all PASS, sidebar reads `Everything 32`.
 
 - **Before.** `$I shot 01-before`; `$I tree | grep Everything` shows `Everything 32`.
 - **Open Add.** `$I ad expand "$($I ref menubutton Add)"`. The result lists a `menu` surface "Add to your library". A semantic `click` on Add does nothing; use `expand`.
-- **Choose Note.** `$I ad click "$($I ref menuitem Note)"`. The document value becomes `app://local/index.html#/add/note`; a textfield named `Note` exists with buttons `Cancel`, `Save to library`.
+- **Choose Note.** `$I ad click "$($I ref menuitem Note)"`. The document value becomes `app://local/index.html#/add/note`; a textfield named `Note` exists with buttons `Cancel`, `Save to library`, `Close new note`, and a `Note formatting` toolbar.
 - **Enter text.** `$I ad set-value "$($I ref textfield Note)" 'verify probe alpha'` → `post_state.value` equals the text. `$I shot 02-typed`.
 - **Save.** `$I ad click "$($I ref button 'Save to library')"`.
 - **Proof.** `$I tree | grep -E 'Everything|Note:'` shows `Everything 33` and a group `Note: Untitled note`; `$I shot 03-saved`; `$I db "SELECT kind,title,body,body_format,archived,metadata FROM items ORDER BY created_at DESC LIMIT 1"` returns kind `note`, title `null`, body `verify probe alpha`, body_format `md`, archived `0`, metadata `{"captureSource":"quick note"}`.

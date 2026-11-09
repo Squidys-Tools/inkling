@@ -1,6 +1,6 @@
 # Capture a link
 
-Capture a link saves a URL as a card at once, then fills in title and description in the background. Status: **driven** on 2026-11-02. This is the only mapped capture that uses the network (it fetches the URL you type).
+Capture a link saves a URL as a card at once, then fills in title and description in the background. Status: **driven** on 2026-11-09. This is the only mapped capture that uses the network (it fetches the URL you type).
 
 ## Sub-features
 
@@ -24,4 +24,4 @@ Preconditions: seeded library; the machine can reach `https://example.com/`.
 
 - The card is named `Article: <title>` and its title changes after enrichment, so re-resolve it by the current title.
 - Offline, the card keeps the domain title (partial result) and the job fails or retries: check `jobs.status`.
-- Several jobs run per capture (embedding, poster, enrichment); wait on the specific `enrich_url` row.
+- A link capture queues exactly one job, `enrich_url`; `generate_embedding` is chained after enrichment succeeds. Links never get a poster job (`video_poster` is for saved video files only). Wait on the specific `enrich_url` row.
