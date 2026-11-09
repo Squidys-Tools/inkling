@@ -23,7 +23,7 @@ Launches `bun run dev:app`'s app (build + Electron) against a scratch library, d
 
 ## Prerequisites
 
-- Bun per `.bun-version` (`bun tools/repo/check-bun-version.ts`), `bun install` done, `node_modules/electron/dist` present. `agent-desktop` on PATH (`agent-desktop --version`; verified with 1.0.2).
+- Bun per `.bun-version` (`bun tools/repo/check-bun-version.ts`), `bun install` done, `node_modules/electron/dist` present. `agent-desktop` on PATH (`agent-desktop --version`; verified with 1.1.0 — do not take 1.2.0: headless it reads popup menuitems as offscreen and `press` demands OS-focus the window never has).
 - An interactive, unlocked desktop session. The app window may be behind others but not minimized (minimized windows are not drivable).
 
 ## Launch
@@ -80,9 +80,9 @@ Handles that hold in this app (from the live run):
 - Cards are groups named `<Kind>: <title>` (`Note: Untitled note`, `Image: …`, `Article: …`, `Post: …`); search box is textfield `Search your mind`; switches `Grid view`/`List view`.
 - Routes show as link/document values: `app://local/index.html#/`, `#/add/note`, `#/space/<id>`, `#/archive`.
 - A note's body is a textfield named `Note` (contenteditable, `set-value` works); buttons `Save to library`, `Save note`, `Cancel`, `Edit note`, `Archive`, `Keep in a Space`.
-- Native Electron menus (`Keep in a Space`) appear via `$I tree --surface menu`; native confirms (delete a populated Space) open a second window of ours: `$I windows`, then `$I tree --window <id>` and `$I ref button '<name>' --window <id>`. Radio `Regular` in the Add-a-Space form cannot be clicked; use keyboard (see features/spaces.md).
+- In-app DOM menus (base-ui popups like the `Item actions` menu behind `Keep in a Space`, and the card context menu) appear via `$I tree --surface menu` with role `menu`/`menuitem`; the native `Menu.popup` bridge exists but no renderer calls it. Native confirms (delete a populated Space, delete forever) open a second window of ours: `$I windows`, then `$I tree --window <id>` and `$I ref button '<name>' --window <id>`. Radio `Regular` in the Add-a-Space form cannot be clicked; use keyboard (see features/spaces.md).
 
-Retries: a snapshot or find can fail with `atomic replace failed ... os error 1175` and `disposition: {delivery: not_delivered, retry: safe}`. A fresh snapshot/find is the fix. Never repeat an action whose `disposition.retry` is `unsafe` (all successful click/set-value results say so): read state instead. With several `electron.exe` windows only the id from `$I window` is ours.
+Retries: a snapshot or find can fail with `atomic replace failed ... os error 1175` and `disposition: {delivery: not_delivered, retry: safe}`. A fresh snapshot/find is the fix — `ref` and `tree` already retry it a few times, so re-run the command when it still fails. `doctor`'s snapshot check does not retry, so a healthy run can report a transient FAIL there; re-run `doctor` before relaunching. Never repeat an action whose `disposition.retry` is `unsafe` (all successful click/set-value results say so): read state instead. With several `electron.exe` windows only the id from `$I window` is ours.
 
 ## Evidence
 

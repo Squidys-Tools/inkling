@@ -1,6 +1,6 @@
 # Edit a note
 
-Edit note reopens a saved note's body in the full-page editor and saves the change in place. Status: **driven** (run `mvz69480-dfac`, after capture-note).
+Edit note reopens a saved note's body in the full-page editor and saves the change in place. Status: **driven** (run `mw8z6zu6-9df7`, after capture-note).
 
 ## Sub-features
 
@@ -11,14 +11,14 @@ Edit note reopens a saved note's body in the full-page editor and saves the chan
 ## How to get to it (user POV)
 
 - Open a note card, choose **Edit note** in the Info panel.
-- Cancel/Close/Escape with unsaved edits asks to discard (not driven).
+- Leaving with unsaved edits (Cancel, Close, Escape, Back) asks "Discard your changes to this note?" through the shared confirm (not driven).
 
 ## Driving it with agent-desktop
 
 Preconditions: a note with body `verify probe alpha` exists (run capture-note first), Everything is shown.
 
-- **Open the note.** `$I ad click "$($I ref group 'Note: Untitled note')"`. Buttons `Close`, `Edit note`, `Keep in a Space`, `Archive` appear; `$I shot 04-open`.
-- **Open the editor.** `$I ad click "$($I ref button 'Edit note')"`. Textfield `Note` has value `verify probe alpha`; buttons `Cancel`, `Save note`.
+- **Open the note.** `$I ad click "$($I ref group 'Note: Untitled note')"`. Tabs `Info`/`Similar` and buttons `Close`, `Edit note`, `Keep in a Space`, `Archive` appear (plus the title button, `Add tag`, and `Saved`/`From` options); `$I shot 04-open`.
+- **Open the editor.** `$I ad click "$($I ref button 'Edit note')"`. The route is `#/item/<id>/write`; textfield `Note` has value `verify probe alpha`; buttons `Cancel`, `Save note`, `Close focus mode`.
 - **Replace the body.** `$I ad set-value "$($I ref textfield Note)" 'verify probe edited'`; `$I shot 05-typed`.
 - **Save.** `$I ad click "$($I ref button 'Save note')"`. The item view returns (`Edit note` button visible again).
 - **Proof.** `$I shot 06-saved`; `$I db "SELECT title,body,description,created_at,updated_at FROM items WHERE body LIKE 'verify probe%'"` returns body and description `verify probe edited`, title `null`, `created_at` unchanged, `updated_at` later.
