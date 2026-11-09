@@ -1,4 +1,5 @@
 import { loadingColor } from "@inkling/ui/tokens.stylex";
+import { drawCoverGpu } from "./coverGpu.ts";
 
 const mosaicColumns = 9;
 const mosaicRows = 12;
@@ -14,7 +15,7 @@ const hash = (left: number, right: number) => {
   return wave - Math.floor(wave);
 };
 
-type Rgb = readonly [number, number, number];
+export type Rgb = readonly [number, number, number];
 
 const rgb = (hex: string): Rgb => {
   const value = Number.parseInt(hex.slice(1), 16);
@@ -159,7 +160,7 @@ const newCoverScene = (): CoverScene => ({
 });
 
 /** Fills the mosaic's reusable scene buffers with this frame's pixel-independent values. */
-export function coverScene(
+function coverScene(
   mosaic: Mosaic,
   seconds: number,
   progress: number,
@@ -211,7 +212,7 @@ export function coverScene(
 }
 
 /** The per-pixel pass over a cover scene: sums each pixel's 3x3 cell shares into mosaic.image. */
-export function shadeCover(context: CanvasRenderingContext2D, mosaic: Mosaic, scene: CoverScene) {
+function shadeCover(context: CanvasRenderingContext2D, mosaic: Mosaic, scene: CoverScene) {
   const { width, height, image } = mosaic;
   const data = image.data;
   const { cells, colors, rings, ringCount, aspect, stretchX, stretchY, idle } = scene;
@@ -303,7 +304,10 @@ export function drawCover(
   progress: number,
   ringGrow: number,
 ) {
-  shadeCover(context, mosaic, coverScene(mosaic, seconds, progress, ringGrow));
+  const scene = coverScene(mosaic, seconds, progress, ringGrow);
+  if (!drawCoverGpu(context, mosaic, scene, { base: baseInk, ring: ringInk })) {
+    shadeCover(context, mosaic, scene);
+  }
 }
 
 export const ringGrowAt = (elapsed: number) => smooth(0, 0.9, elapsed);
