@@ -52,13 +52,19 @@ function describe(width: number, got: Uint8ClampedArray, want: Uint8ClampedArray
 
 function gooCase(width: number, front: number, seconds: number): Result {
   const context = canvas2d(width, gooHeight);
-  const usedGl = paintGooGl(context, width, seconds, front, [229, 221, 210]);
+  const ink = [229, 221, 210] as const;
+  const usedGl = paintGooGl(context, width, seconds, front, ink);
   const got = context.getImageData(0, 0, width, gooHeight).data;
   const want = new Uint8ClampedArray(width * gooHeight * 4);
   paintGooAlpha(want, width, seconds, front);
   let worst = 0;
   for (let index = 3; index < got.length; index += 4) {
     worst = Math.max(worst, Math.abs(got[index]! - want[index]!));
+    // Below half alpha the 2D canvas's unpremultiply rounding swamps a colour error.
+    if (want[index]! < 128) continue;
+    for (let channel = 0; channel < 3; channel++) {
+      worst = Math.max(worst, Math.abs(got[index - 3 + channel]! - ink[channel]!));
+    }
   }
   const detail = worst > 2 ? describe(width, got, want) : "";
   return { name: `goo ${width}px at ${front}`, usedGl, worst, detail };

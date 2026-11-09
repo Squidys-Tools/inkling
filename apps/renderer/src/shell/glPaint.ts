@@ -11,6 +11,7 @@ type Shared = {
   gl: WebGL2RenderingContext;
   programs: Map<string, Program | null>;
   lost: boolean;
+  // Null while drawImage copies a WebGL canvas; a readback buffer where it copies nothing.
   frame: ImageData | null;
 };
 
@@ -21,7 +22,7 @@ let shared: Shared | null | undefined;
 function create(): Shared | null {
   const canvas = document.createElement("canvas");
   const gl = canvas.getContext("webgl2", {
-    premultipliedAlpha: true,
+    premultipliedAlpha: false,
     antialias: false,
     depth: false,
     stencil: false,
@@ -31,6 +32,12 @@ function create(): Shared | null {
   });
   if (!gl) return null;
   const state: Shared = { canvas, gl, programs: new Map(), lost: false, frame: null };
+  // drawImage of a WebGL canvas copies nothing on ANGLE's SwiftShader Vulkan, so probe it once.
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  const probe = document.createElement("canvas").getContext("2d");
+  probe?.drawImage(canvas, 0, 0, 1, 1, 0, 0, 1, 1);
+  if (probe?.getImageData(0, 0, 1, 1).data[3] !== 255) state.frame = new ImageData(1, 1);
   // A lost context stays lost for the session; every caller falls back to its 2D painter.
   canvas.addEventListener("webglcontextlost", () => {
     state.lost = true;
@@ -67,8 +74,8 @@ function link(gl: WebGL2RenderingContext, fragmentSource: string): Program | nul
 }
 
 /**
- * Draws `fragmentSource` (straight colour; gl_FragCoord.y counts down from the top) on one
- * shared WebGL2 context and copies it into `target`. Returns false, leaving `target`
+ * Draws `fragmentSource` (straight colour; gl_FragCoord.y is the target's row, top down) on
+ * one shared WebGL2 context and copies it into `target`. Returns false, leaving `target`
  * untouched, when WebGL is unavailable, lost or rejects the shader; the caller then paints
  * on the CPU.
  */
@@ -102,13 +109,20 @@ export function paintWithGl(
   });
   gl.viewport(0, 0, width, height);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
+  // GL row y lands on target row y on both paths: readback keeps GL's row order, drawImage is flipped.
   let frame = shared.frame;
-  if (!frame || frame.width !== width || frame.height !== height) {
-    frame = shared.frame = new ImageData(width, height);
+  if (frame) {
+    if (frame.width !== width || frame.height !== height) {
+      frame = shared.frame = new ImageData(width, height);
+    }
+    // A sync GPU stall, several times slower than drawImage, so only where drawImage fails.
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, frame.data);
+    target.putImageData(frame, 0, 0);
+    return true;
   }
-  // drawImage of a WebGL canvas copies nothing on ANGLE's SwiftShader Vulkan backend, so read back.
-  // Readback row 0 is GL's bottom row, which is why shaders count gl_FragCoord.y from the top.
-  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, frame.data);
-  target.putImageData(frame, 0, 0);
+  target.clearRect(0, 0, width, height);
+  target.setTransform(1, 0, 0, -1, 0, height);
+  target.drawImage(canvas, 0, canvas.height - height, width, height, 0, 0, width, height);
+  target.setTransform(1, 0, 0, 1, 0, 0);
   return true;
 }
