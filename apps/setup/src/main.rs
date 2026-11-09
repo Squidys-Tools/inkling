@@ -18,7 +18,6 @@ use tao::event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy};
 use tao::platform::run_return::EventLoopExtRunReturn;
 use tao::platform::windows::{IconExtWindows, WindowExtWindows};
 use tao::window::{Icon, Window, WindowBuilder};
-use wry::{WebContext, WebViewBuilder};
 use windows_sys::Win32::Foundation::{HANDLE, HWND};
 use windows_sys::Win32::Graphics::Dwm::{
     DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
@@ -26,6 +25,7 @@ use windows_sys::Win32::Graphics::Dwm::{
 use windows_sys::Win32::System::Threading::{
     GetProcessIoCounters, WaitForSingleObject, IO_COUNTERS,
 };
+use wry::{WebContext, WebViewBuilder};
 
 // pack.ts appends `[html][nsis][u64 htmlLen][u64 nsisLen][u64 installedBytes][magic]`.
 const MAGIC: &[u8; 8] = b"INKSETUP";
@@ -182,8 +182,7 @@ fn gui(exe: &Path, payload: &Payload, args: &[OsString]) -> Result<i32, String> 
 
     let proxy_ipc = event_loop.create_proxy();
     let proxy_events = event_loop.create_proxy();
-    let mut web_context =
-        WebContext::new(Some(env::temp_dir().join("inkling-setup-webview")));
+    let mut web_context = WebContext::new(Some(env::temp_dir().join("inkling-setup-webview")));
     let webview = WebViewBuilder::new_with_web_context(&mut web_context)
         .with_html(payload.html.clone())
         .with_background_color((12, 12, 11, 255))
@@ -246,8 +245,7 @@ fn gui(exe: &Path, payload: &Payload, args: &[OsString]) -> Result<i32, String> 
                 let _ = webview.evaluate_script("setup.done()");
             }
             Event::UserEvent(UserEvent::Failed(detail)) => {
-                let _ = webview
-                    .evaluate_script(&format!("setup.failed({})", js_string(&detail)));
+                let _ = webview.evaluate_script(&format!("setup.failed({})", js_string(&detail)));
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -300,7 +298,10 @@ fn run_install(job: InstallJob) {
     let installed = app_exe(&job.args).is_some_and(|exe| exe.is_file());
     let not_installed = || {
         let dir = install_dir(&job.args).unwrap_or_default();
-        UserEvent::Failed(format!("Setup couldn't write inkling's files to {}", dir.display()))
+        UserEvent::Failed(format!(
+            "Setup couldn't write inkling's files to {}",
+            dir.display()
+        ))
     };
     let _ = job.proxy.send_event(match outcome {
         Ok(0) if installed => UserEvent::Done,
@@ -326,11 +327,7 @@ fn install_inner(job: &InstallJob) -> Result<i32, String> {
         .spawn()
         .map_err(|e| format!("Could not start setup: {e}"))?;
     watch_install(&mut child, job, &job.proxy);
-    let code = child
-        .wait()
-        .map_err(|e| e.to_string())?
-        .code()
-        .unwrap_or(1);
+    let code = child.wait().map_err(|e| e.to_string())?.code().unwrap_or(1);
     Ok(code)
 }
 
@@ -344,18 +341,20 @@ const CHECK_SHARE: f64 = 0.25;
 const STAGE_SHARE: f64 = 0.40;
 const CHECK_EASE_SECS: f64 = 2.5;
 
-fn watch_install(
-    child: &mut Child,
-    job: &InstallJob,
-    proxy: &EventLoopProxy<UserEvent>,
-) {
+fn watch_install(child: &mut Child, job: &InstallJob, proxy: &EventLoopProxy<UserEvent>) {
     // The Child's own handle carries SYNCHRONIZE; a query-only OpenProcess handle
     // makes WaitForSingleObject fail at once and the bar never moves.
     let handle = child.as_raw_handle() as HANDLE;
     let dir = install_dir(&job.args);
     let dev = env::var_os(DEV_ENV).map(PathBuf::from);
     if let Some(log) = &dev {
-        dev_log(log, &format!("start nsis={} installed={}", job.nsis_len, job.installed_bytes));
+        dev_log(
+            log,
+            &format!(
+                "start nsis={} installed={}",
+                job.nsis_len, job.installed_bytes
+            ),
+        );
     }
     let started = std::time::Instant::now();
     // A reinstall first uninstalls the old copy, so only growth past the folder's
@@ -392,15 +391,22 @@ fn watch_install(
         };
         let copy = ((landed - floor) as f64 / job.installed_bytes.max(1) as f64).min(1.0);
         let copy_share = 1.0 - READ_SHARE - CHECK_SHARE - STAGE_SHARE;
-        let progress = (READ_SHARE * read
-            + CHECK_SHARE * check
-            + STAGE_SHARE * stage
-            + copy_share * copy)
-            .min(0.99);
+        let progress =
+            (READ_SHARE * read + CHECK_SHARE * check + STAGE_SHARE * stage + copy_share * copy)
+                .min(0.99);
         if let Some(log) = &dev {
             let ms = started.elapsed().as_millis();
-            let tag = if wait == WAIT_TIMEOUT { "sample" } else { "end" };
-            dev_log(log, &format!("{tag} ms={ms} reads={reads} staged={staged} landed={landed} bar={progress:.3}"));
+            let tag = if wait == WAIT_TIMEOUT {
+                "sample"
+            } else {
+                "end"
+            };
+            dev_log(
+                log,
+                &format!(
+                    "{tag} ms={ms} reads={reads} staged={staged} landed={landed} bar={progress:.3}"
+                ),
+            );
         }
         if progress > last {
             last = progress;
