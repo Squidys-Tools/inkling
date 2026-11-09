@@ -10,17 +10,10 @@ import { ProcessingRows } from "../cards/Processing.tsx";
 import { quoteArtworkText } from "../cards/QuoteArtwork.tsx";
 import { hostname } from "../library/assets.ts";
 import { useProcessing } from "../library/jobs.ts";
+import { dayMonthYear } from "../format.ts";
 import type { DescribedItem } from "./model.ts";
 import { TagList } from "./TagList.tsx";
 import { TitleField } from "./TitleField.tsx";
-
-function savedOn(createdAt: number) {
-  return new Date(createdAt).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 // A file saved from disk carries its MIME type where a page carries its site.
 const mimeType = /^([a-z]+)\/(?:x-)?([a-z0-9.+-]+)$/iu;
@@ -113,7 +106,7 @@ export function InfoPanel({
       <section>
         <h3 {...stylex.props(styles.sectionTitle)}>Details</h3>
         <dl {...stylex.props(styles.details)}>
-          <Detail label="Saved" value={savedOn(item.createdAt)} />
+          <Detail label="Saved" value={dayMonthYear(item.createdAt)} />
           {from && <Detail label="From" value={from} />}
           {type && <Detail label="Type" value={type} />}
           {item.size && (

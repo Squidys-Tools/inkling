@@ -15,6 +15,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { controlsOnRight } from "../desktop.ts";
+import { fullDate } from "../format.ts";
 import { hostname, webUrl } from "../library/assets.ts";
 import { errorMessage } from "../library/errors.ts";
 import { useStepBack } from "../item/navigation.ts";
@@ -30,14 +31,11 @@ import { reader } from "./readerTheme.stylex.ts";
 const nonEmpty = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : undefined;
 
-const longDate = (date: Date) =>
-  date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
-
 // Extractors store dates in many shapes; one that does not parse is shown as written.
 function published(value: string | undefined) {
   if (!value) return undefined;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : longDate(date);
+  return Number.isNaN(date.getTime()) ? value : fullDate(date);
 }
 
 /** A saved article in a distraction-free page: its sanitized text, a typeface, and the way back. */
@@ -63,8 +61,7 @@ export function ReaderView({ id }: { id: string }) {
   const byline = detail
     ? [
         nonEmpty(detail.metadata.author),
-        published(nonEmpty(detail.metadata.publishedDate)) ??
-          `Saved ${longDate(new Date(detail.createdAt))}`,
+        published(nonEmpty(detail.metadata.publishedDate)) ?? `Saved ${fullDate(detail.createdAt)}`,
       ].filter((part) => part !== undefined)
     : [];
   const status =

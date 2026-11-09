@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { formatByteSize, formatExportSummary, formatImportSummary } from "./format.ts";
+import { formatExportSummary, formatImportSummary } from "./format.ts";
 
 test.each([
   { items: 1, assetFiles: 1, skippedAssets: 0, text: "1 item · 1 file · 2.0 KB" },
@@ -20,16 +20,6 @@ test.each([
     ...counts,
   };
   expect(formatExportSummary(report)).toBe(text);
-});
-
-test.each([
-  [1023, "1023 B"],
-  [1024, "1.0 KB"],
-  [10 * 1024, "10 KB"],
-  [1.5 * 1024 ** 3, "1.5 GB"],
-  [2048 * 1024 ** 3, "2048 GB"],
-])("%p bytes read %p", (bytes, text) => {
-  expect(formatByteSize(bytes)).toBe(text);
 });
 
 const nothingImported = {

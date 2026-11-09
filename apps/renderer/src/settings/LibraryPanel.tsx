@@ -7,12 +7,8 @@ import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
 import type { ReactNode } from "react";
 import { desktop } from "../desktop.ts";
-import {
-  formatByteSize,
-  formatExportSummary,
-  formatImportSummary,
-  formatLastCopy,
-} from "./format.ts";
+import { formatByteSize } from "../format.ts";
+import { formatExportSummary, formatImportSummary, formatLastCopy } from "./format.ts";
 import { KindBreakdown } from "./KindBreakdown.tsx";
 import { Panel, PanelBody, Row, settingsText, SquareButton } from "./parts.tsx";
 import { useLibraryOverview, type useLibraryTransfer } from "./useLibraryTransfer.ts";

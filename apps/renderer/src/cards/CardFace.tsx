@@ -8,6 +8,7 @@ import { cardMarker, libraryMarker } from "../markers.stylex.ts";
 import { CardImage, CardMedia } from "./CardMedia.tsx";
 import { CardText } from "./CardText.tsx";
 import { CardState } from "./CardState.tsx";
+import { cardKeyDown } from "./cardKeys.ts";
 
 // The first rows load their images ahead of the rest.
 const priorityCount = 8;
@@ -48,14 +49,7 @@ export function CardFace({
         onContextMenu={onMenu}
         draggable={Boolean(onDragStart)}
         onDragStart={onDragStart}
-        onKeyDown={(event) => {
-          if (event.target !== event.currentTarget) return;
-          if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey))
-            return onMenu(event);
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          onOpen();
-        }}
+        onKeyDown={(event) => cardKeyDown(event, { onOpen, onMenu })}
         {...stylex.props(
           styles.card,
           list ? styles.listShape : shapes[view.treatment],

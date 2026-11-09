@@ -1,7 +1,7 @@
 import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
 import PlusSignIcon from "@hugeicons/core-free-icons/PlusSignIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Button } from "@inkling/ui";
+import { Button, srOnly } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useId } from "react";
@@ -124,7 +124,7 @@ function SpaceDraftForm() {
       />
       {/* Native radios: arrow keys, one tab stop and group semantics come from the platform. */}
       <fieldset {...stylex.props(styles.kinds)}>
-        <legend {...stylex.props(styles.srOnly)}>How this Space fills</legend>
+        <legend {...stylex.props(srOnly)}>How this Space fills</legend>
         {(["smart", "regular"] as const).map((kind) => (
           <label
             key={kind}
@@ -137,7 +137,7 @@ function SpaceDraftForm() {
               checked={draft.kind === kind}
               aria-describedby={hint}
               onChange={() => updateSpaceDraft({ kind })}
-              {...stylex.props(styles.srOnly, stylex.defaultMarker())}
+              {...stylex.props(srOnly, stylex.defaultMarker())}
             />
             {kind === "smart" ? "Smart" : "Regular"}
           </label>
@@ -296,16 +296,5 @@ const styles = stylex.create({
     color: { default: color.danger, ":hover": color.ink },
     cursor: "pointer",
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-  },
-  srOnly: {
-    position: "absolute",
-    width: "1px",
-    height: "1px",
-    margin: "-1px",
-    padding: 0,
-    overflow: "hidden",
-    clip: "rect(0 0 0 0)",
-    whiteSpace: "nowrap",
-    borderWidth: 0,
   },
 });

@@ -1,6 +1,7 @@
 import type { ItemDetail, ItemRecord, LibraryCard } from "@inkling/contracts";
 import { displayKind, itemKind, type ItemKind } from "@inkling/ingestion/item-kind";
 import { videoLinkFromSourceUrl } from "@inkling/ingestion/video-links";
+import { dayMonthYear, monthDayStamp } from "../format.ts";
 import { assetUrl, webUrl } from "./assets.ts";
 import { expireLabelAt } from "./labelClock.ts";
 
@@ -67,13 +68,8 @@ function xPost(value: unknown) {
       displayName: text(record.authorName) ?? "X user",
       handle: handle ? `@${handle}` : "@x",
       body: text(record.text) ?? "Post preview unavailable.",
-      published: published
-        ? new Date(published).toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })
-        : "On X",
+      published:
+        published && !Number.isNaN(Date.parse(published)) ? dayMonthYear(published) : "On X",
     } satisfies PostArt,
   };
 }
@@ -86,7 +82,7 @@ function itemDateLabel(timestamp: number, now: number) {
   if (age < hour) return { label: "Just now", until: timestamp + hour };
   if (age < 24 * hour) return { label: "Today", until: timestamp + 24 * hour };
   return {
-    label: new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "2-digit" }),
+    label: monthDayStamp(timestamp),
     until: Number.POSITIVE_INFINITY,
   };
 }
@@ -314,18 +310,6 @@ export function pdfPreviewTitle(value: string) {
 
 export function fileExtensionLabel(name: string) {
   return /\.([a-z0-9]{1,5})$/iu.exec(name.trim())?.[1]?.toUpperCase() ?? "";
-}
-
-export function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
 export function formatDuration(totalSeconds: number) {

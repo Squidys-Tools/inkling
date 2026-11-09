@@ -1,20 +1,9 @@
 import type { ExportReport, ImportReport, LastExport } from "@inkling/contracts";
+import { dayAndMonth, formatByteSize } from "../format.ts";
 
 // "1 item", "3 items". Every noun counted in Settings takes a plain -s.
 function countOf(count: number, noun: string) {
   return `${count} ${count === 1 ? noun : `${noun}s`}`;
-}
-
-export function formatByteSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB"];
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`;
 }
 
 export function formatExportSummary(report: ExportReport) {
@@ -24,10 +13,7 @@ export function formatExportSummary(report: ExportReport) {
 }
 
 export function formatLastCopy(copy: LastExport) {
-  const date = new Date(copy.exportedAt).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+  const date = dayAndMonth(copy.exportedAt);
   return `last copy ${date} · ${copy.items.toLocaleString()} ${copy.items === 1 ? "item" : "items"}`;
 }
 

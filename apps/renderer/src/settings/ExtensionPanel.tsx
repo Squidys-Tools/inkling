@@ -1,6 +1,7 @@
 import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import type { DesktopBridge } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";
+import { srOnly } from "@inkling/ui";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -91,9 +92,7 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
         </SquareButton>
       </div>
       <div {...stylex.props(styles.row)}>
-        <span {...stylex.props(styles.visuallyHidden)}>
-          {token ? "Pairing token" : "Pairing token hidden"}
-        </span>
+        <span {...stylex.props(srOnly)}>{token ? "Pairing token" : "Pairing token hidden"}</span>
         <code aria-hidden={!token} {...stylex.props(styles.token)}>
           {token ?? "••••••••••••••••••••••••"}
         </code>
@@ -212,12 +211,4 @@ const styles = stylex.create({
     backgroundColor: color.surface,
   },
   confirmActions: { display: "flex", gap: space.s2 },
-  visuallyHidden: {
-    position: "absolute",
-    width: "1px",
-    height: "1px",
-    overflow: "hidden",
-    clipPath: "inset(50%)",
-    whiteSpace: "nowrap",
-  },
 });

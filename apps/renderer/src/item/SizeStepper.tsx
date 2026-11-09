@@ -1,4 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
+import { srOnly } from "@inkling/ui";
 import { color, font, motion, radius, text } from "@inkling/ui/tokens.stylex";
 import { useLayoutEffect, useRef, useState } from "react";
 
@@ -98,7 +99,7 @@ export function SizeStepper({
           )}
           %
         </span>
-        <span role="status" aria-live="polite" {...stylex.props(styles.srOnly)}>
+        <span role="status" aria-live="polite" {...stylex.props(srOnly)}>
           {percent}%
         </span>
       </span>
@@ -210,12 +211,4 @@ const styles = stylex.create({
   enterDown: { animationName: enterDown },
   leaveUp: { animationName: leaveUp },
   leaveDown: { animationName: leaveDown },
-  srOnly: {
-    position: "absolute",
-    width: "1px",
-    height: "1px",
-    overflow: "hidden",
-    clipPath: "inset(50%)",
-    whiteSpace: "nowrap",
-  },
 });
