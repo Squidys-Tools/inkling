@@ -117,7 +117,7 @@ function texturesFor(gl: WebGL2RenderingContext) {
   if (entry === undefined) {
     const cells = cellTexture(gl);
     const colors = cellTexture(gl);
-    entry = cells && colors && gl.getError() === gl.NO_ERROR ? { cells, colors } : null;
+    entry = cells && colors ? { cells, colors } : null;
     textures.set(gl, entry);
   }
   return entry;
