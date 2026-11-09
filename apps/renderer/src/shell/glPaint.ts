@@ -66,8 +66,8 @@ function link(gl: WebGL2RenderingContext, fragmentSource: string): Program | nul
 }
 
 /**
- * Draws `fragmentSource` over a `width` x `height` rectangle on the renderer's one shared
- * WebGL2 context and copies the result into `target`. Returns false, leaving `target`
+ * Draws `fragmentSource` over a `width` x `height` rectangle on one WebGL2 context shared
+ * by every caller and copies the result into `target`. Returns false, leaving `target`
  * untouched, when WebGL is unavailable, lost or rejects the shader; the caller then paints
  * on the CPU. The shader writes premultiplied colour.
  */
