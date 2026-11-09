@@ -128,6 +128,8 @@ types by default.
 
 `bun tools/smoke/launch.ts` launches the `build:app` output against a scratch library and checks the window reached the library process; pass a packaged executable to launch that instead. On Linux without a display, run it under `xvfb-run -a`.
 
+`bun tools/smoke/gl-paint.ts` runs the renderer's WebGL painters in Electron and fails when a frame differs from the CPU painter it replaces, or when WebGL was never used. It accepts software WebGL, which the app refuses, so CI checks the shaders without a GPU. On Linux without a display, run it under `xvfb-run -a`.
+
 `bun tools/smoke/media.ts` makes WebP thumbnails of the demo seed's photos and a poster of its clip with the system FFmpeg, and checks that the poster refuses unsupported files, a missing decoder, URLs and remote playlists. Pass the unpacked Linux app directory to run the packaged worker's modules on its Electron runtime.
 
 ## macOS app
