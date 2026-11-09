@@ -23,12 +23,12 @@ Preconditions: `.artifacts/electron/win-unpacked` from `bun run dist` (any recen
 - `$I progress` reads the stub's samples: the bar at each tenth of the real duration. An even pace climbs about 10 points a row; a 13 s install ends at 99% with no row more than ~20 points off.
 - Wait for `ref button "Open now"`, then `$I shot`: the countdown fires `open` 3 s later. Under the harness the stub logs `open` to `progress.log` and starts nothing, then closes.
 - Proof of install: `<run>/install/inkling.exe` exists, and `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\bbf65adc-c826-4291-bfd0-9e266345089d` names `inkling setup verify`.
-- `$I launch --installer --fail` puts a file where the install folder goes. NSIS still exits 0; the stub's check for `inkling.exe` shows "Setup didn't finish" / "Setup finished but inkling was not installed".
+- `$I launch --installer --fail` puts a file where the install folder goes. `build/installer.nsh` finds no `inkling.exe`, deletes the keys NSIS just wrote and exits 3; the window shows "Setup didn't finish" / "Setup couldn't write inkling's files to <dir>". Proof: both `reg query` keys under the guid (Uninstall and `HKCU\Software\<guid>`) are missing while that screen shows.
 - Close: `$I ad click "$($I ref button Close --in "$($I ref group 'Chrome Legacy Window')")"`. The hidden native title bar also has Minimize and Close, so unscoped `ref button Close` finds several.
 
 ## Isolation
 
-The test identity has its own appId, NSIS guid and uninstall name, no `inkling://` handler and no shortcuts, and installs under `.dev`, so the user's install, link handler and shortcuts are untouched. `INKLING_SETUP_DEV` (set only by `launch --installer`) keeps the countdown from starting the installed app, which would open the user's real library. `cleanup` runs the test uninstaller in place, deletes the guid's two keys by exact name when NSIS registered an install without files, and refuses if the uninstall key survives.
+The test identity has its own appId, NSIS guid and uninstall name, no `inkling://` handler and no shortcuts, and installs under `.dev`, so the user's install, link handler and shortcuts are untouched. `INKLING_SETUP_DEV` (set only by `launch --installer`) keeps the countdown from starting the installed app, which would open the user's real library. `cleanup` runs the test uninstaller in place and refuses if either of the guid's keys survives. It never deletes them itself: a key left by a failed install is a regression in `build/installer.nsh`. The test NSIS rebuilds when `app.asar` or `build/installer.nsh` changes.
 
 ## Gotchas
 

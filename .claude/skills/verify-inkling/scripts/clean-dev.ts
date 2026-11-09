@@ -169,26 +169,23 @@ const keepLogs = () => {
 
 // `_?=` runs the uninstaller in place and synchronously; without it NSIS copies
 // itself to %TEMP% and returns at once.
-// NSIS registers the install even when it wrote no files (`launch --installer --fail`),
-// so with no uninstaller on disk the test guid's two keys are deleted by exact name.
+// A failed install (`launch --installer --fail`) removes its own keys in build/installer.nsh,
+// so a key that survives here is a regression, not something to delete.
 const uninstallTestApp = () => {
   if (!win) return;
   const registered = () =>
-    spawnSync("reg", ["query", uninstallKey], { stdio: "ignore" }).status === 0;
-  let ranUninstaller = false;
+    [uninstallKey, locationKey].some(
+      (key) => spawnSync("reg", ["query", key], { stdio: "ignore" }).status === 0,
+    );
   for (const run of runStates()) {
     if (!run.installDir) continue;
     const uninstaller = join(run.installDir, "Uninstall inkling.exe");
     if (!existsSync(uninstaller)) continue;
-    ranUninstaller = true;
     spawnSync(uninstaller, ["/S", `_?=${run.installDir}`], { stdio: "ignore", timeout: 120_000 });
   }
-  if (registered() && !ranUninstaller)
-    for (const key of [uninstallKey, locationKey])
-      spawnSync("reg", ["delete", key, "/f"], { stdio: "ignore" });
   if (registered())
     throw new Error(
-      `the test install is still registered (${uninstallKey}); its uninstaller did not finish`,
+      `the test install is still registered (${uninstallKey} or ${locationKey}); its uninstaller did not finish`,
     );
 };
 

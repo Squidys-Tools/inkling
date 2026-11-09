@@ -155,7 +155,8 @@ const buildTestNsis = (logPath: string) => {
   const nsisPath = join(setupVerifyDir, "inkling-setup-verify-nsis.exe");
   const asar = join(unpackedApp, "resources", "app.asar");
   if (!existsSync(asar)) throw new Error(`no packaged app at ${unpackedApp}; run \`bun run dist\``);
-  if (existsSync(nsisPath) && statSync(nsisPath).mtimeMs > statSync(asar).mtimeMs) return nsisPath;
+  const inputs = [asar, join(root, "build", "installer.nsh")].map((p) => statSync(p).mtimeMs);
+  if (existsSync(nsisPath) && statSync(nsisPath).mtimeMs > Math.max(...inputs)) return nsisPath;
   mkdirSync(setupVerifyDir, { recursive: true });
   const build = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).build;
   const config = {

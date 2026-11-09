@@ -36,6 +36,8 @@ const POLL_MS: u32 = 150;
 // Set by the verify-inkling harness: samples go to <dir>/progress.log and "open"
 // never starts the installed app, which would open the real library.
 const DEV_ENV: &str = "INKLING_SETUP_DEV";
+// build/installer.nsh exits with this when NSIS registered the install but wrote no files.
+const NSIS_NO_FILES: i32 = 3;
 
 enum UserEvent {
     Ipc(String),
@@ -294,12 +296,15 @@ fn run_install(job: InstallJob) {
     let outcome = install_inner(&job);
     let _ = fs::remove_dir_all(temp_dir());
     job.installing.store(false, Ordering::SeqCst);
-    // NSIS exits 0 even when it could not create the install folder, so success
-    // also needs the app on disk.
+    // NSIS exits 0 when it could not write the app, so success also needs it on disk.
     let installed = app_exe(&job.args).is_some_and(|exe| exe.is_file());
+    let not_installed = || {
+        let dir = install_dir(&job.args).unwrap_or_default();
+        UserEvent::Failed(format!("Setup couldn't write inkling's files to {}", dir.display()))
+    };
     let _ = job.proxy.send_event(match outcome {
         Ok(0) if installed => UserEvent::Done,
-        Ok(0) => UserEvent::Failed("Setup finished but inkling was not installed".into()),
+        Ok(0 | NSIS_NO_FILES) => not_installed(),
         Ok(code) => UserEvent::Failed(format!("Setup exited with code {code}")),
         Err(detail) => UserEvent::Failed(detail),
     });
