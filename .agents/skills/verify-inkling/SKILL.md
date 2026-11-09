@@ -23,7 +23,7 @@ Launches `bun run dev:app`'s app (build + Electron) against a scratch library, d
 
 ## Prerequisites
 
-- Bun per `.bun-version` (`bun tools/repo/check-bun-version.ts`), `bun install` done, `node_modules/electron/dist` present. `agent-desktop` on PATH (`agent-desktop --version`; verified with 1.0.2).
+- Bun per `.bun-version` (`bun tools/repo/check-bun-version.ts`), `bun install` done, `node_modules/electron/dist` present. `agent-desktop` on PATH (`agent-desktop --version`; verified with 1.1.0 — do not take 1.2.0: headless it reads popup menuitems as offscreen and `press` demands OS-focus the window never has).
 - An interactive, unlocked desktop session. The app window may be behind others but not minimized (minimized windows are not drivable).
 
 ## Launch
