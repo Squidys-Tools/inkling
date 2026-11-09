@@ -42,7 +42,7 @@ Every feature was executed end to end with agent-desktop on 2026-11-09 unless it
 
 - The OS-level deep link (a browser or the shell opening `inkling://`): only a packaged build registers the scheme, and that build opens the real library. The app's own intake is covered by [capture-deep-link](./capture-deep-link.md).
 - File and Screenshot capture (native pickers), paste, drag and drop, clipboard: OS input this driver does not reach.
-- Card right-click menu: `right-click` needs `--headed` (real cursor and focus). Use the item view's `Keep in a Space` instead — a flat `Add to`/`Remove from <space>` list; the card's own menu wraps the same Space actions in a submenu among other card actions.
+- Card right-click menu: `right-click` needs `--headed` (real cursor and focus). Use the item view's `Keep in a Space` instead — a flat `Add to`/`Remove from <space>` list; the card's own menu wraps the same Space actions in a submenu (adding `Allow in <smart>` entries) among other card actions, plus a top-level `Remove from <current>` when opened inside a Space.
 - The `/` shortcut: agent-desktop has no key name for it. Ctrl+K reaches the same field.
 - Space color and move up/down, permanent delete from Archive, Settings, Reader: not driven. Unmapped is unverified, not passing.
 - The compact sidebar rail (collapsed sidebar): Space rows become blots whose context menu holds `Move up`, `Move down`, `Change color`, `Rename`, `Delete Space` — different names than the expanded rows. Not driven.

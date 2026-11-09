@@ -14,7 +14,7 @@ Spaces are named collections in the sidebar: Smart (a saved search) or Regular (
 
 - Sidebar menubutton **Add a Space**; each row has `Rename|Delete|Move … up|down|Change color of <name>` buttons.
 - Search > Save as Space (see search.md).
-- Item view > **Keep in a Space** (card right-click wraps the same Space actions in a `Keep in a Space` submenu of a bigger menu; not driven).
+- Item view > **Keep in a Space** (card right-click wraps the same Space actions — plus `Allow in <smart>` entries — in a `Keep in a Space` submenu of a bigger menu, with a top-level `Remove from <current>` inside a Space; not driven).
 
 ## Driving it with agent-desktop
 
