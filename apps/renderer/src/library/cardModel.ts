@@ -68,7 +68,8 @@ function xPost(value: unknown) {
       displayName: text(record.authorName) ?? "X user",
       handle: handle ? `@${handle}` : "@x",
       body: text(record.text) ?? "Post preview unavailable.",
-      published: published ? dayMonthYear(published) : "On X",
+      published:
+        published && !Number.isNaN(Date.parse(published)) ? dayMonthYear(published) : "On X",
     } satisfies PostArt,
   };
 }

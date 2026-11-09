@@ -42,6 +42,20 @@ describe("card views", () => {
   });
 
   it.each([
+    ["2026-11-07T12:00:00Z", "Nov 7, 2026"],
+    ["not a date", "On X"],
+  ])("labels an X post published %s as %s", (publishedDate, label) => {
+    const social = {
+      provider: "x",
+      postUrl: "https://x.com/a/status/1",
+      postId: "1",
+      publishedDate,
+    };
+    const view = toCardView(card({ kind: "url", metadata: { social } }));
+    expect(view.post?.published).toBe(label);
+  });
+
+  it.each([
     [{ mediaWidth: 8000, mediaHeight: 5000 }, null, true],
     [{ mediaWidth: 8000, mediaHeight: 5001 }, null, false],
     [{ mediaWidth: 8000, mediaHeight: 5001 }, "/thumbnail.webp", true],
