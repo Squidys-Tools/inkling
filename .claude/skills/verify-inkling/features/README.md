@@ -4,7 +4,7 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 
 ## Baseline preconditions
 
-- Launch with `instance.ts launch` (seeded demo library: Everything shows 32 active items; Spaces `Design references`, `Read later`, `Weekend reading`; 5 archived items). Run `doctor` and require all PASS.
+- Launch with `instance.ts launch` (seeded demo library: Everything shows 32 active items; Spaces `Design references`, `Read later`, `Weekend reading`; 3 seeded archived copies, ids `archive-5`, `archive-10`, `archive-12`). Run `doctor` and require all PASS.
 - Every recipe starts from that state and uses `$I` for `bun .claude/skills/verify-inkling/scripts/instance.ts`.
 - Never drive an instance this run did not launch.
 
@@ -26,7 +26,7 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 
 ## Features
 
-Every feature was executed end to end with agent-desktop on 2026-11-02 unless its file says otherwise.
+Every feature was executed end to end with agent-desktop on 2026-11-09 unless its file says otherwise.
 
 - [Capture a note](./capture-note.md): Add > Note > Save to library, Ctrl+Enter.
 - [Edit a note](./edit-note.md): item view > Edit note > Save note.
@@ -42,6 +42,8 @@ Every feature was executed end to end with agent-desktop on 2026-11-02 unless it
 
 - The OS-level deep link (a browser or the shell opening `inkling://`): only a packaged build registers the scheme, and that build opens the real library. The app's own intake is covered by [capture-deep-link](./capture-deep-link.md).
 - File and Screenshot capture (native pickers), paste, drag and drop, clipboard: OS input this driver does not reach.
-- Card right-click menu: `right-click` needs `--headed` (real cursor and focus). Use the item view's `Keep in a Space` instead, which is the same menu.
+- Card right-click menu: `right-click` needs `--headed` (real cursor and focus). Use the item view's `Keep in a Space` instead — a flat `Add to`/`Remove from <space>` list; the card's own menu wraps the same Space actions in a submenu among other card actions.
 - The `/` shortcut: agent-desktop has no key name for it. Ctrl+K reaches the same field.
 - Space color and move up/down, permanent delete from Archive, Settings, Reader: not driven. Unmapped is unverified, not passing.
+- The compact sidebar rail (collapsed sidebar): Space rows become blots whose context menu holds `Move up`, `Move down`, `Change color`, `Rename`, `Delete Space` — different names than the expanded rows. Not driven.
+- Custom window controls (`Minimize`, `Maximize window`, `Close window` buttons) and toast notifications (the `Notifications` group; archive/restore toasts carry Undo): visible in the tree, not driven.
