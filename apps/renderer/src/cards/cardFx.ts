@@ -1,4 +1,5 @@
 import { loadingColor } from "@inkling/ui/tokens.stylex";
+import { paintMosaicGl, paintRingGl } from "./coverGl.ts";
 
 const mosaicColumns = 9;
 const mosaicRows = 12;
@@ -128,6 +129,36 @@ export type Mosaic = {
 export const mosaicPhases = (seed: number) =>
   Array.from({ length: mosaicColumns * mosaicRows }, (_, cell) => hash(seed + 3, cell));
 
+const cellCount = mosaicColumns * mosaicRows;
+// Float64, so the CPU painter keeps its exact output; the GPU gets a float32 copy.
+const cellData = new Float64Array(cellCount * 4);
+const colorData = new Float32Array(cellCount * 3);
+
+/** Per mosaic cell: centre x, centre y, size (0 until it grows) and the base's alpha; and its colour. */
+function fillCellData(mosaic: Mosaic, seconds: number, eased: number) {
+  for (let cell = 0; cell < cellCount; cell++) {
+    const column = cell % mosaicColumns;
+    const row = Math.floor(cell / mosaicColumns);
+    const phase = mosaic.phases[cell] ?? 0;
+    const order = clamp((column / mosaicColumns + row / mosaicRows) * 0.35 + phase * 0.3);
+    const growAt = order * 0.25;
+    const shrinkAt = 0.4 + order * 0.45;
+    const live =
+      smooth(growAt, growAt + 0.18, eased) * (1 - smooth(shrinkAt, shrinkAt + 0.2, eased));
+    cellData[cell * 4] = column + 0.5 + 0.2 * Math.sin(seconds * 1.1 + phase * 6.28);
+    cellData[cell * 4 + 1] = row + 0.5 + 0.2 * Math.cos(seconds * 0.9 + phase * 5);
+    cellData[cell * 4 + 2] =
+      live > 0 ? 0.64 * live * (1 + 0.1 * Math.sin(seconds * 2 + phase * 9)) : 0;
+    cellData[cell * 4 + 3] = mosaic.base
+      ? 1 - smooth(order * 0.25 + 0.04, order * 0.25 + 0.18, eased)
+      : 0;
+    const color = mosaic.cells?.[cell] ?? baseInk;
+    colorData[cell * 3] = color[0] / 255;
+    colorData[cell * 3 + 1] = color[1] / 255;
+    colorData[cell * 3 + 2] = color[2] / 255;
+  }
+}
+
 /**
  * One frame of the card's cover: the mosaic of thumbnail colours growing and
  * shrinking over a dark base (`progress` 0 is all base), with the ring of blobs on top.
@@ -139,7 +170,7 @@ export function drawCover(
   progress: number,
   ringGrow: number,
 ) {
-  const { width, height, cells, phases, image } = mosaic;
+  const { width, height, cells, image } = mosaic;
   const data = image.data;
   const aspect = width / height;
   const ring = ringGrow > 0.01 ? ringBalls(seconds, ringGrow, aspect) : null;
@@ -149,6 +180,17 @@ export function drawCover(
   const eased = ((progress - 0.1) / 0.9) * 1.06;
   // Before the reveal begins no cell has grown, so the ring needs none of the mosaic maths.
   const idle = eased <= 0;
+  if (idle && paintRingGl(context, width, height, ring, baseInk, ringInk, mosaic.base ? 1 : 0)) {
+    return;
+  }
+  fillCellData(mosaic, seconds, eased);
+  if (
+    !idle &&
+    !ring &&
+    paintMosaicGl(context, width, height, cellData, colorData, stretchX, baseInk)
+  ) {
+    return;
+  }
   for (let row = 0; row < height; row++) {
     const y = (row + 0.5) / height;
     for (let column = 0; column < width; column++) {
@@ -169,20 +211,10 @@ export function drawCover(
           const neighborColumn = baseColumn + dx;
           if (neighborColumn < 0 || neighborColumn >= mosaicColumns) continue;
           const cell = neighborRow * mosaicColumns + neighborColumn;
-          const phase = phases[cell] ?? 0;
-          const order = clamp(
-            (neighborColumn / mosaicColumns + neighborRow / mosaicRows) * 0.35 + phase * 0.3,
-          );
-          const growAt = order * 0.25;
-          const shrinkAt = 0.4 + order * 0.45;
-          const live =
-            smooth(growAt, growAt + 0.18, eased) * (1 - smooth(shrinkAt, shrinkAt + 0.2, eased));
-          if (live <= 0) continue;
-          const centerX = neighborColumn + 0.5 + 0.2 * Math.sin(seconds * 1.1 + phase * 6.28);
-          const centerY = neighborRow + 0.5 + 0.2 * Math.cos(seconds * 0.9 + phase * 5);
-          const size = 0.64 * live * (1 + 0.1 * Math.sin(seconds * 2 + phase * 9));
-          const offsetX = (cellX - centerX) * stretchX;
-          const offsetY = (cellY - centerY) * stretchY;
+          const size = cellData[cell * 4 + 2] ?? 0;
+          if (size <= 0) continue;
+          const offsetX = (cellX - (cellData[cell * 4] ?? 0)) * stretchX;
+          const offsetY = (cellY - (cellData[cell * 4 + 1] ?? 0)) * stretchY;
           const share = (size * size) / (offsetX * offsetX + offsetY * offsetY + 0.02);
           const color = cells?.[cell] ?? baseInk;
           weight += share;
@@ -197,14 +229,7 @@ export function drawCover(
         green /= weight;
         blue /= weight;
       }
-      const ownCell = baseRow * mosaicColumns + baseColumn;
-      const ownPhase = phases[ownCell] ?? 0;
-      const ownOrder = clamp(
-        (baseColumn / mosaicColumns + baseRow / mosaicRows) * 0.35 + ownPhase * 0.3,
-      );
-      const baseAlpha = mosaic.base
-        ? 1 - smooth(ownOrder * 0.25 + 0.04, ownOrder * 0.25 + 0.18, eased)
-        : 0;
+      const baseAlpha = cellData[(baseRow * mosaicColumns + baseColumn) * 4 + 3] ?? 0;
       let alpha = mosaicAlpha + baseAlpha * (1 - mosaicAlpha);
       const mix = (mosaicValue: number, baseValue: number) =>
         alpha > 0
