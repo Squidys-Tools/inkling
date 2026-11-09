@@ -1,6 +1,8 @@
 import * as stylex from "@stylexjs/stylex";
 import { landingColor } from "@inkling/ui/tokens.stylex";
-import { inklingBody } from "./identity.ts";
+import { useEffect, useRef } from "react";
+import { browserMotion } from "../../../renderer/src/mascot/motion.ts";
+import { MascotPlayer } from "../../../renderer/src/mascot/player.ts";
 import { media } from "./landing.stylex.ts";
 
 type Eye =
@@ -26,6 +28,15 @@ const cast = [
   { gap: 25, eyes: [pill(38, 23, -12, 13), arc(-8, 15, -12)], duration: 4.4, gaze: 0.65 },
 ];
 
+// The sidebar's engine shapes each body, and rests it as it does there: moving
+// for a few seconds once shown or hovered, then still with no frame loop.
+const players: MascotPlayer[] = [];
+const playerFor = (index: number) =>
+  (players[index] ??= new MascotPlayer(browserMotion, {
+    state: "inkling-drift",
+    expression: "neutre",
+  }));
+
 export function Cast({
   index,
   gaze,
@@ -41,6 +52,17 @@ export function Cast({
 }) {
   const c = cast[index % cast.length]!;
   const dx = (gaze === "left" ? -15 : 15) * c.gaze;
+  const body = useRef<SVGPathElement>(null);
+  useEffect(() => {
+    const path = body.current;
+    if (!path || !alive) return;
+    const attachment = playerFor(index).attach((frame) => path.setAttribute("d", frame.bodyPath));
+    attachment.setVisible(true);
+    return attachment.detach;
+  }, [index, alive]);
+  useEffect(() => {
+    if (engaged) playerFor(index).wake();
+  }, [index, engaged]);
   return (
     <svg
       viewBox="-110 -110 220 220"
@@ -48,7 +70,7 @@ export function Cast({
       aria-hidden="true"
       {...stylex.props(styles.art)}
     >
-      <path d={inklingBody} fill="currentColor" />
+      <path ref={body} d={playerFor(index).current.bodyPath} fill="currentColor" />
       <g
         {...stylex.props(
           styles.gaze(`${dx}px`, String(c.gaze)),

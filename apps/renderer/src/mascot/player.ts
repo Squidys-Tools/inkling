@@ -114,6 +114,11 @@ export class MascotPlayer {
     this.settle();
   }
 
+  /** The frame on show, for a first render before anything is attached. */
+  get current() {
+    return this.frame;
+  }
+
   setSpeed(speed: number) {
     this.speed = speed;
   }
