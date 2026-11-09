@@ -6,6 +6,7 @@ import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, radius } from "@inkling/ui/tokens.stylex";
 import { search } from "../library/search.ts";
 import { openSpaceDraft } from "../shell/spaceDraft.ts";
+import { AnimatedCount } from "./AnimatedCount.tsx";
 
 /** Under the bar while a search is pinned: the query, how many matched, and a way to keep it. */
 export function FilterRow({ query, count }: { query: string; count: number | null }) {
@@ -26,7 +27,7 @@ export function FilterRow({ query, count }: { query: string; count: number | nul
       <div {...stylex.props(styles.summary)}>
         {count !== null && (
           <span>
-            {count.toLocaleString()} {count === 1 ? "result" : "results"}
+            <AnimatedCount value={count} /> {count === 1 ? "result" : "results"}
           </span>
         )}
         <button type="button" onClick={() => openSpaceDraft(query)} {...stylex.props(styles.save)}>
