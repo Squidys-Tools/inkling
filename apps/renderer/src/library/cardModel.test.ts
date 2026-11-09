@@ -42,7 +42,14 @@ describe("card views", () => {
   });
 
   it.each([
-    ["2026-11-07T12:00:00Z", "Nov 7, 2026"],
+    [
+      "2026-11-07T12:00:00Z",
+      new Date("2026-11-07T12:00:00Z").toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+    ],
     ["not a date", "On X"],
   ])("labels an X post published %s as %s", (publishedDate, label) => {
     const social = {
