@@ -16,19 +16,19 @@ const member = (face: Face, play: Face, speed: number, gaze: number) => ({
 
 // Each character wears one of the app's expressions, and `play` while hovered.
 const cast = [
-  member("neutre", "excite", 2.2, 1.1),
-  member("attentif", "surpris", 1.8, 0.55),
-  member("surpris", "excite", 2.4, 0.8),
-  member("mefiant", "surpris", 2, 0.65),
-  member("heureux", "excite", 1.9, 0.8),
-  member("excite", "surpris", 2.4, 1.25),
-  member("curieux", "excite", 1.6, 0.35),
-  member("confus", "surpris", 2.1, 0.7),
-  member("timide", "excite", 2, 0.9),
-  member("blase", "surpris", 1.7, 0.4),
-  member("somnolent", "surpris", 1.9, 0.7),
-  member("excite", "surpris", 2.3, 0.9),
-  member("neutre", "excite", 2.1, 0.65),
+  member("neutre", "excite", 1.8, 1.1),
+  member("attentif", "surpris", 1.5, 0.55),
+  member("surpris", "excite", 2, 0.8),
+  member("mefiant", "surpris", 1.7, 0.65),
+  member("heureux", "excite", 1.6, 0.8),
+  member("excite", "surpris", 2, 1.25),
+  member("curieux", "excite", 1.3, 0.35),
+  member("confus", "surpris", 1.75, 0.7),
+  member("timide", "excite", 1.7, 0.9),
+  member("blase", "surpris", 1.4, 0.4),
+  member("somnolent", "surpris", 1.6, 0.7),
+  member("excite", "surpris", 1.9, 0.9),
+  member("neutre", "excite", 1.75, 0.65),
 ];
 
 const STATE = "inkling-drift-faced";
