@@ -1,14 +1,12 @@
-import babel from "@rolldown/plugin-babel";
-import stylex from "@stylexjs/unplugin";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
-import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { imagetools } from "vite-imagetools";
+import { stylexPlugin } from "../renderer/stylexPlugin.ts";
 import { demoIndex } from "./demoIndex.ts";
 import { latestRelease } from "./latestRelease.ts";
 
-const workspace = fileURLToPath(new URL("../..", import.meta.url));
 const production = process.env.VERCEL_PROJECT_PRODUCTION_URL;
 const siteUrl = production ? `https://${production}` : "";
 
@@ -23,11 +21,7 @@ export default defineConfig(({ command }) => ({
     }),
     demoIndex(),
     latestRelease(),
-    stylex.vite({
-      useCSSLayers: true,
-      dev: command === "serve",
-      unstable_moduleResolution: { type: "commonJS", rootDir: workspace },
-    }),
+    stylexPlugin(command),
     tanstackStart({
       // The homepage links public images; crawling them as pages corrupts binary copies.
       prerender: { enabled: true, crawlLinks: false },
@@ -42,7 +36,6 @@ export default defineConfig(({ command }) => ({
       ],
       sitemap: { enabled: siteUrl !== "", host: siteUrl },
     }),
-    react(),
-    babel({ presets: [reactCompilerPreset()] }),
+    react({ compiler: true }),
   ],
 }));

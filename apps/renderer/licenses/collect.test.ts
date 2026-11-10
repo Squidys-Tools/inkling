@@ -98,16 +98,22 @@ describe("collectThirdPartyLicenses", () => {
   });
 
   test("warns about packages with no license, and ignores missing optional ones", () => {
-    fixture({ e: "1" });
+    fixture({ e: "1", f: "1" });
+    write("node_modules/f/package.json", { name: "f", version: "1.0.0", license: "MIT" });
+    write("UPSTREAM.txt", "f license\n");
     write("node_modules/e/package.json", {
       name: "e",
       version: "1.0.0",
       optionalDependencies: { "e-win32": "1" },
     });
 
-    const { entries, warnings } = collectThirdPartyLicenses(root, [], notices);
+    const { entries, warnings } = collectThirdPartyLicenses(root, [], notices, [
+      { names: /^f$/, noticeFile: "UPSTREAM.txt" },
+    ]);
 
     expect(entries[0]).toMatchObject({ name: "e", license: "Unknown", noticeText: "" });
+    expect(entries[1]).toMatchObject({ name: "f", noticeText: "f license" });
+    expect(warnings.some((warning) => warning.startsWith("f@"))).toBe(false);
     expect(warnings).toContain("e@1.0.0 declares no license.");
     expect(warnings).toContain("e@1.0.0 has no license file.");
     expect(warnings.some((warning) => warning.includes("e-win32"))).toBe(false);

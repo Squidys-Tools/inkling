@@ -36,6 +36,10 @@ updates:
       # react-dom refuses to run with a react of another version.
       react:
         patterns: [react, react-dom]
+      # @vitejs/plugin-react loads the React Compiler from oxc-transform-react and accepts only
+      # a narrow range of it.
+      react-compiler:
+        patterns: ["@vitejs/plugin-react", oxc-transform-react]
 
   - package-ecosystem: github-actions
     directory: /
