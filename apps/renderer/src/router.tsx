@@ -5,6 +5,7 @@ import {
   createRouter,
   lazyRouteComponent,
 } from "@tanstack/react-router";
+import { preloadContextMenu } from "./menu/contextMenu.tsx";
 import { isSettingsSection, type SettingsSection } from "./settings/sections.ts";
 import { AppShell } from "./shell/AppShell.tsx";
 
@@ -56,5 +57,6 @@ export function preloadPagesWhenIdle() {
   const schedule = window.requestIdleCallback?.bind(window) ?? setTimeout;
   schedule(() => {
     for (const route of routes) void router.loadRouteChunk(route);
+    preloadContextMenu();
   });
 }

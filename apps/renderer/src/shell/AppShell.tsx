@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { Outlet, useRouterState } from "@tanstack/react-router";
-import { useEffect, useSyncExternalStore } from "react";
+import { lazy, Suspense, useEffect, useSyncExternalStore } from "react";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { useCaptureEvents } from "../capture/useCaptureEvents.ts";
 import { useFlightPainting } from "../item/itemFlight.ts";
@@ -11,14 +11,20 @@ import { toggleSidebar, useViewState } from "../libraryView/viewState.ts";
 import { ContextMenuLayer } from "../menu/contextMenu.tsx";
 import { Toaster } from "../notifications/Toaster.tsx";
 import { useFirstRun } from "../onboarding/useFirstRun.ts";
-import { SettingsSheet } from "../settings/SettingsSheet.tsx";
 import { handleCommand } from "./commands.ts";
-import { ShortcutsDialog } from "./ShortcutsDialog.tsx";
 import { Sidebar } from "./Sidebar.tsx";
 import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
 import { TitleBar } from "./TitleBar.tsx";
 import { useCommands } from "./useCommands.ts";
 import { useSidebarMotion } from "./useSidebarMotion.ts";
+
+// Neither is on the first screen, so their code loads beside it instead of ahead of it.
+const SettingsSheet = lazy(() =>
+  import("../settings/SettingsSheet.tsx").then((module) => ({ default: module.SettingsSheet })),
+);
+const ShortcutsDialog = lazy(() =>
+  import("./ShortcutsDialog.tsx").then((module) => ({ default: module.ShortcutsDialog })),
+);
 
 function useMedia(query: string) {
   return useSyncExternalStore(
@@ -82,8 +88,12 @@ export function AppShell() {
           <Outlet />
         </div>
       )}
-      <ShortcutsDialog />
-      <SettingsSheet />
+      <Suspense>
+        <ShortcutsDialog />
+      </Suspense>
+      <Suspense>
+        <SettingsSheet />
+      </Suspense>
       <ContextMenuLayer />
       <Toaster />
     </div>
