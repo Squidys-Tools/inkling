@@ -11,16 +11,19 @@ const EXTENSIONS = ["", ".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs"];
 // `commonJS` mode gives, once per folder: a different canonical path would
 // change every variable's hashed name.
 function cachedResolution() {
-  const resolved = new Map<string, string | undefined>();
+  const resolved = new Map<string, string>();
   const packages = new Map<string, readonly [string, string] | null>();
 
   const packageOf = (dir: string): readonly [string, string] | null => {
     const known = packages.get(dir);
     if (known !== undefined) return known;
-    const manifest = join(dir, "package.json");
+    const path = join(dir, "package.json");
     const parent = dirname(dir);
-    const found = existsSync(manifest)
-      ? ([JSON.parse(readFileSync(manifest, "utf8")).name as string, dir] as const)
+    const manifest: { name?: string } | null = existsSync(path)
+      ? JSON.parse(readFileSync(path, "utf8"))
+      : null;
+    const found = manifest
+      ? ([String(manifest.name), dir] as const)
       : parent === dir
         ? null
         : packageOf(parent);
@@ -32,17 +35,18 @@ function cachedResolution() {
     type: "custom" as const,
     filePathResolver(importPath: string, sourceFilePath: string) {
       const key = JSON.stringify([dirname(sourceFilePath), importPath]);
-      if (resolved.has(key)) return resolved.get(key);
+      const known = resolved.get(key);
+      if (known) return known;
       const require = createRequire(sourceFilePath);
-      let found: string | undefined;
       for (const extension of EXTENSIONS) {
         try {
-          found = require.resolve(importPath + extension);
-          break;
+          const found = require.resolve(importPath + extension);
+          resolved.set(key, found);
+          return found;
         } catch {}
       }
-      resolved.set(key, found);
-      return found;
+      // A miss is not cached: the file may be created while the dev server runs.
+      return undefined;
     },
     getCanonicalFilePath(filePath: string) {
       const found = packageOf(dirname(filePath));
