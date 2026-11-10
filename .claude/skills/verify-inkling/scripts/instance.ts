@@ -25,6 +25,7 @@ import {
   runHasLiveProcess,
   runStates,
   SETUP_VERIFY_GUID,
+  SETUP_VERIFY_NAME,
   type RunState,
 } from "./clean-dev.ts";
 import { seedLibrary } from "../../../../tools/dev/seeded-library.ts";
@@ -151,17 +152,22 @@ const unpackedApp = join(root, ".artifacts", "electron", "win-unpacked");
 
 // The real win-unpacked app under another identity: its own appId, guid and uninstall name,
 // no inkling:// handler and no shortcuts, so installing it never touches the user's install.
+// The package name and shortcut name must differ too: NSIS caches itself in `<name>-updater`,
+// and a failed install deletes `<shortcutName>.lnk` even when it creates no shortcuts.
 const buildTestNsis = (logPath: string) => {
   const nsisPath = join(setupVerifyDir, "inkling-setup-verify-nsis.exe");
   const asar = join(unpackedApp, "resources", "app.asar");
   if (!existsSync(asar)) throw new Error(`no packaged app at ${unpackedApp}; run \`bun run dist\``);
-  const inputs = [asar, join(root, "build", "installer.nsh")].map((p) => statSync(p).mtimeMs);
+  const inputs = [asar, join(root, "build", "installer.nsh"), import.meta.path].map(
+    (p) => statSync(p).mtimeMs,
+  );
   if (existsSync(nsisPath) && statSync(nsisPath).mtimeMs > Math.max(...inputs)) return nsisPath;
   mkdirSync(setupVerifyDir, { recursive: true });
   const build = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).build;
   const config = {
     ...build,
     appId: "com.inkling.setup-verify",
+    extraMetadata: { ...build.extraMetadata, name: SETUP_VERIFY_NAME },
     protocols: [],
     directories: { ...build.directories, output: setupVerifyDir },
     win: { ...build.win, artifactName: "inkling-setup-verify-nsis.${ext}" },
@@ -169,6 +175,7 @@ const buildTestNsis = (logPath: string) => {
       ...build.nsis,
       guid: SETUP_VERIFY_GUID,
       uninstallDisplayName: "inkling setup verify",
+      shortcutName: "inkling setup verify",
       createDesktopShortcut: false,
       createStartMenuShortcut: false,
       runAfterFinish: false,

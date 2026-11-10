@@ -59,6 +59,8 @@ export type RunState = {
 export const SETUP_VERIFY_GUID = "bbf65adc-c826-4291-bfd0-9e266345089d";
 const uninstallKey = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${SETUP_VERIFY_GUID}`;
 const locationKey = `HKCU\\Software\\${SETUP_VERIFY_GUID}`;
+// Its package name: NSIS copies each installer it runs into `%LOCALAPPDATA%\<name>-updater`.
+export const SETUP_VERIFY_NAME = "inkling-setup-verify";
 
 export const listProcesses = (): Process[] => {
   if (win) {
@@ -183,6 +185,9 @@ const uninstallTestApp = () => {
     if (!existsSync(uninstaller)) continue;
     spawnSync(uninstaller, ["/S", `_?=${run.installDir}`], { stdio: "ignore", timeout: 120_000 });
   }
+  const localAppData = process.env.LOCALAPPDATA;
+  if (localAppData && runStates().some((run) => run.installDir))
+    rmSync(join(localAppData, `${SETUP_VERIFY_NAME}-updater`), { recursive: true, force: true });
   if (registered())
     throw new Error(
       `the test install is still registered (${uninstallKey} or ${locationKey}); its uninstaller did not finish`,

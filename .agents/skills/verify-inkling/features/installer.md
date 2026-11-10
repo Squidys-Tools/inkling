@@ -28,7 +28,7 @@ Preconditions: `.artifacts/electron/win-unpacked` from `bun run dist` (any recen
 
 ## Isolation
 
-The test identity has its own appId, NSIS guid and uninstall name, no `inkling://` handler and no shortcuts, and installs under `.dev`, so the user's install, link handler and shortcuts are untouched. `INKLING_SETUP_DEV` (set only by `launch --installer`) keeps the countdown from starting the installed app, which would open the user's real library. `cleanup` runs the test uninstaller in place and refuses if either of the guid's keys survives. It never deletes them itself: a key left by a failed install is a regression in `build/installer.nsh`. The test NSIS rebuilds when `app.asar` or `build/installer.nsh` changes.
+The test identity has its own appId, package name, NSIS guid, uninstall name and shortcut name, no `inkling://` handler and no shortcuts, and installs under `.dev`, so the user's install, link handler, shortcuts and updater cache (`%LOCALAPPDATA%\inkling-updater`) are untouched. The names matter: a failed install deletes `<shortcutName>.lnk` from the Start Menu and desktop, and every install copies itself into `<package name>-updater`. `INKLING_SETUP_DEV` (set only by `launch --installer`) keeps the countdown from starting the installed app, which would open the user's real library. `cleanup` runs the test uninstaller in place, refuses if either of the guid's keys survives, and removes the test identity's own `inkling-setup-verify-updater` folder. It never deletes them itself: a key left by a failed install is a regression in `build/installer.nsh`. The test NSIS rebuilds when `app.asar` or `build/installer.nsh` changes.
 
 ## Gotchas
 
