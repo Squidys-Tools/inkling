@@ -16,12 +16,12 @@ The app's `inkling://capture?url=...` intake saves the URL as a card at once, th
 Preconditions: the machine can reach the URL.
 
 - `$I launch --link "inkling://capture?url=https://example.com/"`. The launcher accepts only a plain `inkling://capture?url=...` value and passes it to Electron as an argument; `main.ts` hands the arguments to the capture intake at startup.
-- **Instant proof.** `$I db "SELECT kind,title,source_url FROM items ORDER BY created_at DESC LIMIT 1"` → kind `url`, source_url `https://example.com/`, title `example.com`.
-- **Enrichment proof.** Re-run that query until `title` is `Example Domain`. Poll the query; do not assume a delay.
+- **Proof.** `$I db "SELECT kind,title,source_url,metadata FROM items ORDER BY created_at DESC LIMIT 1"` → kind `url`, source_url `https://example.com/`, metadata `captureSource` `browser extension` (the label every outside capture gets). The title starts as `example.com` and becomes `Example Domain`; on a warm machine enrichment finishes before the first query, so poll until `Example Domain` and do not require seeing the domain title.
 - `$I tree | grep 'Article:'` shows the card, and the sidebar `Everything` link counts it.
 
 ## Gotchas
 
+- The app also parses quote (`&selection=` with `&title=` as attribution) and image (`&image=&alt=`) links (`apps/desktop/src/capture/deep-link.ts`), but `launch --link` only accepts the plain `?url=` form, so those are not driven. A link that does not parse is ignored.
 - Only at `launch`: this skill has no route to hand a second link to a running app, and `launch` refuses while a run is live.
 - The app's parser also accepts `&title=`, `&selection=` (saves a quote) and `&image=&alt=` (saves an image), all under `inkling://capture`; the launcher's `SAFE_LINK` admits only the plain `?url=` form, and it can still admit values the app drops (empty `url`, no http(s) scheme). Deep-link and receiver captures write `metadata.captureSource` `browser extension`, not `quick link`.
 - The OS handler is registered only in packaged builds (`apps/desktop/src/capture/outside-captures.ts`), so an unpackaged run never takes `inkling://` from the installed app. Do not add a packaged run to this skill: it opens the user's real library.

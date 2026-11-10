@@ -21,7 +21,7 @@ Preconditions: seeded library, Everything selected.
 - **Focus by key.** `$I ad press ctrl+k --window-id '{window}'`; `$I tree | grep 'Search your mind'` shows `states=focused`.
 - **Match.** `$I ad set-value "$($I ref textfield 'Search your mind')" hundred`; wait about 2 s for the debounce, then `$I tree | grep 'group  "'` shows only `Article: The Hundred-Year Language`. `$I shot s1`.
 - **Empty.** `set-value` `zzzzqqqq`; no card groups remain and a button `Clear search` appears. `$I shot s2`.
-- **Clear.** `$I ad click "$($I ref button 'Clear search')"`; card groups return (the first screenful, 8).
+- **Clear.** `$I ad click "$($I ref button 'Clear search')"`; card groups return (the rendered window of the virtualized grid, offscreen groups included; do not assert a number).
 - **Save as Space.** Search `hundred` again, then blur the field by checking the view switch: `$I ad check "$($I ref switch 'List view')"`. A button `Save as Space` appears (it only shows once the field is unfocused). Click it, `set-value` the textfield `Space name` to `Hundred Smart`, click `Create Space`.
 - **Proof.** `$I db "SELECT name,kind,query FROM spaces WHERE name='Hundred Smart'"` → kind `smart`, query `{"text":"hundred"}`; the sidebar link reads `Hundred Smart 1` and the Space shows the one article. Search alone stores nothing: `db "SELECT COUNT(*) n FROM items"` is unchanged around the query steps.
 

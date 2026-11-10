@@ -15,7 +15,7 @@ The loopback receiver the browser extension posts to. `POST /v1/captures` with t
 
 - `$I capture https://example.org/` prints `201 {"id":"..."}`. The helper takes the port from the listening sockets of this run's Electron pid, reads the token from this run's library, probes `/v1/health` (which also needs the token), then posts. It never prints the token.
 - The body it posts is `{"version":1,"kind":"page","url":...}`. The receiver accepts `page`, `quote` and `image` on input; a `page` always reduces to a bare `url` capture (`title` optional, `defuddledHtml` and friends are size-checked then discarded), so the saved row is kind `url` with `metadata.captureSource` `browser extension` and an `enrich_url` job.
-- **Proof.** `$I db "SELECT kind,title,source_url FROM items ORDER BY created_at DESC LIMIT 1"` → kind `url`, source_url as posted. `$I tree | grep Everything` shows the count one higher.
+- **Proof.** `$I db "SELECT kind,title,source_url FROM items ORDER BY created_at DESC LIMIT 1"` → kind `url`, source_url as posted; with network the title is usually already enriched (`Example Domain`) by then. `$I tree | grep Everything` shows the count one higher.
 
 ## Gotchas
 

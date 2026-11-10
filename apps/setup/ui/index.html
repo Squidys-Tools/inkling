@@ -1,0 +1,404 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face {
+        font-family: "DM Sans Variable";
+        font-weight: 100 900;
+        font-display: swap;
+        src: url(data:font/woff2;base64,{{FONT_SANS}}) format("woff2");
+      }
+      @font-face {
+        font-family: "DM Mono";
+        font-weight: 500;
+        src: url(data:font/woff2;base64,{{FONT_MONO}}) format("woff2");
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        font-family: system-ui, "Segoe UI", sans-serif;
+        color: #e5ddd2;
+        background: radial-gradient(120% 90% at 50% 0%, #1b1815 0%, #0c0c0b 70%);
+        user-select: none;
+        -webkit-user-select: none;
+        overflow: hidden;
+      }
+      .ver {
+        position: absolute;
+        top: 14px;
+        left: 16px;
+        font-size: 11px;
+        color: #5a554e;
+        z-index: 3;
+      }
+      .capsule {
+        position: fixed;
+        top: 13px;
+        right: 13px;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        height: 32px;
+        padding: 3px;
+        border-radius: 12px;
+        border: 1px solid #3a3531;
+        background: #1b1917;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.08),
+          0 4px 12px rgba(0, 0, 0, 0.55);
+      }
+      .wc {
+        display: grid;
+        place-items: center;
+        width: 36px;
+        height: 24px;
+        padding: 0;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: #e5ddd2;
+        cursor: default;
+      }
+      .wc:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .wc:active {
+        background: #3a3531;
+      }
+      .wc.close:hover {
+        background: #d63b37;
+        color: #fff;
+      }
+      .wc.close:active {
+        background: #b82f2b;
+        color: #fff;
+      }
+      .wc svg {
+        display: block;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1;
+        pointer-events: none;
+      }
+      main {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 6px 16px 30px;
+      }
+      .screen {
+        grid-area: 1/1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        opacity: 0;
+        transform: translateY(6px);
+        pointer-events: none;
+        /* visibility takes hidden screens' buttons out of Tab and the accessibility tree; its delay lets the fade out play. */
+        visibility: hidden;
+        transition:
+          opacity 0.28s ease,
+          transform 0.28s ease,
+          visibility 0s linear 0.28s;
+      }
+      .screen.on {
+        opacity: 1;
+        transform: none;
+        pointer-events: auto;
+        visibility: visible;
+        transition-delay: 0s;
+      }
+      .blot {
+        width: 132px;
+        height: 132px;
+        animation: breathe 4.8s ease-in-out infinite;
+      }
+      .blot.small {
+        width: 96px;
+        height: 96px;
+      }
+      .blot.busy {
+        animation-duration: 1.8s;
+      }
+      .blot.sad {
+        opacity: 0.55;
+        animation: none;
+      }
+      .blot img {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      @keyframes breathe {
+        50% {
+          transform: scale(1.035, 0.975);
+        }
+      }
+      .word {
+        font-family: "DM Sans Variable", system-ui, sans-serif;
+        font-size: 28px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        margin-top: 6px;
+      }
+      .tag {
+        font-size: 13px;
+        color: #8d867c;
+        margin-top: 4px;
+      }
+      .btn {
+        margin-top: 22px;
+        height: 32px;
+        padding: 0 14px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 9px;
+        background: #161412;
+        color: #e5ddd2;
+        cursor: pointer;
+        font:
+          500 12px "DM Mono",
+          "Cascadia Mono",
+          Consolas,
+          monospace;
+        letter-spacing: 0.01em;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        transition:
+          background-color 0.15s,
+          border-color 0.15s;
+      }
+      .btn:hover {
+        background: #221f1c;
+        border-color: #3a3531;
+      }
+      .btn:active {
+        background: #1b1917;
+      }
+      .btn.main {
+        border-color: #3a3531;
+        color: #f0e9df;
+        padding: 0 18px;
+      }
+      .status {
+        font-size: 13px;
+        color: #c9bfb2;
+        margin-top: 18px;
+        height: 18px;
+      }
+      .bar {
+        width: 220px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(229, 221, 210, 0.08);
+        margin-top: 12px;
+        overflow: hidden;
+      }
+      .bar span {
+        display: block;
+        height: 100%;
+        border-radius: 2px;
+        background: linear-gradient(90deg, #8f5a3e, #c88a66);
+        transition: width 0.3s;
+      }
+      .pct {
+        font-size: 11px;
+        color: #5a554e;
+        margin-top: 8px;
+        font-variant-numeric: tabular-nums;
+      }
+      .err {
+        font-size: 12px;
+        color: #8d867c;
+        margin-top: 6px;
+        max-width: 300px;
+        line-height: 1.5;
+      }
+      .failword {
+        font-size: 20px;
+        margin-top: 10px;
+      }
+      .link {
+        margin-top: 16px;
+        background: none;
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+        font:
+          12px system-ui,
+          "Segoe UI",
+          sans-serif;
+        color: #c9c1b6;
+        text-decoration: underline;
+        text-underline-offset: 4px;
+        text-decoration-color: #5e5850;
+      }
+      .link:hover {
+        color: #f0e9df;
+      }
+    </style>
+  </head>
+  <body>
+    <span class="ver">{{VERSION}}</span>
+    <div class="capsule">
+      <button class="wc" id="min" type="button" aria-label="Minimize" title="Minimize">
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M1.5 6.5h9" />
+        </svg>
+      </button>
+      <button class="wc close" id="close" type="button" aria-label="Close" title="Close">
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="m2 2 8 8m0-8-8 8" />
+        </svg>
+      </button>
+    </div>
+    <main>
+      <section class="screen on" id="welcome">
+        <div class="blot"><img src="{{MASCOT}}" alt="" /></div>
+        <div class="word">inkling</div>
+        <div class="tag">Save anything. Find it by describing it.</div>
+        <button class="btn main" id="install" type="button">Install</button>
+      </section>
+      <section class="screen" id="installing">
+        <div class="blot small busy"><img src="{{MASCOT}}" alt="" /></div>
+        <div class="status" id="status">Installing&hellip;</div>
+        <div class="bar"><span id="bar" style="width: 0%"></span></div>
+        <div class="pct" id="pct">0%</div>
+      </section>
+      <section class="screen" id="ready">
+        <div class="blot"><img src="{{MASCOT}}" alt="" /></div>
+        <div class="word">You're all set</div>
+        <div class="tag" id="countdown">Opening inkling in 3&hellip;</div>
+        <button class="btn main" id="open" type="button">Open now</button>
+      </section>
+      <section class="screen" id="failed">
+        <div class="blot small sad"><img src="{{MASCOT}}" alt="" /></div>
+        <div class="word failword">Setup didn't finish</div>
+        <div class="err" id="detail"></div>
+        <button class="btn main" id="retry" type="button">Try again</button>
+        <button class="link" id="copy" type="button">Copy details</button>
+      </section>
+    </main>
+    <script>
+      // wry already defines a global `ipc`; redeclaring it is a SyntaxError that kills this whole script.
+      const send = (message) => {
+        if (window.ipc) window.ipc.postMessage(message);
+      };
+      const screens = {
+        welcome: document.getElementById("welcome"),
+        installing: document.getElementById("installing"),
+        ready: document.getElementById("ready"),
+        failed: document.getElementById("failed"),
+      };
+      const bar = document.getElementById("bar");
+      const pct = document.getElementById("pct");
+      const status = document.getElementById("status");
+      const countdown = document.getElementById("countdown");
+      const detail = document.getElementById("detail");
+      const closeButton = document.getElementById("close");
+      let lastDetail = "";
+      let countdownTimer = null;
+
+      function show(name) {
+        for (const key of Object.keys(screens)) screens[key].classList.toggle("on", key === name);
+        closeButton.style.display = name === "installing" ? "none" : "";
+      }
+
+      function install() {
+        show("installing");
+        bar.style.width = "0%";
+        pct.textContent = "0%";
+        status.textContent = "Installing\u2026";
+        send("install");
+      }
+
+      function ready() {
+        show("ready");
+        let n = 3;
+        countdown.textContent = "Opening inkling in " + n + "\u2026";
+        clearInterval(countdownTimer);
+        countdownTimer = setInterval(() => {
+          n -= 1;
+          if (n > 0) {
+            countdown.textContent = "Opening inkling in " + n + "\u2026";
+            return;
+          }
+          clearInterval(countdownTimer);
+          countdown.textContent = "Opening\u2026";
+          send("open");
+        }, 1000);
+      }
+
+      function failed(message) {
+        lastDetail = message;
+        detail.textContent = message;
+        show("failed");
+      }
+
+      function copyDetails() {
+        const done = () => {
+          const label = document.getElementById("copy");
+          label.textContent = "Copied";
+          setTimeout(() => {
+            label.textContent = "Copy details";
+          }, 1200);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(lastDetail).then(done, () => {});
+          return;
+        }
+        const area = document.createElement("textarea");
+        area.value = lastDetail;
+        document.body.appendChild(area);
+        area.select();
+        try {
+          document.execCommand("copy");
+          done();
+        } catch (_) {}
+        area.remove();
+      }
+
+      document.getElementById("install").addEventListener("click", install);
+      document.getElementById("retry").addEventListener("click", install);
+      document.getElementById("open").addEventListener("click", () => {
+        clearInterval(countdownTimer);
+        send("open");
+      });
+      document.getElementById("copy").addEventListener("click", copyDetails);
+      document.getElementById("min").addEventListener("click", () => send("minimize"));
+      document.getElementById("close").addEventListener("click", () => send("close"));
+
+      document.addEventListener("mousedown", (event) => {
+        if (event.button !== 0) return;
+        if (event.target.closest("button, a, .capsule")) return;
+        send("drag");
+      });
+      document.addEventListener("contextmenu", (event) => event.preventDefault());
+
+      window.setup = {
+        progress(fraction) {
+          const f = Math.min(Math.max(fraction, 0), 1);
+          bar.style.width = Math.round(f * 100) + "%";
+          pct.textContent = Math.floor(f * 100) + "%";
+          status.textContent = f >= 0.95 ? "Finishing up\u2026" : "Installing\u2026";
+        },
+        done() {
+          ready();
+        },
+        failed(message) {
+          failed(String(message));
+        },
+      };
+
+      send("ready");
+    </script>
+  </body>
+</html>

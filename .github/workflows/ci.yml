@@ -115,6 +115,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # glib reaches apps/setup/Cargo.lock only through tao/wry's Linux GTK backend; the
+          # setup window builds for Windows alone, so that code is never compiled.
+          allow-ghsas: GHSA-wrw7-89jp-8q8g
 
   # The one check to require: it fails when any job above failed or was cancelled, and passes
   # when the jobs a change does not need were skipped. A run a newer push replaced reports nothing.

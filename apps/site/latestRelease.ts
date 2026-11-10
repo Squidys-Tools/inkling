@@ -7,11 +7,12 @@ type Asset = { name: string; browser_download_url: string };
 type Release = { tag_name: string; html_url: string; assets: Asset[] };
 
 // Installers by file type, as electron-builder names them in package.json's build block.
+// Windows prefers the custom setup exe; older releases only have the plain NSIS one.
 const kinds = {
-  windows: /\.exe$/u,
-  mac: /-mac-arm64\.dmg$/u,
-  appImage: /\.AppImage$/u,
-  deb: /\.deb$/u,
+  windows: [/^inkling-setup-.*\.exe$/u, /\.exe$/u],
+  mac: [/-mac-arm64\.dmg$/u],
+  appImage: [/\.AppImage$/u],
+  deb: [/\.deb$/u],
 };
 
 async function lookUp() {
@@ -27,8 +28,13 @@ async function lookUp() {
     if (response.status === 404) return null;
     if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
     const release = (await response.json()) as Release;
-    const pick = (pattern: RegExp) =>
-      release.assets.find((asset) => pattern.test(asset.name))?.browser_download_url ?? null;
+    const pick = (patterns: RegExp[]) => {
+      for (const pattern of patterns) {
+        const url = release.assets.find((asset) => pattern.test(asset.name))?.browser_download_url;
+        if (url) return url;
+      }
+      return null;
+    };
     return {
       version: release.tag_name.replace(/^v/u, ""),
       windows: pick(kinds.windows),

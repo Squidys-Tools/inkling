@@ -58,7 +58,8 @@ export function appUpdates({
           app.relaunch();
           app.quit();
         } else {
-          autoUpdater.quitAndInstall(false, true);
+          // Silent, so updates never flash the installer's progress window.
+          autoUpdater.quitAndInstall(true, true);
         }
       },
     });

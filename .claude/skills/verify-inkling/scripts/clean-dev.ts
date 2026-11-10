@@ -50,7 +50,15 @@ export type RunState = {
   launcherPid?: number;
   electronPid?: number;
   windowId?: string;
+  // Set by `launch --installer`: the setup window is the "electron" pid, and the
+  // test-identity app installs here until cleanup uninstalls it.
+  installDir?: string;
 };
+
+// The test-identity installer's fixed NSIS guid, so cleanup can confirm its registry keys are gone.
+export const SETUP_VERIFY_GUID = "bbf65adc-c826-4291-bfd0-9e266345089d";
+const uninstallKey = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${SETUP_VERIFY_GUID}`;
+const locationKey = `HKCU\\Software\\${SETUP_VERIFY_GUID}`;
 
 export const listProcesses = (): Process[] => {
   if (win) {
@@ -152,11 +160,33 @@ export const stopOwned = async () => {
 const keepLogs = () => {
   for (const run of runStates()) {
     if (!existsSync(run.evidenceDir)) continue;
-    for (const name of ["build.log", "electron.log"]) {
+    for (const name of ["build.log", "electron.log", "progress.log"]) {
       const source = join(dirname(run.library), name);
       if (existsSync(source)) copyFileSync(source, join(run.evidenceDir, name));
     }
   }
+};
+
+// `_?=` runs the uninstaller in place and synchronously; without it NSIS copies
+// itself to %TEMP% and returns at once.
+// A failed install (`launch --installer --fail`) removes its own keys in build/installer.nsh,
+// so a key that survives here is a regression, not something to delete.
+const uninstallTestApp = () => {
+  if (!win) return;
+  const registered = () =>
+    [uninstallKey, locationKey].some(
+      (key) => spawnSync("reg", ["query", key], { stdio: "ignore" }).status === 0,
+    );
+  for (const run of runStates()) {
+    if (!run.installDir) continue;
+    const uninstaller = join(run.installDir, "Uninstall inkling.exe");
+    if (!existsSync(uninstaller)) continue;
+    spawnSync(uninstaller, ["/S", `_?=${run.installDir}`], { stdio: "ignore", timeout: 120_000 });
+  }
+  if (registered())
+    throw new Error(
+      `the test install is still registered (${uninstallKey} or ${locationKey}); its uninstaller did not finish`,
+    );
 };
 
 // Shared by `cleanup`, `launch` and the worktree's settle action: stop what our runs recorded, then delete `.dev`.
@@ -164,6 +194,7 @@ export const cleanDev = async () => {
   assertWorktree();
   if (!existsSync(devDir)) return { removed: false, note: "no .dev directory; nothing to clean" };
   await stopOwned();
+  uninstallTestApp();
   const blocking = strays();
   if (blocking.length > 0) {
     const list = blocking.map((p) => `${p.pid} (${p.name || p.command.slice(0, 60)})`).join(", ");
