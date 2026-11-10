@@ -1,10 +1,9 @@
-import babel from "@rolldown/plugin-babel";
-import stylex from "@stylexjs/unplugin";
-import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { defineConfig, normalizePath, type Plugin } from "vite";
 import { findSeedLeaks } from "../../tools/repo/assert-no-demo-seed.ts";
 import { thirdPartyLicenses } from "./licenses/plugin.ts";
+import { stylexPlugin } from "./stylexPlugin.ts";
 
 const workspace = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -73,13 +72,8 @@ export default defineConfig(({ command, mode }) => ({
   // app://local/ serves the build from its own folder, so asset URLs stay relative.
   base: "./",
   plugins: [
-    stylex.vite({
-      useCSSLayers: true,
-      dev: command === "serve",
-      unstable_moduleResolution: { type: "commonJS", rootDir: workspace },
-    }),
-    react(),
-    babel({ presets: [reactCompilerPreset()] }),
+    stylexPlugin(command),
+    react({ compiler: true }),
     linkStylexCss(command),
     thirdPartyLicenses(workspace),
     mode === "site" && siteDemo(),

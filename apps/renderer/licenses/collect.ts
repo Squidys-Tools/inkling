@@ -14,6 +14,8 @@ type Manifest = {
   peerDependencies?: Record<string, string>;
 };
 
+type UpstreamNotice = { names: RegExp; noticeFile: string; license?: string };
+
 /** Code and models inkling ships that no package manifest describes. Paths are from the workspace root. */
 const vendoredNotices = [
   {
@@ -58,6 +60,31 @@ const vendoredNotices = [
     sourceUrl: "https://huggingface.co/nomic-ai/nomic-embed-vision-v1.5",
     description: "The image model behind search. Copyright Nomic AI.",
     noticeFile: "apps/renderer/licenses/Apache-2.0.txt",
+  },
+];
+
+/**
+ * Packages whose npm tarball leaves the license file out. Each text is the
+ * LICENSE of the repository the package's manifest names, copied unchanged,
+ * unless its line says otherwise. `license` replaces what the manifest declares.
+ */
+const upstreamNotices: UpstreamNotice[] = [
+  {
+    names: /^onnxruntime-(node|common)$/,
+    noticeFile: "apps/renderer/licenses/upstream/onnxruntime.txt",
+  },
+  { names: /^@stylexjs\/stylex$/, noticeFile: "apps/renderer/licenses/upstream/stylex.txt" },
+  { names: /^@napi-rs\/canvas-/, noticeFile: "apps/renderer/licenses/upstream/napi-rs-canvas.txt" },
+  { names: /^tr46$/, noticeFile: "apps/renderer/licenses/upstream/tr46.txt" },
+  // Its repository has no license file either: this is the MIT text its manifest declares,
+  // under its author's name.
+  { names: /^lazy-val$/, noticeFile: "apps/renderer/licenses/upstream/lazy-val.txt" },
+  // The manifest says MIT, but the package is only Tesseract's trained data, which Tesseract
+  // and this package's own repository license as Apache-2.0.
+  {
+    names: /^@tesseract\.js-data\//,
+    noticeFile: "apps/renderer/licenses/Apache-2.0.txt",
+    license: "Apache-2.0",
   },
 ];
 
@@ -148,6 +175,7 @@ export function collectThirdPartyLicenses(
   workspaceDir: string,
   bundledPackageDirs: Iterable<string> = [],
   notices = vendoredNotices,
+  upstream = upstreamNotices,
 ) {
   const root = readManifest(workspaceDir);
   const queue = [
@@ -163,12 +191,15 @@ export function collectThirdPartyLicenses(
   const add = (dir: string) => {
     const manifest = readManifest(dir);
     if (manifest.name?.startsWith("@inkling/")) return manifest;
+    const fallback = upstream.find(({ names }) => names.test(manifest.name ?? ""));
     const entry = {
       name: manifest.name ?? dir,
       version: manifest.version ?? null,
-      license: licenseOf(manifest) ?? "Unknown",
+      license: fallback?.license ?? licenseOf(manifest) ?? "Unknown",
       sourceUrl: sourceUrlOf(manifest),
-      noticeText: noticeTextIn(dir),
+      noticeText:
+        noticeTextIn(dir) ||
+        (fallback ? readFileSync(join(workspaceDir, fallback.noticeFile), "utf8").trim() : ""),
     };
     const id = `${entry.name}@${entry.version}`;
     // Bun keeps one folder per set of peer dependencies, so a version can sit in two.
