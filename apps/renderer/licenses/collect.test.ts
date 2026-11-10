@@ -108,11 +108,15 @@ describe("collectThirdPartyLicenses", () => {
     });
 
     const { entries, warnings } = collectThirdPartyLicenses(root, [], notices, [
-      { names: /^f$/, noticeFile: "UPSTREAM.txt" },
+      { names: /^f$/, noticeFile: "UPSTREAM.txt", license: "Apache-2.0" },
     ]);
 
     expect(entries[0]).toMatchObject({ name: "e", license: "Unknown", noticeText: "" });
-    expect(entries[1]).toMatchObject({ name: "f", noticeText: "f license" });
+    expect(entries[1]).toMatchObject({
+      name: "f",
+      license: "Apache-2.0",
+      noticeText: "f license",
+    });
     expect(warnings.some((warning) => warning.startsWith("f@"))).toBe(false);
     expect(warnings).toContain("e@1.0.0 declares no license.");
     expect(warnings).toContain("e@1.0.0 has no license file.");
