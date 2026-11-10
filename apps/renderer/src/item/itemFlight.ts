@@ -1,5 +1,5 @@
 import { createAtom, useSelector } from "@tanstack/react-store";
-import { usableOrigin, type FlightRect } from "./flightGeometry.ts";
+import { usableOrigin, type FlightMedia, type FlightRect } from "./flightGeometry.ts";
 
 const painting = createAtom(false);
 export const setFlightPainting = (value: boolean) => painting.set(value);
@@ -8,8 +8,15 @@ export const useFlightPainting = () => useSelector(painting);
 export const findCard = (id: string) =>
   document.querySelector<HTMLElement>(`[data-bench="card"][data-item-id="${CSS.escape(id)}"]`);
 
+export type FlightOrigin = {
+  card: FlightRect;
+  radius: number;
+  /** The card's own image, when the stage shows that same image. */
+  media: { image: HTMLImageElement; mode: FlightMedia; rect: FlightRect } | null;
+};
+
 /** The current visible card, excluding cards hidden under the search bar. */
-export function cardOrigin(id: string): FlightRect | null {
+export function cardOrigin(id: string): FlightOrigin | null {
   const card = findCard(id);
   if (!card) return null;
   const box = card.getBoundingClientRect();
@@ -31,12 +38,21 @@ export function cardOrigin(id: string): FlightRect | null {
     width: viewport.width,
     height: Math.max(0, viewport.top + viewport.height - top),
   };
-  return usableOrigin(box, visible)
-    ? { left: box.left, top: box.top, width: box.width, height: box.height }
-    : null;
+  if (!usableOrigin(box, visible)) return null;
+  const host = card.querySelector<HTMLElement>("[data-flight]");
+  const image = host instanceof HTMLImageElement ? host : host?.querySelector("img");
+  const mode = host?.dataset.flight;
+  return {
+    card: box,
+    radius: Number.parseFloat(getComputedStyle(card).borderTopLeftRadius) || 0,
+    media:
+      image?.complete && image.naturalWidth > 0 && (mode === "fit" || mode === "poster")
+        ? { image, mode, rect: image.getBoundingClientRect() }
+        : null,
+  };
 }
 
-let pending: { id: string; rect: FlightRect | null } | null = null;
+let pending: { id: string; rect: FlightOrigin | null } | null = null;
 
 /** Snapshot before routing makes the underlying library inert and skips its paint. */
 export function prepareItemOpen(id: string) {
