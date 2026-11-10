@@ -1,6 +1,6 @@
-import Bookmark01Icon from "@hugeicons/core-free-icons/Bookmark01Icon";
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import BookmarkIcon from "@inkling/ui/icons/Bookmark";
+import XIcon from "@inkling/ui/icons/X";
+import { Icon } from "@inkling/ui";
 import { Glass } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, radius } from "@inkling/ui/tokens.stylex";
@@ -21,7 +21,7 @@ export function FilterRow({ query, count }: { query: string; count: number | nul
           onClick={() => search.clear()}
           {...stylex.props(styles.clear)}
         >
-          <HugeiconsIcon icon={Cancel01Icon} size={13} />
+          <Icon icon={XIcon} size={13} />
         </button>
       </Glass>
       <div {...stylex.props(styles.summary)}>
@@ -31,7 +31,7 @@ export function FilterRow({ query, count }: { query: string; count: number | nul
           </span>
         )}
         <button type="button" onClick={() => openSpaceDraft(query)} {...stylex.props(styles.save)}>
-          <HugeiconsIcon icon={Bookmark01Icon} size={13} /> Save as Space
+          <Icon icon={BookmarkIcon} size={13} /> Save as Space
         </button>
       </div>
     </div>

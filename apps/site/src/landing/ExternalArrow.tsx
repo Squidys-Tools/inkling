@@ -1,17 +1,12 @@
-import ArrowUpRight01Icon from "@hugeicons/core-free-icons/ArrowUpRight01Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import ArrowUpRightIcon from "@inkling/ui/icons/ArrowUpRight";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { landing, media } from "./landing.stylex.ts";
 
 /** The faint arrow after a link that leaves the site. Its link must carry `stylex.defaultMarker()`. */
 export function ExternalArrow() {
   return (
-    <HugeiconsIcon
-      icon={ArrowUpRight01Icon}
-      size="0.9em"
-      aria-hidden="true"
-      {...stylex.props(styles.arrow)}
-    />
+    <Icon icon={ArrowUpRightIcon} size="0.9em" aria-hidden="true" {...stylex.props(styles.arrow)} />
   );
 }
 

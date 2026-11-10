@@ -1,7 +1,7 @@
 import { Menu } from "@base-ui/react/menu";
-import PlusSignCircleIcon from "@hugeicons/core-free-icons/PlusSignCircleIcon";
-import Tick02Icon from "@hugeicons/core-free-icons/Tick02Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import CirclePlusIcon from "@inkling/ui/icons/CirclePlus";
+import CheckIcon from "@inkling/ui/icons/Check";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
 
@@ -34,7 +34,7 @@ export function LicenseFilter({
         }
       >
         <span {...stylex.props(styles.triggerIcon)}>
-          <HugeiconsIcon icon={PlusSignCircleIcon} size={14} />
+          <Icon icon={CirclePlusIcon} size={14} />
         </span>
         License
         {picked.length > 0 && (
@@ -73,7 +73,7 @@ export function LicenseFilter({
                 >
                   <span {...stylex.props(styles.box, selected.has(license) && styles.boxChecked)}>
                     <Menu.CheckboxItemIndicator {...stylex.props(styles.indicator)}>
-                      <HugeiconsIcon icon={Tick02Icon} size={11} strokeWidth={2.4} />
+                      <Icon icon={CheckIcon} size={11} strokeWidth={2.4} />
                     </Menu.CheckboxItemIndicator>
                   </span>
                   <span {...stylex.props(styles.itemLabel)}>{license}</span>

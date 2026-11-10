@@ -1,4 +1,5 @@
 export { Button, IconButton } from "./Button.tsx";
+export { Icon, type IconData } from "./Icon.tsx";
 export { Glass } from "./Glass.tsx";
 export { Kbd } from "./Kbd.tsx";
 export { SegmentedControl } from "./SegmentedControl.tsx";

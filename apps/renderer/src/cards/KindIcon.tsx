@@ -1,24 +1,24 @@
-import AtSignIcon from "@hugeicons/core-free-icons/AtSignIcon";
-import Bookmark01Icon from "@hugeicons/core-free-icons/Bookmark01Icon";
-import FileTextIcon from "@hugeicons/core-free-icons/FileTextIcon";
-import Image01Icon from "@hugeicons/core-free-icons/Image01Icon";
-import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
-import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
-import SparklesIcon from "@hugeicons/core-free-icons/SparklesIcon";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import AtSignIcon from "@inkling/ui/icons/AtSign";
+import BookmarkIcon from "@inkling/ui/icons/Bookmark";
+import FileTextIcon from "@inkling/ui/icons/FileText";
+import ImageIcon from "@inkling/ui/icons/Image";
+import LinkIcon from "@inkling/ui/icons/Link";
+import PlayIcon from "@inkling/ui/icons/Play";
+import SparklesIcon from "@inkling/ui/icons/Sparkles";
+import { Icon, type IconData } from "@inkling/ui";
 import type { ItemKind } from "../library/cardModel.ts";
 
-const icons: Record<ItemKind, IconSvgElement> = {
-  Article: Link01Icon,
-  Image: Image01Icon,
+const icons: Record<ItemKind, IconData> = {
+  Article: LinkIcon,
+  Image: ImageIcon,
   Note: SparklesIcon,
   PDF: FileTextIcon,
-  Quote: Bookmark01Icon,
+  Quote: BookmarkIcon,
   Video: PlayIcon,
   Post: AtSignIcon,
   File: SparklesIcon,
 };
 
 export function KindIcon({ kind, size = 13 }: { kind: ItemKind; size?: number }) {
-  return <HugeiconsIcon icon={icons[kind]} size={size} aria-hidden="true" />;
+  return <Icon icon={icons[kind]} size={size} aria-hidden="true" />;
 }

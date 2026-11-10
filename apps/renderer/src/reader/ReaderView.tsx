@@ -1,6 +1,6 @@
-import ArrowUpRight01Icon from "@hugeicons/core-free-icons/ArrowUpRight01Icon";
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import ArrowUpRightIcon from "@inkling/ui/icons/ArrowUpRight";
+import XIcon from "@inkling/ui/icons/X";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import {
   color,
@@ -89,7 +89,7 @@ export function ReaderView({ id }: { id: string }) {
         {...stylex.props(styles.close, controlsOnRight && styles.belowControls)}
       >
         <span {...stylex.props(styles.esc)}>Esc</span>
-        <HugeiconsIcon icon={Cancel01Icon} size={16} />
+        <Icon icon={XIcon} size={16} />
       </button>
       <div {...stylex.props(styles.scroll)}>
         {status && (
@@ -115,7 +115,7 @@ export function ReaderView({ id }: { id: string }) {
                   {...stylex.props(styles.source)}
                 >
                   Continue reading at {hostname(sourceUrl) ?? sourceUrl}
-                  <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />
+                  <Icon icon={ArrowUpRightIcon} size={15} />
                 </a>
               </footer>
             )}

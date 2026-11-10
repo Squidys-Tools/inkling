@@ -1,7 +1,7 @@
-import Archive01Icon from "@hugeicons/core-free-icons/Archive01Icon";
-import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
-import SidebarLeftIcon from "@hugeicons/core-free-icons/SidebarLeftIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import ArchiveIcon from "@inkling/ui/icons/Archive";
+import SettingsIcon from "@inkling/ui/icons/Settings";
+import PanelLeftIcon from "@inkling/ui/icons/PanelLeft";
+import { Icon } from "@inkling/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch as useRouteSearch } from "@tanstack/react-router";
 import { useLayoutEffect, useRef } from "react";
@@ -145,7 +145,7 @@ export function Sidebar({
                 onClick={toggle}
                 {...stylex.props(styles.close)}
               >
-                <HugeiconsIcon icon={SidebarLeftIcon} size={16} />
+                <Icon icon={PanelLeftIcon} size={16} />
               </button>
             </>
           )}
@@ -170,7 +170,7 @@ export function Sidebar({
             tone="footer"
             compact={compact}
             active={shown === "Archived"}
-            icon={<HugeiconsIcon icon={Archive01Icon} size={15} />}
+            icon={<Icon icon={ArchiveIcon} size={15} />}
             label="Archive"
             onClick={() => search.clear()}
           />
@@ -180,7 +180,7 @@ export function Sidebar({
             expanded={settingsOpen}
             controls="settings-sheet"
             compact={compact}
-            icon={<HugeiconsIcon icon={Settings01Icon} size={15} />}
+            icon={<Icon icon={SettingsIcon} size={15} />}
             label="Settings"
             onClick={() =>
               void navigate({ to: ".", search: (prev) => ({ ...prev, settings: "general" }) })

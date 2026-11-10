@@ -1,5 +1,5 @@
-import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import RotateCwIcon from "@inkling/ui/icons/RotateCw";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cardColor, color, font, loadingColor, motion, radius } from "@inkling/ui/tokens.stylex";
@@ -238,7 +238,7 @@ function Failed({
           onKeyDown={(event) => event.stopPropagation()}
           {...stylex.props(styles.retry)}
         >
-          <HugeiconsIcon icon={RotateCwIcon} size={14} /> Try again
+          <Icon icon={RotateCwIcon} size={14} /> Try again
         </button>
       </span>
     </>

@@ -1,17 +1,17 @@
-import Camera01Icon from "@hugeicons/core-free-icons/Camera01Icon";
-import Database02Icon from "@hugeicons/core-free-icons/Database02Icon";
-import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
-import PaintBoardIcon from "@hugeicons/core-free-icons/PaintBoardIcon";
-import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
-import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
+import CameraIcon from "@inkling/ui/icons/Camera";
+import LibraryIcon from "@inkling/ui/icons/Library";
+import LinkIcon from "@inkling/ui/icons/Link";
+import PaletteIcon from "@inkling/ui/icons/Palette";
+import RotateCwIcon from "@inkling/ui/icons/RotateCw";
+import SettingsIcon from "@inkling/ui/icons/Settings";
 
 /** The rail, in order. Licenses opens from General and keeps General selected. */
 export const railSections = [
-  { id: "general", label: "General", icon: Settings01Icon },
-  { id: "appearance", label: "Appearance", icon: PaintBoardIcon },
-  { id: "library", label: "Library", icon: Database02Icon },
-  { id: "extension", label: "Browser extension", icon: Link01Icon },
-  { id: "screenshots", label: "Screenshots", icon: Camera01Icon },
+  { id: "general", label: "General", icon: SettingsIcon },
+  { id: "appearance", label: "Appearance", icon: PaletteIcon },
+  { id: "library", label: "Library", icon: LibraryIcon },
+  { id: "extension", label: "Browser extension", icon: LinkIcon },
+  { id: "screenshots", label: "Screenshots", icon: CameraIcon },
   { id: "updates", label: "Updates", icon: RotateCwIcon },
 ] as const;
 

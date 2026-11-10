@@ -1,5 +1,5 @@
-import Camera01Icon from "@hugeicons/core-free-icons/Camera01Icon";
-import Folder01Icon from "@hugeicons/core-free-icons/Folder01Icon";
+import CameraIcon from "@inkling/ui/icons/Camera";
+import FolderIcon from "@inkling/ui/icons/Folder";
 import type { ScreenshotImportState } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,7 +37,7 @@ export function ScreenshotsPanel({ onClose }: { onClose: () => void }) {
     >
       <PanelBody>
         <Row
-          icon={Camera01Icon}
+          icon={CameraIcon}
           title="Import new screenshots"
           description="New PNG, JPEG and WebP files are saved locally. Existing files are skipped when you turn it on."
           action={
@@ -66,7 +66,7 @@ export function ScreenshotsPanel({ onClose }: { onClose: () => void }) {
           )}
         </Row>
         <Row
-          icon={Folder01Icon}
+          icon={FolderIcon}
           title="Screenshots folder"
           description="Choose a dedicated screenshots folder, not your whole Pictures folder. Nothing is uploaded."
           action={

@@ -1,5 +1,5 @@
-import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import SearchIcon from "@inkling/ui/icons/Search";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius } from "@inkling/ui/tokens.stylex";
 
@@ -15,7 +15,7 @@ export function EmptyState({
   return (
     <div {...stylex.props(styles.box)}>
       <div {...stylex.props(styles.icon)}>
-        <HugeiconsIcon icon={Search01Icon} size={20} />
+        <Icon icon={SearchIcon} size={20} />
       </div>
       <h2 {...stylex.props(styles.title)}>{title}</h2>
       <p {...stylex.props(styles.detail)}>{detail}</p>

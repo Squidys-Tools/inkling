@@ -1,6 +1,6 @@
-import GridViewIcon from "@hugeicons/core-free-icons/GridViewIcon";
-import ListViewIcon from "@hugeicons/core-free-icons/ListViewIcon";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import LayoutGridIcon from "@inkling/ui/icons/LayoutGrid";
+import MenuIcon from "@inkling/ui/icons/Menu";
+import { Icon, type IconData } from "@inkling/ui";
 import { Glass } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, text } from "@inkling/ui/tokens.stylex";
@@ -28,14 +28,14 @@ export function ViewDock() {
       />
       <ViewButton
         label="Grid view"
-        icon={GridViewIcon}
+        icon={LayoutGridIcon}
         selected={!list}
         segmented={segmented}
         onClick={() => switchView(false)}
       />
       <ViewButton
         label="List view"
-        icon={ListViewIcon}
+        icon={MenuIcon}
         selected={list}
         segmented={segmented}
         onClick={() => switchView(true)}
@@ -52,7 +52,7 @@ function ViewButton({
   onClick,
 }: {
   label: string;
-  icon: IconSvgElement;
+  icon: IconData;
   selected: boolean;
   segmented: boolean;
   onClick: () => void;
@@ -70,7 +70,7 @@ function ViewButton({
         selected && styles.selected,
       )}
     >
-      <HugeiconsIcon icon={icon} size={15} />
+      <Icon icon={icon} size={15} />
       {segmented && <span>{label === "Grid view" ? "Grid" : "List"}</span>}
     </button>
   );

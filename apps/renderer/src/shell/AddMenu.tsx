@@ -1,11 +1,11 @@
 import { Menu } from "@base-ui/react/menu";
-import Bookmark01Icon from "@hugeicons/core-free-icons/Bookmark01Icon";
-import Camera01Icon from "@hugeicons/core-free-icons/Camera01Icon";
-import FileTextIcon from "@hugeicons/core-free-icons/FileTextIcon";
-import Image01Icon from "@hugeicons/core-free-icons/Image01Icon";
-import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
-import PlusSignIcon from "@hugeicons/core-free-icons/PlusSignIcon";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import BookmarkIcon from "@inkling/ui/icons/Bookmark";
+import CameraIcon from "@inkling/ui/icons/Camera";
+import FileTextIcon from "@inkling/ui/icons/FileText";
+import ImageIcon from "@inkling/ui/icons/Image";
+import LinkIcon from "@inkling/ui/icons/Link";
+import PlusIcon from "@inkling/ui/icons/Plus";
+import { Icon, type IconData } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
@@ -16,15 +16,15 @@ import { handleCommand } from "./commands.ts";
 type Choice = {
   id: "note" | "link" | "quote" | "file" | "screen";
   label: string;
-  icon: IconSvgElement;
+  icon: IconData;
 };
 
 const choices: Choice[] = [
   { id: "note", label: "Note", icon: FileTextIcon },
-  { id: "link", label: "Link", icon: Link01Icon },
-  { id: "quote", label: "Quote", icon: Bookmark01Icon },
-  { id: "file", label: "File", icon: Image01Icon },
-  { id: "screen", label: "Screen", icon: Camera01Icon },
+  { id: "link", label: "Link", icon: LinkIcon },
+  { id: "quote", label: "Quote", icon: BookmarkIcon },
+  { id: "file", label: "File", icon: ImageIcon },
+  { id: "screen", label: "Screen", icon: CameraIcon },
 ];
 
 /**
@@ -64,7 +64,7 @@ export function AddMenu({ compact }: { compact: boolean }) {
           title={compact ? "Add" : undefined}
           {...stylex.props(styles.trigger, compact && styles.compact)}
         >
-          <HugeiconsIcon icon={PlusSignIcon} size={16} />
+          <Icon icon={PlusIcon} size={16} />
           {!compact && (
             <span data-sidebar-label data-sidebar-add-label {...stylex.props(styles.label)}>
               {saving ? "Saving…" : "Add"}
@@ -91,7 +91,7 @@ export function AddMenu({ compact }: { compact: boolean }) {
                         .className ?? ""
                     }
                   >
-                    <HugeiconsIcon icon={choice.icon} size={22} strokeWidth={1.5} />
+                    <Icon icon={choice.icon} size={22} strokeWidth={1.5} />
                     <span {...stylex.props(styles.tileLabel)}>{choice.label}</span>
                   </Menu.Item>
                 ))}

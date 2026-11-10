@@ -1,7 +1,7 @@
 /* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-noninteractive-element-interactions -- A tile holds its Restore and Delete buttons, so the article cannot be a button; Enter opens the focused tile. */
-import Delete02Icon from "@hugeicons/core-free-icons/Delete02Icon";
-import RotateLeft01Icon from "@hugeicons/core-free-icons/RotateLeft01Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import TrashIcon from "@inkling/ui/icons/Trash";
+import RotateCcwIcon from "@inkling/ui/icons/RotateCcw";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
 import type { KeyboardEvent, MouseEvent } from "react";
@@ -57,7 +57,7 @@ export function ArchiveTile({ view, index }: { view: CardView; index: number }) 
               onKeyDown={(event) => event.stopPropagation()}
               {...stylex.props(styles.restore)}
             >
-              <HugeiconsIcon icon={RotateLeft01Icon} size={12} />
+              <Icon icon={RotateCcwIcon} size={12} />
               Restore
             </button>
             <button
@@ -71,7 +71,7 @@ export function ArchiveTile({ view, index }: { view: CardView; index: number }) 
               onKeyDown={(event) => event.stopPropagation()}
               {...stylex.props(styles.delete)}
             >
-              <HugeiconsIcon icon={Delete02Icon} size={13} />
+              <Icon icon={TrashIcon} size={13} />
             </button>
           </div>
         </div>

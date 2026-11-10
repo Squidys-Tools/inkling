@@ -1,5 +1,5 @@
-import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import PlayIcon from "@inkling/ui/icons/Play";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, motion, radius, text } from "@inkling/ui/tokens.stylex";
 
@@ -32,7 +32,7 @@ export function PlayPoster({
     >
       {image && <img src={image} alt="" decoding="async" {...stylex.props(styles.image)} />}
       <span aria-hidden="true" {...stylex.props(styles.play)}>
-        <HugeiconsIcon icon={PlayIcon} size={21} />
+        <Icon icon={PlayIcon} size={21} />
       </span>
       <span aria-hidden="true" {...stylex.props(styles.provider)}>
         {provider}

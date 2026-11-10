@@ -1,5 +1,5 @@
-import ViewSidebarLeftIcon from "@hugeicons/core-free-icons/ViewSidebarLeftIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import PanelLeftIcon from "@inkling/ui/icons/PanelLeft";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
@@ -145,7 +145,7 @@ export function LibraryHost({
             onClick={() => setSidebarOpen(true)}
             {...stylex.props(styles.openSidebar)}
           >
-            <HugeiconsIcon icon={ViewSidebarLeftIcon} size={17} />
+            <Icon icon={PanelLeftIcon} size={17} />
           </button>
         )}
         <SearchBar viewName={viewName} inLibrary={routeScope?._tag === "Active"} />

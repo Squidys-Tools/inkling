@@ -1,5 +1,5 @@
-import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import SettingsIcon from "@inkling/ui/icons/Settings";
+import { Icon } from "@inkling/ui";
 import { Button, IconButton, SegmentedControl, TextField } from "@inkling/ui";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
@@ -197,7 +197,7 @@ function Shell({
         </h1>
         <IconButton
           label="Extension settings"
-          icon={<HugeiconsIcon icon={Settings01Icon} size={15} />}
+          icon={<Icon icon={SettingsIcon} size={15} />}
           onClick={() => void browser.runtime.openOptionsPage()}
         />
       </header>

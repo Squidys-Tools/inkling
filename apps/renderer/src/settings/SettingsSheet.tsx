@@ -1,5 +1,5 @@
 import { Dialog } from "@base-ui/react/dialog";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useNavigate, useRouter, useSearch } from "@tanstack/react-router";
@@ -88,7 +88,7 @@ export function SettingsSheet() {
                       <span
                         {...stylex.props(styles.tabIcon, id === selected && styles.tabIconSelected)}
                       >
-                        <HugeiconsIcon icon={icon} size={15} />
+                        <Icon icon={icon} size={15} />
                       </span>
                       {label}
                     </button>

@@ -60,8 +60,12 @@ describe("collectThirdPartyLicenses", () => {
     ]);
     expect(entries.find((entry) => entry.version === "2.0.0")?.noticeText).toBe("c2 license");
     expect(entries.at(-1)?.noticeText).toBe("Vendored license");
-    // electron is always followed, and is missing in this fixture.
-    expect(warnings).toEqual(["electron is a dependency but is not installed."]);
+    // electron and the icon packages are always followed, and are missing in this fixture.
+    expect(warnings).toEqual(
+      ["electron", "runeicons", "runeicons-brands", "lucide-static"].map(
+        (name) => `${name} is a dependency but is not installed.`,
+      ),
+    );
   });
 
   test("adds the packages the renderer bundled, once per version, without first-party ones", () => {

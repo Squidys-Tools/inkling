@@ -1,14 +1,14 @@
-import BoldIcon from "@hugeicons/core-free-icons/BoldIcon";
-import CodeIcon from "@hugeicons/core-free-icons/CodeIcon";
-import ItalicIcon from "@hugeicons/core-free-icons/ItalicIcon";
-import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
-import ListIcon from "@hugeicons/core-free-icons/ListIcon";
-import ListOrderedIcon from "@hugeicons/core-free-icons/ListOrderedIcon";
-import ListTodoIcon from "@hugeicons/core-free-icons/ListTodoIcon";
-import QuoteIcon from "@hugeicons/core-free-icons/QuoteIcon";
-import RefreshCcwIcon from "@hugeicons/core-free-icons/RefreshCcwIcon";
-import RefreshCwIcon from "@hugeicons/core-free-icons/RefreshCwIcon";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import BoldIcon from "@inkling/ui/icons/Bold";
+import CodeIcon from "@inkling/ui/icons/Code";
+import ItalicIcon from "@inkling/ui/icons/Italic";
+import LinkIcon from "@inkling/ui/icons/Link";
+import ListIcon from "@inkling/ui/icons/List";
+import ListOrderedIcon from "@inkling/ui/icons/ListOrdered";
+import ListTodoIcon from "@inkling/ui/icons/ListTodo";
+import QuoteIcon from "@inkling/ui/icons/Quote";
+import RotateCcwIcon from "@inkling/ui/icons/RotateCcw";
+import RotateCwIcon from "@inkling/ui/icons/RotateCw";
+import { Icon, type IconData } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, text } from "@inkling/ui/tokens.stylex";
 import { type Editor, useEditorState } from "@tiptap/react";
@@ -43,7 +43,7 @@ type ToolbarState = ReturnType<typeof useToolbarState>;
 
 type Format = {
   label: string;
-  icon: IconSvgElement;
+  icon: IconData;
   active: keyof ToolbarState;
   toggle: (editor: Editor) => void;
 };
@@ -144,7 +144,7 @@ export function NoteToolbar({
       pressed={Boolean(state[active])}
       onClick={() => toggle(editor)}
     >
-      <HugeiconsIcon icon={icon} size={15} />
+      <Icon icon={icon} size={15} />
     </ToolButton>
   );
   return (
@@ -178,7 +178,7 @@ export function NoteToolbar({
         disabled={!state.hasSelection && !state.link}
         onClick={onLink}
       >
-        <HugeiconsIcon icon={Link01Icon} size={15} />
+        <Icon icon={LinkIcon} size={15} />
       </ToolButton>
       <Divider />
       <ToolButton
@@ -186,14 +186,14 @@ export function NoteToolbar({
         disabled={!state.canUndo}
         onClick={() => editor.chain().focus().undo().run()}
       >
-        <HugeiconsIcon icon={RefreshCcwIcon} size={15} />
+        <Icon icon={RotateCcwIcon} size={15} />
       </ToolButton>
       <ToolButton
         label="Redo"
         disabled={!state.canRedo}
         onClick={() => editor.chain().focus().redo().run()}
       >
-        <HugeiconsIcon icon={RefreshCwIcon} size={15} />
+        <Icon icon={RotateCwIcon} size={15} />
       </ToolButton>
     </div>
   );

@@ -1,5 +1,5 @@
-import GridViewIcon from "@hugeicons/core-free-icons/GridViewIcon";
-import Layout01Icon from "@hugeicons/core-free-icons/Layout01Icon";
+import LayoutGridIcon from "@inkling/ui/icons/LayoutGrid";
+import PanelTopIcon from "@inkling/ui/icons/PanelTop";
 import * as stylex from "@stylexjs/stylex";
 import { SegmentedControl } from "@inkling/ui";
 import { chrome } from "../desktop.ts";
@@ -19,7 +19,7 @@ export function AppearancePanel({ onClose }: { onClose: () => void }) {
     <Panel title="Appearance" onClose={onClose}>
       <PanelBody>
         <Row
-          icon={GridViewIcon}
+          icon={LayoutGridIcon}
           title="Grid and list toggle"
           description="The switch at the bottom of the library."
           action={
@@ -35,7 +35,7 @@ export function AppearancePanel({ onClose }: { onClose: () => void }) {
         />
         {chrome.controls === "custom-right" && (
           <Row
-            icon={Layout01Icon}
+            icon={PanelTopIcon}
             title="Show window controls"
             description="Hidden until the pointer reaches the top-right corner, or drawn all the time."
             action={

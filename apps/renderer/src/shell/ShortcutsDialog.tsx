@@ -1,6 +1,6 @@
 import { Dialog } from "@base-ui/react/dialog";
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import XIcon from "@inkling/ui/icons/X";
+import { Icon } from "@inkling/ui";
 import { type Command, bindingLabel, bindingsFor, shortcuts } from "@inkling/contracts/shortcuts";
 import { Kbd } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
@@ -29,7 +29,7 @@ export function ShortcutsDialog() {
               </Dialog.Description>
             </div>
             <Dialog.Close aria-label="Close keyboard shortcuts" {...stylex.props(styles.close)}>
-              <HugeiconsIcon icon={Cancel01Icon} size={16} />
+              <Icon icon={XIcon} size={16} />
             </Dialog.Close>
           </header>
           <dl {...stylex.props(styles.list)}>

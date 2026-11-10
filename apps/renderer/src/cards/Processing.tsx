@@ -1,6 +1,6 @@
-import AlertCircleIcon from "@hugeicons/core-free-icons/AlertCircleIcon";
-import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import CircleAlertIcon from "@inkling/ui/icons/CircleAlert";
+import RotateCwIcon from "@inkling/ui/icons/RotateCw";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, radius } from "@inkling/ui/tokens.stylex";
 import type { Processing } from "../library/jobs.ts";
@@ -73,7 +73,7 @@ export function ProcessingBadge({
         onKeyDown={(event) => event.stopPropagation()}
         {...stylex.props(styles.badge, styles.failed)}
       >
-        <HugeiconsIcon icon={AlertCircleIcon} size={14} />
+        <Icon icon={CircleAlertIcon} size={14} />
       </button>
     );
   if (!processing.active) return null;
@@ -114,7 +114,7 @@ export function ProcessingRows({
       )}
       {failed && (
         <div role="alert" {...stylex.props(styles.row, styles.rowFailed)}>
-          <HugeiconsIcon icon={AlertCircleIcon} size={13} />
+          <Icon icon={CircleAlertIcon} size={13} />
           <span>{failed.message}</span>
           <button
             type="button"
@@ -125,7 +125,7 @@ export function ProcessingRows({
             onKeyDown={(event) => event.stopPropagation()}
             {...stylex.props(styles.retry)}
           >
-            <HugeiconsIcon icon={RotateCwIcon} size={12} /> Try again
+            <Icon icon={RotateCwIcon} size={12} /> Try again
           </button>
         </div>
       )}

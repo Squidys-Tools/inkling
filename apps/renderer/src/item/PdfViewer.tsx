@@ -1,9 +1,9 @@
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import ChevronLeftIcon from "@hugeicons/core-free-icons/ChevronLeftIcon";
-import ChevronRightIcon from "@hugeicons/core-free-icons/ChevronRightIcon";
-import MinusSignIcon from "@hugeicons/core-free-icons/MinusSignIcon";
-import PlusSignIcon from "@hugeicons/core-free-icons/PlusSignIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import XIcon from "@inkling/ui/icons/X";
+import ChevronLeftIcon from "@inkling/ui/icons/ChevronLeft";
+import ChevronRightIcon from "@inkling/ui/icons/ChevronRight";
+import MinusIcon from "@inkling/ui/icons/Minus";
+import PlusIcon from "@inkling/ui/icons/Plus";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { IconButton } from "@inkling/ui";
 import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
@@ -136,7 +136,7 @@ export function PdfViewer({
         <div {...stylex.props(styles.group)}>
           <IconButton
             label="Zoom out"
-            icon={<HugeiconsIcon icon={MinusSignIcon} size={15} />}
+            icon={<Icon icon={MinusIcon} size={15} />}
             style={styles.small}
             onClick={() => setZoom((current) => clampZoom((current ?? renderedScale) - ZOOM_STEP))}
           />
@@ -147,7 +147,7 @@ export function PdfViewer({
           </span>
           <IconButton
             label="Zoom in"
-            icon={<HugeiconsIcon icon={PlusSignIcon} size={15} />}
+            icon={<Icon icon={PlusIcon} size={15} />}
             style={styles.small}
             onClick={() => setZoom((current) => clampZoom((current ?? renderedScale) + ZOOM_STEP))}
           />
@@ -158,7 +158,7 @@ export function PdfViewer({
         <div {...stylex.props(styles.group)}>
           <IconButton
             label="Previous page"
-            icon={<HugeiconsIcon icon={ChevronLeftIcon} size={15} />}
+            icon={<Icon icon={ChevronLeftIcon} size={15} />}
             style={styles.small}
             disabled={page <= 1}
             onClick={() => turn(-1)}
@@ -187,7 +187,7 @@ export function PdfViewer({
           </span>
           <IconButton
             label="Next page"
-            icon={<HugeiconsIcon icon={ChevronRightIcon} size={15} />}
+            icon={<Icon icon={ChevronRightIcon} size={15} />}
             style={styles.small}
             disabled={state.phase !== "ready" || page >= pageCount}
             onClick={() => turn(1)}
@@ -195,7 +195,7 @@ export function PdfViewer({
         </div>
         <IconButton
           label="Close PDF"
-          icon={<HugeiconsIcon icon={Cancel01Icon} size={16} />}
+          icon={<Icon icon={XIcon} size={16} />}
           style={styles.small}
           onClick={onClose}
         />

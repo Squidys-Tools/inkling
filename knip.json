@@ -3,7 +3,7 @@
   "workspaces": {
     ".": {
       "entry": ["tools/**/*.ts", "benchmarks/fetch-macrumors.ts", "benchmarks/harness/index.ts"],
-      "ignoreDependencies": ["@img/sharp-wasm32"],
+      "ignoreDependencies": ["@img/sharp-wasm32", "lucide-static", "runeicons-brands"],
       "ignoreBinaries": ["dpkg-deb"],
       "ignore": [".claude/**", ".agents/**"]
     },

@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
-import ArrowRight01Icon from "@hugeicons/core-free-icons/ArrowRight01Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import ChevronRightIcon from "@inkling/ui/icons/ChevronRight";
+import { Icon } from "@inkling/ui";
 import { bindingsFor } from "@inkling/contracts/shortcuts";
 import { color, font } from "@inkling/ui/tokens.stylex";
 import { useEffect, useState, type ReactNode } from "react";
@@ -278,7 +278,7 @@ function Separator({ delay }: { delay: number }) {
       role="presentation"
       {...stylex.props(styles.separator, styles.rise, styles.delay(delay))}
     >
-      <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
+      <Icon icon={ChevronRightIcon} size={14} />
     </li>
   );
 }

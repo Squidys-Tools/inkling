@@ -1,5 +1,5 @@
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import XIcon from "@inkling/ui/icons/X";
+import { Icon, type IconData } from "@inkling/ui";
 import { Button } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
@@ -39,7 +39,7 @@ export function Panel({
             onClick={onClose}
             {...stylex.props(styles.close)}
           >
-            <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={1.25} />
+            <Icon icon={XIcon} size={16} strokeWidth={1.25} />
           </button>
         </div>
       </header>
@@ -59,7 +59,7 @@ export function Row({
   action,
   children,
 }: {
-  icon: IconSvgElement;
+  icon: IconData;
   title: string;
   description?: string;
   action?: ReactNode;
@@ -68,7 +68,7 @@ export function Row({
   return (
     <div {...stylex.props(styles.row)}>
       <span aria-hidden="true" {...stylex.props(styles.rowIcon)}>
-        <HugeiconsIcon icon={icon} size={17} />
+        <Icon icon={icon} size={17} />
       </span>
       <div {...stylex.props(styles.rowText)}>
         <h3 {...stylex.props(styles.rowTitle)}>{title}</h3>
@@ -86,14 +86,14 @@ export function EmptyState({
   title,
   children,
 }: {
-  icon: IconSvgElement;
+  icon: IconData;
   title: string;
   children: ReactNode;
 }) {
   return (
     <div {...stylex.props(styles.empty)}>
       <div aria-hidden="true" {...stylex.props(styles.emptyIcon)}>
-        <HugeiconsIcon icon={icon} size={19} />
+        <Icon icon={icon} size={19} />
       </div>
       <h3 {...stylex.props(styles.emptyTitle)}>{title}</h3>
       <p {...stylex.props(styles.emptyText)}>{children}</p>

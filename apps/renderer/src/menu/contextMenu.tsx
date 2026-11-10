@@ -1,15 +1,15 @@
 import { Menu } from "@base-ui/react/menu";
-import Archive03Icon from "@hugeicons/core-free-icons/Archive03Icon";
-import ArrowRight01Icon from "@hugeicons/core-free-icons/ArrowRight01Icon";
-import ArrowUpRight01Icon from "@hugeicons/core-free-icons/ArrowUpRight01Icon";
-import Bookmark01Icon from "@hugeicons/core-free-icons/Bookmark01Icon";
-import Copy01Icon from "@hugeicons/core-free-icons/Copy01Icon";
-import Delete02Icon from "@hugeicons/core-free-icons/Delete02Icon";
-import FileTextIcon from "@hugeicons/core-free-icons/FileTextIcon";
-import Folder01Icon from "@hugeicons/core-free-icons/Folder01Icon";
-import Image01Icon from "@hugeicons/core-free-icons/Image01Icon";
-import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import ArchiveIcon from "@inkling/ui/icons/Archive";
+import ChevronRightIcon from "@inkling/ui/icons/ChevronRight";
+import ArrowUpRightIcon from "@inkling/ui/icons/ArrowUpRight";
+import BookmarkIcon from "@inkling/ui/icons/Bookmark";
+import CopyIcon from "@inkling/ui/icons/Copy";
+import TrashIcon from "@inkling/ui/icons/Trash";
+import FileTextIcon from "@inkling/ui/icons/FileText";
+import FolderIcon from "@inkling/ui/icons/Folder";
+import ImageIcon from "@inkling/ui/icons/Image";
+import LinkIcon from "@inkling/ui/icons/Link";
+import { Icon } from "@inkling/ui";
 import type { ContextMenuItem } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
@@ -55,23 +55,23 @@ export function ContextMenuLayer() {
 }
 
 function actionIcon(id: string) {
-  if (/^(space:|allow:)|^remove-here$/.test(id)) return Bookmark01Icon;
+  if (/^(space:|allow:)|^remove-here$/.test(id)) return BookmarkIcon;
   switch (id) {
     case "archive":
     case "restore":
-      return Archive03Icon;
+      return ArchiveIcon;
     case "delete":
-      return Delete02Icon;
+      return TrashIcon;
     case "folder":
-      return Folder01Icon;
+      return FolderIcon;
     case "copy-image":
-      return Image01Icon;
+      return ImageIcon;
     case "copy":
-      return Copy01Icon;
+      return CopyIcon;
     case "original":
-      return Link01Icon;
+      return LinkIcon;
     case "open":
-      return ArrowUpRight01Icon;
+      return ArrowUpRightIcon;
     default:
       return FileTextIcon;
   }
@@ -91,7 +91,7 @@ function Action({ item, menu }: { item: MenuAction; menu: Open }) {
         ).className ?? ""
       }
     >
-      <HugeiconsIcon icon={actionIcon(item.id)} size={15} />
+      <Icon icon={actionIcon(item.id)} size={15} />
       <span {...stylex.props(styles.label)}>{item.label}</span>
     </Menu.Item>
   );
@@ -183,9 +183,9 @@ function OpenContextMenu({ menu }: { menu: Open }) {
                       ).className ?? ""
                     }
                   >
-                    <HugeiconsIcon icon={Bookmark01Icon} size={15} />
+                    <Icon icon={BookmarkIcon} size={15} />
                     <span {...stylex.props(styles.label)}>Keep in a Space</span>
-                    <HugeiconsIcon icon={ArrowRight01Icon} size={13} />
+                    <Icon icon={ChevronRightIcon} size={13} />
                   </Menu.SubmenuTrigger>
                   <Menu.Portal>
                     <Menu.Positioner

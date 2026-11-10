@@ -1,6 +1,6 @@
-import BookOpen01Icon from "@hugeicons/core-free-icons/BookOpen01Icon";
-import FileTextIcon from "@hugeicons/core-free-icons/FileTextIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import BookBookmarkIcon from "@inkling/ui/icons/BookBookmark";
+import FileTextIcon from "@inkling/ui/icons/FileText";
+import { Icon } from "@inkling/ui";
 import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@inkling/ui";
@@ -125,7 +125,7 @@ export function InfoPanel({
           {canOpenPdf && (
             <Button
               variant="outline"
-              icon={<HugeiconsIcon icon={FileTextIcon} size={14} />}
+              icon={<Icon icon={FileTextIcon} size={14} />}
               onClick={onOpenPdf}
             >
               Open PDF
@@ -134,7 +134,7 @@ export function InfoPanel({
           {canRead && (
             <Button
               variant="outline"
-              icon={<HugeiconsIcon icon={BookOpen01Icon} size={14} />}
+              icon={<Icon icon={BookBookmarkIcon} size={14} />}
               onClick={onRead}
             >
               Read

@@ -1,8 +1,8 @@
-import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
-import ArrowRight01Icon from "@hugeicons/core-free-icons/ArrowRight01Icon";
-import ArrowUpRight01Icon from "@hugeicons/core-free-icons/ArrowUpRight01Icon";
-import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import ChevronLeftIcon from "@inkling/ui/icons/ChevronLeft";
+import ChevronRightIcon from "@inkling/ui/icons/ChevronRight";
+import ArrowUpRightIcon from "@inkling/ui/icons/ArrowUpRight";
+import SearchIcon from "@inkling/ui/icons/Search";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useQuery } from "@tanstack/react-query";
@@ -36,7 +36,7 @@ export function LicensesPanel({ onBack, onClose }: { onBack: () => void; onClose
       note="inkling is built on the work of these projects. Their licenses travel with it."
       before={
         <button type="button" onClick={onBack} {...stylex.props(styles.back)}>
-          <HugeiconsIcon icon={ArrowLeft01Icon} size={14} />
+          <Icon icon={ChevronLeftIcon} size={14} />
           General
         </button>
       }
@@ -55,7 +55,7 @@ export function LicensesPanel({ onBack, onClose }: { onBack: () => void; onClose
           disabled={!entries}
         />
         <label {...stylex.props(styles.search)}>
-          <HugeiconsIcon icon={Search01Icon} size={14} />
+          <Icon icon={SearchIcon} size={14} />
           <input
             type="search"
             placeholder="Name, version, or license"
@@ -118,7 +118,7 @@ function Notice({
           {...stylex.props(styles.noticeButton)}
         >
           <span {...stylex.props(styles.chevron, open && styles.chevronOpen)}>
-            <HugeiconsIcon icon={ArrowRight01Icon} size={13} />
+            <Icon icon={ChevronRightIcon} size={13} />
           </span>
           <span {...stylex.props(styles.name)}>{entry.name}</span>
           {entry.version && (
@@ -140,7 +140,7 @@ function Notice({
             }}
             {...stylex.props(styles.source)}
           >
-            <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} />
+            <Icon icon={ArrowUpRightIcon} size={14} />
           </a>
         )}
       </div>

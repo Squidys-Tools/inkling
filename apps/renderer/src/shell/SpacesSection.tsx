@@ -1,6 +1,6 @@
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import PlusSignIcon from "@hugeicons/core-free-icons/PlusSignIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import XIcon from "@inkling/ui/icons/X";
+import PlusIcon from "@inkling/ui/icons/Plus";
+import { Icon } from "@inkling/ui";
 import { Button, srOnly } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
@@ -51,7 +51,7 @@ export function SpacesSection({
           }}
           {...stylex.props(styles.add)}
         >
-          <HugeiconsIcon icon={PlusSignIcon} size={14} />
+          <Icon icon={PlusIcon} size={14} />
         </button>
       </div>
       <div {...stylex.props(styles.list)}>
@@ -84,7 +84,7 @@ export function SpacesSection({
             onClick={dismissSpaceError}
             {...stylex.props(styles.dismiss)}
           >
-            <HugeiconsIcon icon={Cancel01Icon} size={14} />
+            <Icon icon={XIcon} size={14} />
           </button>
         </div>
       )}

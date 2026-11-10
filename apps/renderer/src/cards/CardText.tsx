@@ -1,6 +1,6 @@
-import ArrowUpRight01Icon from "@hugeicons/core-free-icons/ArrowUpRight01Icon";
-import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import ArrowUpRightIcon from "@inkling/ui/icons/ArrowUpRight";
+import PlayIcon from "@inkling/ui/icons/Play";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, radius } from "@inkling/ui/tokens.stylex";
 import { type CardView, quoteAttribution } from "../library/cardModel.ts";
@@ -32,7 +32,7 @@ function Action({
         onKeyDown={(event) => event.stopPropagation()}
         {...stylex.props(styles.action, styles.actionOnPaper)}
       >
-        Read <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} />
+        Read <Icon icon={ArrowUpRightIcon} size={13} />
       </button>
     );
   if (view.isVideoLink)
@@ -46,10 +46,10 @@ function Action({
         onKeyDown={(event) => event.stopPropagation()}
         {...stylex.props(styles.action)}
       >
-        Watch <HugeiconsIcon icon={PlayIcon} size={11} />
+        Watch <Icon icon={PlayIcon} size={11} />
       </button>
     );
-  return <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} aria-hidden="true" />;
+  return <Icon icon={ArrowUpRightIcon} size={15} aria-hidden="true" />;
 }
 
 /**

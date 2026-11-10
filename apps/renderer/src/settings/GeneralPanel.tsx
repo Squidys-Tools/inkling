@@ -1,5 +1,5 @@
-import LicenseThirdPartyIcon from "@hugeicons/core-free-icons/LicenseThirdPartyIcon";
-import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
+import ScaleIcon from "@inkling/ui/icons/Scale";
+import PlayIcon from "@inkling/ui/icons/Play";
 import { Panel, PanelBody, Row, TextAction } from "./parts.tsx";
 
 export function GeneralPanel({
@@ -21,7 +21,7 @@ export function GeneralPanel({
           action={<TextAction onClick={onShowWelcome}>Show the welcome again</TextAction>}
         />
         <Row
-          icon={LicenseThirdPartyIcon}
+          icon={ScaleIcon}
           title="Open source licenses"
           description="The projects inkling is built on, and the terms they come with."
           action={<TextAction onClick={onShowLicenses}>View licenses</TextAction>}

@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
-import GithubIcon from "@hugeicons/core-free-icons/GithubIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import GithubIcon from "@inkling/ui/icons/Github";
+import { Icon } from "@inkling/ui";
 import { landingColor } from "@inkling/ui/tokens.stylex";
 import { Link } from "@tanstack/react-router";
 import { useInView } from "motion/react";
@@ -43,7 +43,7 @@ export function Header() {
           aria-label="inkling on GitHub"
           {...stylex.props(base.link, base.focus, styles.github)}
         >
-          <HugeiconsIcon icon={GithubIcon} size={24} />
+          <Icon icon={GithubIcon} size={24} />
         </a>
         <DownloadButton compact />
       </div>

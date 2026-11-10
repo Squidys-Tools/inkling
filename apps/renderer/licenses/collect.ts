@@ -62,8 +62,9 @@ const vendoredNotices = [
 ];
 
 // electron-builder ships the `dependencies` closure; Electron itself is a dev
-// dependency to the package manager but ships as the runtime.
-const SHIPPED_DEV_DEPENDENCIES = ["electron"];
+// dependency to the package manager but ships as the runtime. The icon packages
+// are read only by tools/icons/generate.ts, and their artwork ships in packages/ui/src/icons.
+const SHIPPED_DEV_DEPENDENCIES = ["electron", "runeicons", "runeicons-brands", "lucide-static"];
 const NOTICE_FILE = /^(licen[cs]e|copying|notice)([.-].*)?$/i;
 
 const readManifest = (dir: string): Manifest =>

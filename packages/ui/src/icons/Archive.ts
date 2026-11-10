@@ -1,0 +1,5 @@
+// Generated from rune:documents-archive by tools/icons/generate.ts. Edit tools/icons/manifest.ts instead.
+export default {
+  viewBox: "0 0 24 24",
+  body: "<g fill=\"none\"><path d=\"M4 8V19C4 19.5304 4.21071 20.0391 4.58579 20.4142C4.96086 20.7893 5.46957 21 6 21H18C18.5304 21 19.0391 20.7893 19.4142 20.4142C19.7893 20.0391 20 19.5304 20 19V8M10 12H14M3 3H21C21.5523 3 22 3.44772 22 4V7C22 7.55228 21.5523 8 21 8H3C2.44772 8 2 7.55228 2 7V4C2 3.44772 2.44772 3 3 3Z\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></g>",
+};

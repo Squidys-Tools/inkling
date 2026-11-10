@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
-import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import PlayIcon from "@inkling/ui/icons/Play";
+import { Icon } from "@inkling/ui";
 import { color, font, onboardingColor } from "@inkling/ui/tokens.stylex";
 import { type ReactNode, useLayoutEffect, useRef } from "react";
 import { onboardingPhotos } from "./media.ts";
@@ -125,7 +125,7 @@ function CardBody({ content }: { content: Content }): ReactNode {
           <img {...stylex.props(styles.fill)} src={content.src} alt="" draggable={false} />
           <span {...stylex.props(styles.scrim)} />
           <span {...stylex.props(styles.play)}>
-            <HugeiconsIcon icon={PlayIcon} size={14} />
+            <Icon icon={PlayIcon} size={14} />
           </span>
           <span {...stylex.props(styles.badge)}>{content.duration}</span>
         </>

@@ -1,4 +1,4 @@
-import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
+import LinkIcon from "@inkling/ui/icons/Link";
 import type { DesktopBridge } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";
 import { srOnly } from "@inkling/ui";
@@ -21,7 +21,7 @@ export function ExtensionPanel({ onClose }: { onClose: () => void }) {
         {desktop ? (
           <Pairing capture={desktop.capture} />
         ) : (
-          <EmptyState icon={Link01Icon} title="Pairing needs the desktop app.">
+          <EmptyState icon={LinkIcon} title="Pairing needs the desktop app.">
             Open Settings in the installed app to pair the browser extension.
           </EmptyState>
         )}

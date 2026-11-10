@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./icons/*": "./src/icons/*.ts",
     "./tokens.stylex": "./src/tokens.stylex.ts"
   }
 }

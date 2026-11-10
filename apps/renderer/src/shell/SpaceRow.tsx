@@ -1,8 +1,8 @@
-import ArrowDown01Icon from "@hugeicons/core-free-icons/ArrowDown01Icon";
-import ArrowUp01Icon from "@hugeicons/core-free-icons/ArrowUp01Icon";
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import Edit01Icon from "@hugeicons/core-free-icons/Edit01Icon";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import ChevronDownIcon from "@inkling/ui/icons/ChevronDown";
+import ChevronUpIcon from "@inkling/ui/icons/ChevronUp";
+import XIcon from "@inkling/ui/icons/X";
+import PencilIcon from "@inkling/ui/icons/Pencil";
+import { Icon, type IconData } from "@inkling/ui";
 import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -125,25 +125,20 @@ export function SpaceRow({
         <span {...stylex.props(styles.tools)}>
           <Tool
             label={`Move ${space.name} up`}
-            icon={ArrowUp01Icon}
+            icon={ChevronUpIcon}
             onSelect={() => void moveSpace(space, -1)}
           />
           <Tool
             label={`Move ${space.name} down`}
-            icon={ArrowDown01Icon}
+            icon={ChevronDownIcon}
             onSelect={() => void moveSpace(space, 1)}
           />
           <Tool
             label={`Rename ${space.name}`}
-            icon={Edit01Icon}
+            icon={PencilIcon}
             onSelect={() => setRenaming(space.name)}
           />
-          <Tool
-            label={`Delete ${space.name}`}
-            icon={Cancel01Icon}
-            danger
-            onSelect={() => void remove()}
-          />
+          <Tool label={`Delete ${space.name}`} icon={XIcon} danger onSelect={() => void remove()} />
         </span>
       )}
     </div>
@@ -157,7 +152,7 @@ function Tool({
   onSelect,
 }: {
   label: string;
-  icon: IconSvgElement;
+  icon: IconData;
   danger?: boolean;
   onSelect: () => void;
 }) {
@@ -172,7 +167,7 @@ function Tool({
       }}
       {...stylex.props(styles.tool, danger && styles.danger)}
     >
-      <HugeiconsIcon icon={icon} size={12} />
+      <Icon icon={icon} size={12} />
     </button>
   );
 }

@@ -1,5 +1,5 @@
-import PlusSignIcon from "@hugeicons/core-free-icons/PlusSignIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import PlusIcon from "@inkling/ui/icons/Plus";
+import { Icon } from "@inkling/ui";
 import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
@@ -37,7 +37,7 @@ export function TagList({
       ))}
       {edit.draft === null ? (
         <button type="button" onClick={() => edit.start("")} {...stylex.props(styles.add)}>
-          <HugeiconsIcon icon={PlusSignIcon} size={11} />
+          <Icon icon={PlusIcon} size={11} />
           Add tag
         </button>
       ) : (

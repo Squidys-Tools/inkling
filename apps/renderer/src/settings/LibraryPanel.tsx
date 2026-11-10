@@ -1,8 +1,8 @@
-import Download04Icon from "@hugeicons/core-free-icons/Download04Icon";
-import Folder01Icon from "@hugeicons/core-free-icons/Folder01Icon";
-import Loading01Icon from "@hugeicons/core-free-icons/Loading01Icon";
-import Upload04Icon from "@hugeicons/core-free-icons/Upload04Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import ArrowDownToLineIcon from "@inkling/ui/icons/ArrowDownToLine";
+import FolderIcon from "@inkling/ui/icons/Folder";
+import LoaderCircleIcon from "@inkling/ui/icons/LoaderCircle";
+import ArrowUpFromLineIcon from "@inkling/ui/icons/ArrowUpFromLine";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
 import type { ReactNode } from "react";
@@ -51,10 +51,7 @@ export function LibraryPanel({
               )}
             </div>
             {desktop && (
-              <SquareButton
-                onClick={showFolder}
-                icon={<HugeiconsIcon icon={Folder01Icon} size={13} />}
-              >
+              <SquareButton onClick={showFolder} icon={<Icon icon={FolderIcon} size={13} />}>
                 Show folder
               </SquareButton>
             )}
@@ -63,7 +60,7 @@ export function LibraryPanel({
         </div>
         {failure("folder")}
         <Row
-          icon={busy === "export" ? Loading01Icon : Download04Icon}
+          icon={busy === "export" ? LoaderCircleIcon : ArrowDownToLineIcon}
           title="Export a copy"
           description="A dated folder with the database, every file, and a manifest. Keep it on another drive."
           action={
@@ -83,7 +80,7 @@ export function LibraryPanel({
           {failure("export")}
         </Row>
         <Row
-          icon={busy === "import" ? Loading01Icon : Upload04Icon}
+          icon={busy === "import" ? LoaderCircleIcon : ArrowUpFromLineIcon}
           title="Restore from an export"
           description="Adds its items, files and Spaces here. Nothing already in your library gets replaced."
           action={

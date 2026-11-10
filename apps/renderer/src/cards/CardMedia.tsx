@@ -1,5 +1,5 @@
-import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import PlayIcon from "@inkling/ui/icons/Play";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useLayoutEffect, useRef } from "react";
 import { cardColor, color, font, radius } from "@inkling/ui/tokens.stylex";
@@ -67,7 +67,7 @@ export function CardImage({ view, priority }: { view: CardView; priority: boolea
 function VideoPill({ view }: { view: CardView }) {
   return (
     <span {...stylex.props(styles.pill)} aria-hidden="true">
-      <HugeiconsIcon icon={PlayIcon} size={10} />
+      <Icon icon={PlayIcon} size={10} />
       {view.durationSeconds !== undefined && <span>{formatDuration(view.durationSeconds)}</span>}
     </span>
   );

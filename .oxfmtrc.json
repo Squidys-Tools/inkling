@@ -4,6 +4,7 @@
     "benchmarks/corpus",
     "docs/assets",
     "extension/icons",
+    "packages/ui/src/icons",
     "apps/site/src/routeTree.gen.ts",
     "bun.lock",
     "**/*.md",

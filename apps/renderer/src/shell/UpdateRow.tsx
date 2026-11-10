@@ -1,10 +1,10 @@
-import Alert02Icon from "@hugeicons/core-free-icons/Alert02Icon";
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import CheckmarkCircle02Icon from "@hugeicons/core-free-icons/CheckmarkCircle02Icon";
-import Download01Icon from "@hugeicons/core-free-icons/Download01Icon";
-import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
-import SecurityCheckIcon from "@hugeicons/core-free-icons/SecurityCheckIcon";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import TriangleAlertIcon from "@inkling/ui/icons/TriangleAlert";
+import XIcon from "@inkling/ui/icons/X";
+import CircleCheckIcon from "@inkling/ui/icons/CircleCheck";
+import ArrowDownToLineIcon from "@inkling/ui/icons/ArrowDownToLine";
+import RotateCwIcon from "@inkling/ui/icons/RotateCw";
+import ShieldCheckIcon from "@inkling/ui/icons/ShieldCheck";
+import { Icon, type IconData } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useRef } from "react";
 import { cardColor, color, font, loadingColor, motion, radius } from "@inkling/ui/tokens.stylex";
@@ -13,14 +13,14 @@ import { useAppUpdate } from "../settings/useAppUpdate.ts";
 import type { UpdateNavPhase } from "../settings/updateModel.ts";
 import { GooLiquid } from "./GooLiquid.tsx";
 
-const icons: Record<UpdateNavPhase, IconSvgElement> = {
-  available: Download01Icon,
+const icons: Record<UpdateNavPhase, IconData> = {
+  available: ArrowDownToLineIcon,
   checking: RotateCwIcon,
-  downloading: Download01Icon,
-  verifying: SecurityCheckIcon,
-  ready: CheckmarkCircle02Icon,
-  installing: CheckmarkCircle02Icon,
-  failed: Alert02Icon,
+  downloading: ArrowDownToLineIcon,
+  verifying: ShieldCheckIcon,
+  ready: CircleCheckIcon,
+  installing: CircleCheckIcon,
+  failed: TriangleAlertIcon,
 };
 
 // Each state borrows a card's own look: an offer is outlined, a finished update is solid ink,
@@ -78,7 +78,7 @@ export function UpdateRow({ compact }: { compact: boolean }) {
             failed && styles.iconFailed,
           )}
         >
-          <HugeiconsIcon icon={icons[row.phase]} size={15} />
+          <Icon icon={icons[row.phase]} size={15} />
         </span>
         {!compact && (
           <>
@@ -95,7 +95,7 @@ export function UpdateRow({ compact }: { compact: boolean }) {
             )}
             {failed && (
               <span aria-hidden="true" data-sidebar-label {...stylex.props(styles.retry)}>
-                <HugeiconsIcon icon={RotateCwIcon} size={12} />
+                <Icon icon={RotateCwIcon} size={12} />
               </span>
             )}
           </>
@@ -115,7 +115,7 @@ export function UpdateRow({ compact }: { compact: boolean }) {
           onClick={() => void update.cancel()}
           {...stylex.props(styles.cancel)}
         >
-          <HugeiconsIcon icon={Cancel01Icon} size={12} />
+          <Icon icon={XIcon} size={12} />
         </button>
       )}
       {waiting && (

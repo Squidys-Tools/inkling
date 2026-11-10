@@ -1,9 +1,9 @@
-import CheckmarkBadge01Icon from "@hugeicons/core-free-icons/CheckmarkBadge01Icon";
-import HeartIcon from "@hugeicons/core-free-icons/HeartIcon";
-import Message01Icon from "@hugeicons/core-free-icons/Message01Icon";
-import RepeatIcon from "@hugeicons/core-free-icons/RepeatIcon";
-import Share08Icon from "@hugeicons/core-free-icons/Share08Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
+import BadgeCheckIcon from "@inkling/ui/icons/BadgeCheck";
+import HeartIcon from "@inkling/ui/icons/Heart";
+import MessageCircleIcon from "@inkling/ui/icons/MessageCircle";
+import RepeatIcon from "@inkling/ui/icons/Repeat";
+import ShareIcon from "@inkling/ui/icons/Share";
+import { Icon } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, font, radius } from "@inkling/ui/tokens.stylex";
 import type { PostArt } from "../library/cardModel.ts";
@@ -35,7 +35,7 @@ export function PostArtwork({
         </span>
         <span {...stylex.props(styles.byline)}>
           <strong {...stylex.props(styles.name)}>{post.displayName}</strong>
-          <HugeiconsIcon icon={CheckmarkBadge01Icon} size={13} />
+          <Icon icon={BadgeCheckIcon} size={13} />
           <small {...stylex.props(styles.handle)}>{post.handle}</small>
         </span>
         <span {...stylex.props(styles.logo)}>X</span>
@@ -45,10 +45,10 @@ export function PostArtwork({
         <>
           <div {...stylex.props(styles.published)}>{post.published}</div>
           <div {...stylex.props(styles.actions)}>
-            <HugeiconsIcon icon={Message01Icon} size={14} />
-            <HugeiconsIcon icon={RepeatIcon} size={14} />
-            <HugeiconsIcon icon={HeartIcon} size={14} />
-            <HugeiconsIcon icon={Share08Icon} size={14} />
+            <Icon icon={MessageCircleIcon} size={14} />
+            <Icon icon={RepeatIcon} size={14} />
+            <Icon icon={HeartIcon} size={14} />
+            <Icon icon={ShareIcon} size={14} />
           </div>
         </>
       )}
