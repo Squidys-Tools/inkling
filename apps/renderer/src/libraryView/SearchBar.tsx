@@ -190,7 +190,7 @@ const styles = stylex.create({
     height: "50px",
     width: "min(700px, calc(100% - 304px))",
     minWidth: "min(420px, calc(100% - 28px))",
-    borderRadius: radius.overlay,
+    borderRadius: radius.frame,
   },
   label: {
     position: "relative",
