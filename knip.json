@@ -15,8 +15,7 @@
       "entry": ["index.html"]
     },
     "apps/site": {
-      "entry": ["src/routes/**/*.tsx"],
-      "ignoreBinaries": ["cloudflared"]
+      "entry": ["src/routes/**/*.tsx"]
     },
     "packages/library": {
       "entry": ["src/storage/sqlite-snapshot-worker.ts"]

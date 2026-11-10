@@ -1,5 +1,68 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import { type ChildProcess, execFileSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { chmodSync, existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
+
+const VERSION = "2026.10.7";
+// SHA-256 of each release file, from the release page. Change them together with VERSION.
+const builds: Record<string, { file: string; sha256: string }> = {
+  "win32-x64": {
+    file: "cloudflared-windows-amd64.exe",
+    sha256: "2493dbc168923bb3e59e5e7716f71deced92992eea9acd6e9d74f84ac7751343",
+  },
+  "linux-x64": {
+    file: "cloudflared-linux-amd64",
+    sha256: "1f99fb518b83dec2ba8d870a7cc991d82a77e6196295a3d2754ba17ab9f91872",
+  },
+  "linux-arm64": {
+    file: "cloudflared-linux-arm64",
+    sha256: "3df43aedc9ff291d1735b5cb576cb97e0b157488796db2e32b28aecabb445775",
+  },
+  "darwin-x64": {
+    file: "cloudflared-darwin-amd64.tgz",
+    sha256: "02f3edfd87684dd5b705607688e4eb4b323f6e777b81e7b3a85af556aa356848",
+  },
+  "darwin-arm64": {
+    file: "cloudflared-darwin-arm64.tgz",
+    sha256: "3586ccf397e98e5f437e60e7c307ca6ac463e110580503af8bb8e6f9ebf831bd",
+  },
+};
+
+// Under the root node_modules, which the worktree's settle action (tools/repo/clean-worktree.ts) deletes.
+const cache = fileURLToPath(
+  new URL(`../../node_modules/.cache/cloudflared/${VERSION}`, import.meta.url),
+);
+
+/** The pinned cloudflared, downloaded on first use and checked against its checksum. */
+async function cloudflared(log: (message: string) => void) {
+  const build = builds[`${process.platform}-${process.arch}`];
+  if (!build) throw new Error(`no cloudflared build for ${process.platform}-${process.arch}`);
+  const binary = join(cache, process.platform === "win32" ? "cloudflared.exe" : "cloudflared");
+  if (existsSync(binary)) return binary;
+  log(`  Downloading cloudflared ${VERSION}...`);
+  const url = `https://github.com/cloudflare/cloudflared/releases/download/${VERSION}/${build.file}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`cloudflared download failed: ${response.status} ${url}`);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (createHash("sha256").update(bytes).digest("hex") !== build.sha256)
+    throw new Error(`cloudflared download does not match its checksum: ${url}`);
+  mkdirSync(cache, { recursive: true });
+  // Written beside the final name and renamed, so an interrupted download is never run.
+  const partial = join(cache, `partial-${process.pid}`);
+  if (build.file.endsWith(".tgz")) {
+    mkdirSync(partial);
+    writeFileSync(join(partial, build.file), bytes);
+    execFileSync("tar", ["-xzf", build.file], { cwd: partial });
+    chmodSync(join(partial, "cloudflared"), 0o755);
+    renameSync(join(partial, "cloudflared"), binary);
+  } else {
+    writeFileSync(partial, bytes, { mode: 0o755 });
+    renameSync(partial, binary);
+  }
+  return binary;
+}
 
 const address = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/u;
 
@@ -18,7 +81,7 @@ async function resolves(url: string) {
 /**
  * Dev server only. `t + enter`, or `INKLING_TUNNEL=1` at start, serves the dev
  * site at a public trycloudflare.com address through `cloudflared`, to open it
- * from another machine. Anyone with the address can read the worktree's source.
+ * from another machine. `cloudflared` is downloaded on first use. Anyone with the address can read the worktree's source.
  */
 export function tunnel(): Plugin {
   return {
@@ -31,7 +94,10 @@ export function tunnel(): Plugin {
         child?.kill();
         child = undefined;
       };
-      const toggle = () => {
+      let opening = false;
+      const fail = (error: unknown) => logger.error(`  Tunnel failed: ${(error as Error).message}`);
+      const toggle = async () => {
+        if (opening) return;
         if (child) {
           close();
           logger.info("  Tunnel closed");
@@ -39,8 +105,12 @@ export function tunnel(): Plugin {
         }
         const local = server.httpServer?.address();
         if (!local || typeof local === "string") return;
+        opening = true;
+        const binary = await cloudflared((message) => logger.info(message)).catch(fail);
+        opening = false;
+        if (!binary || !server.httpServer?.listening) return;
         const started = spawn(
-          "cloudflared",
+          binary,
           // Vite answers only hosts it knows, so requests arrive named localhost.
           ["tunnel", "--url", `http://localhost:${local.port}`, "--http-host-header", "localhost"],
           { stdio: ["ignore", "ignore", "pipe"] },
@@ -65,9 +135,7 @@ export function tunnel(): Plugin {
           found = true;
           void announce(url);
         });
-        started.on("error", () => {
-          logger.error("  cloudflared is not on PATH: winget install Cloudflare.cloudflared");
-        });
+        started.on("error", fail);
         started.on("close", () => {
           if (child !== started) return;
           child = undefined;
