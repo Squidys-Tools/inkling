@@ -25,6 +25,7 @@ Preconditions: a note with body `verify probe alpha` exists (run capture-note fi
 
 ## Gotchas
 
+- After capture-note's keyboard step there are two `Note: Untitled note` cards and `ref group` refuses; read both refs from `$I tree` (newest first, so the older `verify probe alpha` note is the second) and click that one.
 - After a click that opens a view, the first snapshot may fail with `atomic replace failed … retry: safe`; take a fresh one (`ref` and `tree` retry for you or can be re-run). Do not repeat the click.
 - The editor is a full-page route, not a dialog; the Save button's name is `Save note`, not `Save to library`.
 - The editable field is a contenteditable body: `set-value` replaces it whole.

@@ -35,6 +35,8 @@ bun .claude/skills/verify-inkling/scripts/instance.ts launch --skip-build   # re
 bun .claude/skills/verify-inkling/scripts/instance.ts launch --link "inkling://capture?url=https://example.com/"   # the app saves the link at startup
 ```
 
+`launch --installer [--fail]` opens the Windows setup window instead of the app, on a test-identity installer that installs under `.dev` and never touches the user's install; see [features/installer.md](features/installer.md). `progress` reports its bar's pacing.
+
 `--link` passes a plain `inkling://capture?url=...` value to Electron as a launch argument, so it needs no OS registration. Other values are refused.
 
 (All commands below take the same `bun .claude/skills/verify-inkling/scripts/instance.ts` prefix.) Run from inside the worktree.
@@ -75,14 +77,14 @@ Loop: `ref` (or `tree`) → act on the returned ref → `tree`/`find` again to v
 
 Handles that hold in this app (from the live run):
 
-- Sidebar: link `Everything <count>`, links per Space (`Design references`, `Read later`, `Weekend reading <n>`), per-Space buttons `Rename|Delete|Move … up|down|Change color of <name>`, menubutton `Add a Space`, menubutton `Add`, link `Archive`, menubutton `Settings`.
+- Sidebar: link `Everything <count>`, links per Space (`Design references`, `Read later`, `Weekend reading <n>`), per-Space buttons `Rename|Delete|Move … up|down|Change color of <name>`, menubutton `Add a Space`, menubutton `Add`, link `Archive`, menubutton `Settings`, menubutton `Close sidebar`.
 - The `Add` menubutton opens its menu only through `expand` (a semantic `click` does nothing). Then `tree --surface menu` or `find --role menuitem --name Note --exact`; menu items: Note, Link, Quote, File, Screenshot.
 - Cards are groups named `<Kind>: <title>` (`Note: Untitled note`, `Image: …`, `Article: …`, `Post: …`); search box is textfield `Search your mind`; switches `Grid view`/`List view`.
 - Routes show as link/document values: `app://local/index.html#/`, `#/add/note`, `#/space/<id>`, `#/archive`.
 - A note's body is a textfield named `Note` (contenteditable, `set-value` works); buttons `Save to library`, `Save note`, `Cancel`, `Edit note`, `Archive`, `Keep in a Space`.
 - In-app DOM menus (base-ui popups like the `Item actions` menu behind `Keep in a Space`, and the card context menu) appear via `$I tree --surface menu` with role `menu`/`menuitem`; the native `Menu.popup` bridge exists but no renderer calls it. Native confirms (delete a populated Space, delete forever) open a second window of ours: `$I windows`, then `$I tree --window <id>` and `$I ref button '<name>' --window <id>`. Radio `Regular` in the Add-a-Space form cannot be clicked; use keyboard (see features/spaces.md).
 
-Retries: a snapshot or find can fail with `atomic replace failed ... os error 1175` and `disposition: {delivery: not_delivered, retry: safe}`. A fresh snapshot/find is the fix — `ref` and `tree` already retry it a few times, so re-run the command when it still fails. `doctor`'s snapshot check does not retry, so a healthy run can report a transient FAIL there; re-run `doctor` before relaunching. Never repeat an action whose `disposition.retry` is `unsafe` (all successful click/set-value results say so): read state instead. With several `electron.exe` windows only the id from `$I window` is ours.
+Retries: a snapshot or find can fail with `atomic replace failed ... os error 1175` and `disposition: {delivery: not_delivered, retry: safe}`. A fresh snapshot/find is the fix — `ref` and `tree` already retry it a few times, so re-run the command when it still fails, and read `db` before repeating any action that may have gone through (just after a save the app is busy enough for `ref` to fail twice). `doctor`'s snapshot check does not retry, so a healthy run can report a transient FAIL there; re-run `doctor` before relaunching. Never repeat an action whose `disposition.retry` is `unsafe` (all successful click/set-value results say so): read state instead. With several `electron.exe` windows only the id from `$I window` is ours.
 
 ## Evidence
 
@@ -103,7 +105,7 @@ Run after every run, including failed ones and before you finish:
 bun .claude/skills/verify-inkling/scripts/instance.ts cleanup
 ```
 
-It stops the recorded pids (graceful `taskkill /T`, then `/F /T` after 4 s; only pids from `run.json` whose command line still names our `.dev`), verifies nothing referencing `.dev` remains, then deletes the whole `.dev` directory. If something unrecorded still references `.dev` it refuses and lists the pids: close those yourself. It takes about 15 s. Afterwards confirm: `.dev` gone, `ls .artifacts/verify-inkling/<run>/` still lists your evidence, other inkling windows untouched. Idempotent: with no `.dev` it says so and exits 0.
+It stops the recorded pids (graceful `taskkill /T`, then `/F /T` after 4 s; only pids from `run.json` whose command line still names our `.dev`), uninstalls an installer run's test install (refusing if its registry entry survives), verifies nothing referencing `.dev` remains, then deletes the whole `.dev` directory. If something unrecorded still references `.dev` it refuses and lists the pids: close those yourself. It takes about 15 s. Afterwards confirm: `.dev` gone, `ls .artifacts/verify-inkling/<run>/` still lists your evidence, other inkling windows untouched. Idempotent: with no `.dev` it says so and exits 0.
 
 The settle action (`tools/repo/clean-worktree.ts`, see the operational requirement above) does this same `.dev` cleanup, then removes `.dev-library/`, `dist/` and the `node_modules` folders. Both refuse unless run with cwd inside this worktree, and operate only on the exact `<worktree>/.dev` (refused if it is a symlink).
 
@@ -111,7 +113,7 @@ The settle action (`tools/repo/clean-worktree.ts`, see the operational requireme
 
 | Script | What |
 |---|---|
-| `scripts/instance.ts` | `launch [--empty] [--skip-build] [--link <inkling:// link>]`, `doctor`, `window`, `windows`, `ref <role> <name> [--contains] [--in <ref>]`, `tree [snapshot args]`, `ad <agent-desktop args>`, `shot <name>`, `db "<SELECT>"`, `capture <url>`, `cleanup` |
+| `scripts/instance.ts` | `launch [--empty] [--skip-build] [--link <inkling:// link>]`, `launch --installer [--fail]`, `progress`, `doctor`, `window`, `windows`, `ref <role> <name> [--contains] [--in <ref>]`, `tree [snapshot args]`, `ad <agent-desktop args>`, `shot <name>`, `db "<SELECT>"`, `capture <url>`, `cleanup` |
 | `scripts/clean-dev.ts` | Library, no CLI: stop the run's recorded processes, keep their logs, delete `.dev`; shared guards and process logic for `cleanup` and the settle action |
 | `../../../tools/repo/clean-worktree.ts` | The worktree settle action (`Clean up worktree` in `t3.json`): the `.dev` cleanup, then `.dev-library/`, `dist/` and every `node_modules` |
 

@@ -77,7 +77,7 @@ Loop: `ref` (or `tree`) → act on the returned ref → `tree`/`find` again to v
 
 Handles that hold in this app (from the live run):
 
-- Sidebar: link `Everything <count>`, links per Space (`Design references`, `Read later`, `Weekend reading <n>`), per-Space buttons `Rename|Delete|Move … up|down|Change color of <name>`, menubutton `Add a Space`, menubutton `Add`, link `Archive`, menubutton `Settings`.
+- Sidebar: link `Everything <count>`, links per Space (`Design references`, `Read later`, `Weekend reading <n>`), per-Space buttons `Rename|Delete|Move … up|down|Change color of <name>`, menubutton `Add a Space`, menubutton `Add`, link `Archive`, menubutton `Settings`, menubutton `Close sidebar`.
 - The `Add` menubutton opens its menu only through `expand` (a semantic `click` does nothing). Then `tree --surface menu` or `find --role menuitem --name Note --exact`; menu items: Note, Link, Quote, File, Screenshot.
 - Cards are groups named `<Kind>: <title>` (`Note: Untitled note`, `Image: …`, `Article: …`, `Post: …`); search box is textfield `Search your mind`; switches `Grid view`/`List view`.
 - Routes show as link/document values: `app://local/index.html#/`, `#/add/note`, `#/space/<id>`, `#/archive`.

@@ -11,7 +11,7 @@ Capture a note saves typed text as a note card in Everything immediately, with a
 ## How to get to it (user POV)
 
 - Choose **Add** in the sidebar, then **Note**. The `n` / Ctrl+N shortcut opens the same editor. Ctrl+Enter also saves.
-- Paste, drag and drop, and the extension create other kinds; not this feature. (Pasted plain text does create a `note` row straight to the library, with `captureSource` `clipboard` and no editor.)
+- Paste, drag and drop, and the extension create other kinds; not this feature — except text: pasted or dropped plain text creates a `note` row straight to the library with no editor (`captureSource` `clipboard` / `drag and drop`; a URL alone becomes a `url` item instead).
 
 ## Driving it with agent-desktop
 
@@ -27,8 +27,8 @@ Preconditions: seeded library, `doctor` all PASS, sidebar reads `Everything 32`.
 
 ## Gotchas
 
-- Notes store a null title; the card is always `Note: Untitled note`. Don't search the grid for the body text.
+- Notes store a null title; the card is `Note: <title>`, and without a title `Note: Untitled note`. Don't search the grid for the body text.
 - `set-value` reports `application_commit: not_verified` but the app did commit it (the saved row proves it). Always read the row.
 - The `Everything` count includes only active items; the seed also has archived rows.
-- Empty text is refused; text that is only a URL is saved as a link, not a note.
+- Empty text is refused; text that is only a URL is saved as a `url` item (an `Article:` card), not a note.
 - `ref group 'Note: Untitled note'` reports multiple matches if you capture twice; the seed's other note is `Note: Books to reread this fall`.
