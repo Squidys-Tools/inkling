@@ -30,6 +30,6 @@ Preconditions: seeded library, Everything selected.
 - `set-value` on the search field does drive the app's search. `click` on a switch does not blur the field; `check` does.
 - Once the field blurs with a non-matching query, two controls named `Clear search` exist — the empty-state action and the filter row's chip — so `ref button 'Clear search'` reports 2 matches; resolve one from `tree` or re-focus the field first. `Save as Space` opens the same inline draft form the sidebar's `Add a Space` uses, not a dialog.
 - Results update after a debounce; re-run `tree` and look for the expected group or the `Clear search` button.
-- Full-app search is whole-token text (FTS) plus optional semantic ranking: `hund` will not match `hundred`; a semantic match may add unrelated cards once embeddings exist (the model may download on first use).
+- Full-app search is whole-token text (FTS) plus optional semantic ranking: `hund` will not match `hundred`; a semantic match may add unrelated cards once embeddings exist. Search never downloads the model (`embedQuery` may not use the network): without it the semantic pass times out quietly and text ranking alone answers.
 - Search covers the whole library even while a Space is selected.
 - `check` on `List view` leaves the app in List view; check `Grid view` to go back.

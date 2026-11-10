@@ -1,6 +1,6 @@
 # Capture a link
 
-Capture a link saves a URL as a card at once, then fills in title and description in the background. Status: **driven** on 2026-11-09. This is the only mapped capture that uses the network (it fetches the URL you type).
+Capture a link saves a URL as a card at once, then fills in title and description in the background. Status: **driven** on 2026-11-09. Like the deep-link and receiver captures it fetches the URL (network); this is the networked capture driven through the Add form.
 
 ## Sub-features
 
@@ -24,4 +24,5 @@ Preconditions: seeded library; the machine can reach `https://example.com/`.
 
 - The card is named `Article: <title>` and its title changes after enrichment, so re-resolve it by the current title.
 - Offline, the card keeps the domain title (partial result) and the job fails or retries: check `jobs.status`.
+- If `ref` fails with the `1175` error after its retries, the form is still open: run it again, and read `db` before repeating a save so you do not capture twice.
 - A link capture queues exactly one job, `enrich_url`; `generate_embedding` is chained after enrichment succeeds. Links never get a poster job (`video_poster` is for saved video files only). Wait on the specific `enrich_url` row.
