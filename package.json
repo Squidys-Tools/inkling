@@ -93,7 +93,7 @@
     "@oxlint/plugins": "1.92.0",
     "@stylexjs/stylex": "0.19.1",
     "@stylexjs/unplugin": "0.19.1",
-    "@tanstack/react-hotkeys": "0.22.2",
+    "@tanstack/react-hotkeys": "0.22.3",
     "@tanstack/react-query": "5.107.1",
     "@tanstack/react-router": "1.170.46",
     "@tanstack/react-start": "1.169.5",
