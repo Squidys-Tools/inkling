@@ -91,7 +91,7 @@
     "@inkling/library": "workspace:*",
     "@inkling/rpc-electron": "workspace:*",
     "@inkling/ui": "workspace:*",
-    "@oxlint/plugins": "1.92.0",
+    "@oxlint/plugins": "1.93.0",
     "@stylexjs/stylex": "0.19.1",
     "@stylexjs/unplugin": "0.19.1",
     "@tanstack/react-hotkeys": "0.22.2",
