@@ -1,6 +1,4 @@
 import Archive01Icon from "@hugeicons/core-free-icons/Archive01Icon";
-import Loading01Icon from "@hugeicons/core-free-icons/Loading01Icon";
-import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import SidebarLeftIcon from "@hugeicons/core-free-icons/SidebarLeftIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -18,12 +16,12 @@ import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { Mascot } from "../mascot/Mascot.tsx";
 import { useMascotMood } from "../mascot/useMascotMood.ts";
 import { libraryQuery } from "../queryClient.ts";
-import { useAppUpdate } from "../settings/useAppUpdate.ts";
 import { AddMenu } from "./AddMenu.tsx";
 import { IndexingRing } from "./IndexingRing.tsx";
 import { NavButton, NavLink } from "./NavRow.tsx";
 import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
 import { SpacesSection } from "./SpacesSection.tsx";
+import { UpdateRow } from "./UpdateRow.tsx";
 
 // Keep the shipped nine-dot Everything glyph unchanged.
 function DotGrid() {
@@ -53,22 +51,6 @@ function SidebarMascot() {
   // The mascot stays as the compact rail's way back, even during search.
   const mood = useMascotMood({ searchFocused: false, query, captureFailed });
   return <Mascot mood={mood} size={44} visible />;
-}
-
-function UpdateRow({ compact }: { compact: boolean }) {
-  const { navRow, runNavRow } = useAppUpdate({ start: false });
-  if (!navRow) return null;
-  return (
-    <NavButton
-      compact={compact}
-      tone="update"
-      icon={<HugeiconsIcon icon={navRow.busy ? Loading01Icon : RotateCwIcon} size={15} />}
-      label={navRow.label}
-      description={navRow.description}
-      disabled={navRow.busy}
-      onClick={() => void runNavRow()}
-    />
-  );
 }
 
 export function Sidebar({

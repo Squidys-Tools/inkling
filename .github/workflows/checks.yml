@@ -56,3 +56,5 @@ jobs:
           bun-version-file: .bun-version
       - run: bun install --frozen-lockfile
       - run: bun run test
+      - name: Check the WebGL painters against their CPU painters
+        run: ${{ runner.os == 'Linux' && 'xvfb-run -a ' || '' }}bun tools/smoke/gl-paint.ts

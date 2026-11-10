@@ -11,7 +11,7 @@ const channels: readonly { value: UpdateChannel; label: string }[] = [
   { value: "nightly", label: "Nightly" },
 ];
 
-function statusText({ state, pending }: AppUpdate) {
+function statusText({ state, pending, verifying }: AppUpdate) {
   if (pending === "channel") return "Saving your channel…";
   if (!state) return "Loading update settings…";
   switch (state.status) {
@@ -24,7 +24,9 @@ function statusText({ state, pending }: AppUpdate) {
     case "available":
       return `Version ${state.availableVersion} is available to download.`;
     case "downloading":
-      return "Downloading the update. You can keep using inkling.";
+      return verifying
+        ? "Checking the download against the release feed before it can install."
+        : "Downloading the update. You can keep using inkling.";
     case "downloaded":
       return `Version ${state.downloadedVersion ?? state.availableVersion} is downloaded. Restart when you’re ready.`;
     case "installing":
@@ -48,9 +50,9 @@ function retryHint(action: AppUpdate["failedAction"]) {
 
 export function UpdatesPanel({ onClose }: { onClose: () => void }) {
   const update = useAppUpdate();
-  const { state, isBusy, isReadyToInstall: ready, canDownload, failedAction } = update;
+  const { state, isBusy, isReadyToInstall: ready, canDownload, failedAction, verifying } = update;
   const disabled = !state || state.status === "disabled";
-  const downloading = state?.status === "downloading";
+  const downloading = state?.status === "downloading" && !verifying;
   const installing = state?.status === "installing";
   const progress =
     state?.progress === null || state?.progress === undefined || !Number.isFinite(state.progress)
@@ -78,13 +80,15 @@ export function UpdatesPanel({ onClose }: { onClose: () => void }) {
                 <SquareButton disabled={update.cancelling} onClick={() => void update.cancel()}>
                   {update.cancelling ? "Cancelling…" : "Cancel download"}
                 </SquareButton>
+              ) : verifying ? (
+                <SquareButton disabled>Verifying…</SquareButton>
               ) : canDownload || ready || installing ? (
                 <SquareButton
                   look="solid"
                   disabled={disabled || isBusy}
                   onClick={() => void (ready ? update.install() : update.download())}
                 >
-                  {installing ? "Installing…" : ready ? "Restart and install" : "Download update"}
+                  {installing ? "Installing…" : ready ? "Restart to update" : "Download update"}
                 </SquareButton>
               ) : (
                 <SquareButton disabled={disabled || isBusy} onClick={() => void update.check()}>

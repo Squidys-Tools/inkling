@@ -151,8 +151,6 @@ export function createUpdateStore(bridge: UpdateBridge | undefined) {
       start();
       return observe(listener);
     },
-    /** Follows the state without asking main for it, which would load the updater there. */
-    observe,
     check: () => run("check", (updates) => updates.check()),
     setChannel: (channel: UpdateChannel) =>
       run("channel", (updates) => updates.setChannel(channel)),
@@ -178,6 +176,8 @@ export function updateView(snapshot: UpdateSnapshot) {
       : (state?.availableVersion ??
         (ready || status === "installing" ? state?.downloadedVersion : null) ??
         null);
+  // Main reports 100% before the download is verified, so a download that rounds to 100% is verifying.
+  const verifying = status === "downloading" && Math.round(state?.progress ?? 0) >= 100;
   return {
     state,
     pending,
@@ -185,6 +185,7 @@ export function updateView(snapshot: UpdateSnapshot) {
     isLoading: state === null,
     isBusy: pending !== null || (status !== undefined && inFlight(status)),
     isReadyToInstall: ready,
+    verifying,
     availableVersion,
     canDownload: Boolean(availableVersion) && !ready && status !== undefined && !inFlight(status),
     failedAction: status === "error" ? (state?.errorContext ?? "check") : null,
@@ -193,35 +194,105 @@ export function updateView(snapshot: UpdateSnapshot) {
 
 export type UpdateView = ReturnType<typeof updateView>;
 
-/** The sidebar row that offers a new version, or null when there is none. */
+export type UpdateNavPhase =
+  | "available"
+  | "checking"
+  | "downloading"
+  | "verifying"
+  | "ready"
+  | "installing"
+  | "failed";
+
+export type UpdateNavRow = {
+  phase: UpdateNavPhase;
+  label: string;
+  /** The version on offer or ready, or a download's percentage. */
+  detail: string | null;
+  /** 0 to 100 while the download runs and is verified; null when the row has no bar. */
+  progress: number | null;
+  description: string;
+  busy: boolean;
+  action: Exclude<UpdateAction, "channel">;
+};
+
+/**
+ * The sidebar row that offers a new version, or null when there is none. Main
+ * reports 100% before the download is verified, so 100% reads as verifying.
+ */
 export function updateNavRow({
   state,
   isBusy,
   isReadyToInstall: ready,
+  verifying,
   availableVersion,
   failedAction,
-}: UpdateView) {
+}: UpdateView): UpdateNavRow | null {
   if (!state || !availableVersion) return null;
-  const label =
+  const version = ready ? (state.downloadedVersion ?? availableVersion) : availableVersion;
+  const clamped = state.progress === null ? null : Math.min(100, Math.max(0, state.progress));
+  const percent = clamped === null ? null : Math.round(clamped);
+  const phase: UpdateNavPhase =
     state.status === "installing"
-      ? "Installing…"
-      : state.status === "downloading"
-        ? `Downloading${state.progress === null ? "…" : ` ${Math.round(state.progress)}%`}`
-        : isBusy
-          ? "Updating…"
+      ? "installing"
+      : state.status === "checking"
+        ? "checking"
+        : state.status === "downloading"
+          ? verifying
+            ? "verifying"
+            : "downloading"
           : ready
-            ? "Restart and install"
-            : failedAction === "check"
-              ? "Check failed · retry"
-              : failedAction
-                ? "Download failed · retry"
-                : "Download update";
-  const description =
-    state.message ||
-    (ready
-      ? `Version ${state.downloadedVersion ?? availableVersion} is downloaded. Select to restart and install. Linux may ask for system authorization.`
-      : `Version ${availableVersion} is available. Select to download; installation needs a separate Restart and install action.`);
+            ? state.status === "error"
+              ? "failed"
+              : "ready"
+            : failedAction
+              ? "failed"
+              : "available";
+  const failedLabel =
+    failedAction === "install"
+      ? "Install failed"
+      : failedAction === "check"
+        ? "Check failed"
+        : "Download failed";
+  const label = {
+    available: "Update available",
+    checking: "Checking…",
+    downloading: "Downloading",
+    verifying: "Verifying download",
+    ready: "Restart to update",
+    installing: "Installing…",
+    failed: failedLabel,
+  }[phase];
+  const description = {
+    available:
+      state.status === "cancelled" && state.message
+        ? state.message
+        : `Version ${availableVersion} is available. Select to download.`,
+    checking: "Checking this release channel for a newer version.",
+    downloading: `Downloading version ${availableVersion}. You can keep using inkling.`,
+    verifying: `Checking version ${availableVersion} against the release feed before it can install.`,
+    ready: `Version ${version} is downloaded. Select to restart and install. Linux may ask for system authorization.`,
+    installing: `Installing version ${version} and restarting inkling.`,
+    failed: state.message || "The update couldn’t finish. Try again.",
+  }[phase];
+  const detail =
+    phase === "available" || phase === "ready"
+      ? version
+      : phase === "downloading" && percent !== null
+        ? `${percent}%`
+        : null;
   const action: Exclude<UpdateAction, "channel"> =
-    failedAction === "check" ? "check" : ready ? "install" : "download";
-  return { label, description, busy: isBusy, action };
+    phase === "ready" || (phase === "failed" && failedAction === "install")
+      ? "install"
+      : phase === "failed" && failedAction === "check"
+        ? "check"
+        : "download";
+  return {
+    phase,
+    label,
+    detail,
+    progress: phase === "downloading" || phase === "verifying" ? clamped : null,
+    description,
+    busy: isBusy,
+    action,
+  };
 }
