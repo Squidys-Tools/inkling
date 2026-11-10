@@ -18,6 +18,7 @@
     "dev": "vite --config apps/renderer/vite.config.ts",
     "dev:app": "bun run build:app && bun tools/dev/dev-app.ts",
     "dev:site": "bun run --cwd apps/site dev",
+    "dev:site:tunnel": "INKLING_TUNNEL=1 bun run --cwd apps/site dev",
     "build:app": "vite build --config apps/renderer/vite.config.ts && bun apps/desktop/build.ts && bun tools/repo/assert-no-demo-seed.ts",
     "build:web": "vite build --config apps/renderer/vite.config.ts --mode preview",
     "build:site": "bun run --cwd apps/site build",

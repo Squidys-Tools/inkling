@@ -6,6 +6,7 @@ import { imagetools } from "vite-imagetools";
 import { stylexPlugin } from "../renderer/stylexPlugin.ts";
 import { demoIndex } from "./demoIndex.ts";
 import { latestRelease } from "./latestRelease.ts";
+import { tunnel } from "./tunnel.ts";
 
 const production = process.env.VERCEL_PROJECT_PRODUCTION_URL;
 const siteUrl = production ? `https://${production}` : "";
@@ -21,6 +22,7 @@ export default defineConfig(({ command }) => ({
     }),
     demoIndex(),
     latestRelease(),
+    tunnel(),
     stylexPlugin(command),
     tanstackStart({
       // The homepage links public images; crawling them as pages corrupts binary copies.

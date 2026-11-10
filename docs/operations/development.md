@@ -41,6 +41,7 @@ How to set up, run, build, check and release inkling. [CONTRIBUTING.md](../../CO
 | Desktop app from source, on the seeded demo library | `bun run dev:app` |
 | Static web preview build (keeps the demo seed) | `bun run build:web` |
 | Marketing site | `bun run dev:site` |
+| Marketing site, also at a public address | `bun run dev:site:tunnel` |
 | Static marketing site build | `bun run build:site` |
 | App build (drops the demo seed) | `bun run build:app` |
 | Electron directory build (unpacked) | `bun run dist` |
@@ -85,7 +86,7 @@ dashboard, set the access mode to Waitlist and keep email enabled, since
 invitation emails need it.
 
 Iterate on the site with `bun run dev:site` (hot reload; read the port from its
-output). At start it rebuilds `/demo/` only if something the demo is built from changed, so restart it to see renderer changes there. Vercel's automatic Git deployments are disabled in
+output). At start it rebuilds `/demo/` only if something the demo is built from changed, so restart it to see renderer changes there. To open it from another machine, press `t + enter` in its terminal, or start it with `bun run dev:site:tunnel`: it prints a trycloudflare.com address served through `cloudflared` (`winget install Cloudflare.cloudflared`). The address is public and a dev server hands out the worktree's source, so close the tunnel (`t + enter` again) when done. Vercel's automatic Git deployments are disabled in
 `apps/site/vercel.json`. The `Site preview` workflow invokes Vercel only for a
 same-repository PR targeting `main` that changes `apps/site`,
 `apps/renderer`, the site's imported `packages/contracts`, `packages/ingestion`,

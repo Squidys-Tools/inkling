@@ -26,6 +26,12 @@
       "runOnWorktreeCreate": false
     },
     {
+      "name": "Run marketing site with a public tunnel",
+      "command": "bun run dev:site:tunnel",
+      "icon": "play",
+      "runOnWorktreeCreate": false
+    },
+    {
       "name": "Build desktop app (unpacked)",
       "command": "bun run dist",
       "icon": "build",
