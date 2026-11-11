@@ -6,9 +6,9 @@ import { QuoteArtwork } from "../cards/QuoteArtwork.tsx";
 import { TypedArtworkFor } from "../cards/TypedArtwork.tsx";
 import { useProcessing } from "../library/jobs.ts";
 import type { DescribedItem } from "./model.ts";
-import { LocalVideo, VideoPlayer } from "./VideoPlayer.tsx";
+import { VideoPlayer } from "./VideoPlayer.tsx";
 import { XPostFrame } from "./XPostFrame.tsx";
-import { ZoomableImage } from "./ZoomableImage.tsx";
+import { ZoomableMedia } from "./ZoomableMedia.tsx";
 
 // pdf.js and its worker load only when a PDF is opened.
 const PdfViewer = lazy(() =>
@@ -50,7 +50,7 @@ export function Stage({
       </ArtBox>
     );
   if (item.kind === "Video" && item.file && !item.video)
-    return <LocalVideo key={item.id} item={item} file={item.file} />;
+    return <ZoomableMedia key={item.id} src={item.image} video={item.file} alt={item.title} />;
   if (item.kind === "Video")
     return (
       <ArtBox>
@@ -65,7 +65,7 @@ export function Stage({
     );
   if (item.image && item.kind !== "PDF")
     return (
-      <ZoomableImage
+      <ZoomableMedia
         key={item.id}
         src={item.image}
         itemId={item.hasFile ? item.id : undefined}
