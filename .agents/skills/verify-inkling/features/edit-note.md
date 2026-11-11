@@ -1,6 +1,6 @@
 # Edit a note
 
-Edit note reopens a saved note's body in the full-page editor and saves the change in place. Status: **driven** (run `mw8z6zu6-9df7`, after capture-note).
+Edit note reopens a saved note's body in the full-page editor and saves the change in place. Status: **driven** (run `mwbu7jw3-f8a8`, after capture-note).
 
 ## Sub-features
 
@@ -25,7 +25,7 @@ Preconditions: a note with body `verify probe alpha` exists (run capture-note fi
 
 ## Gotchas
 
-- After capture-note's keyboard step there are two `Note: Untitled note` cards and `ref group` refuses; read both refs from `$I tree` (newest first, so the older `verify probe alpha` note is the second) and click that one.
+- After capture-note's keyboard step there are two `Note: Untitled note` cards and `ref group` refuses. A twin's ref read from `tree` cannot be clicked either — the click is refused `AMBIGUOUS_TARGET` because the ref was not captured unique. Search a unique body token (`alpha`) so only that card remains in the grid, then click it.
 - After a click that opens a view, the first snapshot may fail with `atomic replace failed … retry: safe`; take a fresh one (`ref` and `tree` retry for you or can be re-run). Do not repeat the click.
 - The editor is a full-page route, not a dialog; the Save button's name is `Save note`, not `Save to library`.
 - The editable field is a contenteditable body: `set-value` replaces it whole.

@@ -27,7 +27,7 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 
 ## Features
 
-Every feature was executed end to end with agent-desktop on 2026-11-10 unless its file says otherwise.
+Every feature was executed end to end with agent-desktop on 2026-11-11 unless its file says otherwise.
 
 - [Capture a note](./capture-note.md): Add > Note > Save to library, Ctrl+Enter.
 - [Edit a note](./edit-note.md): item view > Edit note > Save note.

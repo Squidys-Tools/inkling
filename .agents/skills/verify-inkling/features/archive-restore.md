@@ -1,6 +1,6 @@
 # Archive and restore
 
-Archiving moves an item out of Everything into the Archive view; Restore brings it back. Status: **driven** on 2026-11-09 (Archive and Restore). Permanent delete is deliberately not driven.
+Archiving moves an item out of Everything into the Archive view; Restore brings it back. Status: **driven** on 2026-11-11 (Archive and Restore). Permanent delete is deliberately not driven.
 
 ## Sub-features
 
@@ -14,7 +14,7 @@ Archiving moves an item out of Everything into the Archive view; Restore brings 
 
 ## Driving it with agent-desktop
 
-Preconditions: seeded library. The seed already holds 3 archived copies (`archive-5`, `archive-10`, `archive-12`, same titles as the active items), so those titles appear twice in Everything but once each in the Archive view — and the status reads `3 items` before this journey archives anything.
+Preconditions: seeded library. The seed already holds 3 archived copies (`archive-5`, `archive-10`, `archive-12`, same titles as the active items), so each of those titles appears once in Everything (the active copy) and once in the Archive view (the archived copy) — and the status reads `3 items` before this journey archives anything.
 
 - **Archive.** `$I ad click "$($I ref group 'Note: Books to reread this fall')"` (search `reread` first if earlier captures pushed it out of the tree; see README) opens the item view; `$I ad click "$($I ref button Archive)"` archives it and closes the item view. `$I db "SELECT id,title,archived FROM items WHERE title='Books to reread this fall'"` → id `12` archived `1` (plus the seed's `archive-12`, also `1`); `Everything` drops by 1. A toast `Archived` with `Undo` shows.
 - **View.** `$I ad click "$($I ref link Archive)"`; `$I tree` lists groups `Archived <Kind>: <title>` (3 seed tiles plus the one you archived). The view's `status` element reads `N items` for screen readers but `tree` prints it as `status ""`, offscreen: count with `db`. `$I shot`.

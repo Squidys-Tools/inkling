@@ -1,6 +1,6 @@
 # Capture a link
 
-Capture a link saves a URL as a card at once, then fills in title and description in the background. Status: **driven** on 2026-11-09. Like the deep-link and receiver captures it fetches the URL (network); this is the networked capture driven through the Add form.
+Capture a link saves a URL as a card at once, then fills in title and description in the background. Status: **driven** on 2026-11-11. Like the deep-link and receiver captures it fetches the URL (network); this is the networked capture driven through the Add form.
 
 ## Sub-features
 

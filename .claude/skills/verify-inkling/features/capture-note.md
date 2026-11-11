@@ -1,6 +1,6 @@
 # Capture a note
 
-Capture a note saves typed text as a note card in Everything immediately, with a stored `note` row. Status: **driven** (run `mw8z6zu6-9df7`).
+Capture a note saves typed text as a note card in Everything immediately, with a stored `note` row. Status: **driven** (run `mwbu7jw3-f8a8`).
 
 ## Sub-features
 
