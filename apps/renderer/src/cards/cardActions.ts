@@ -26,8 +26,12 @@ export function retryProcessing(jobId: string) {
 }
 
 export function openItem(view: CardView, navigate: Navigate) {
-  prepareItemOpen(view.id);
-  void navigate({ to: "/item/$id", params: { id: view.id } });
+  const from = location.href;
+  void prepareItemOpen(view.id).then((current) => {
+    // The card may scroll into view first: a route change in that time cancels the open.
+    if (current && location.href === from)
+      void navigate({ to: "/item/$id", params: { id: view.id } });
+  });
 }
 
 export function openReader(view: CardView, navigate: Navigate) {

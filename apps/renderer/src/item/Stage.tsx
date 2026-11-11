@@ -33,6 +33,7 @@ export function Stage({
   onClosePdf: () => void;
 }) {
   const processing = useProcessing(item.id);
+  // flightMedia in flightGeometry.ts mirrors this branch order.
   if (pdfOpen && item.file)
     return (
       <Suspense fallback={null}>

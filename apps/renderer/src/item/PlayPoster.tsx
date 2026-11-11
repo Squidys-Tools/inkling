@@ -30,7 +30,15 @@ export function PlayPoster({
       onClick={onPlay}
       {...stylex.props(styles.poster, style)}
     >
-      {image && <img src={image} alt="" decoding="async" {...stylex.props(styles.image)} />}
+      {image && (
+        <img
+          src={image}
+          alt=""
+          decoding="async"
+          data-flight="media"
+          {...stylex.props(styles.image)}
+        />
+      )}
       <span aria-hidden="true" {...stylex.props(styles.play)}>
         <HugeiconsIcon icon={PlayIcon} size={21} />
       </span>

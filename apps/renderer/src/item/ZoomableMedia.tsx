@@ -252,6 +252,7 @@ export function ZoomableMedia({
           <img
             src={original?.url ?? src}
             alt={alt}
+            data-flight="media"
             draggable={!isZoomed}
             onDragStart={(event) => {
               if (!desktop || !itemId) return;

@@ -4,6 +4,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useLayoutEffect, useRef } from "react";
 import { cardColor, color, font, radius } from "@inkling/ui/tokens.stylex";
 import { desktop } from "../desktop.ts";
+import { flightMedia } from "../item/flightGeometry.ts";
 import { type CardView, formatDuration } from "../library/cardModel.ts";
 import { PostArtwork } from "./PostArtwork.tsx";
 import { QuoteArtwork } from "./QuoteArtwork.tsx";
@@ -46,12 +47,14 @@ export function CardImage({ view, priority }: { view: CardView; priority: boolea
     };
   }, [url, alt, priority]);
   if (!url) return null;
+  const flight = flightMedia(view) ?? undefined;
   return desktop ? (
-    <span ref={host} {...stylex.props(styles.image)} />
+    <span ref={host} data-flight={flight} {...stylex.props(styles.image)} />
   ) : (
     <img
       src={url}
       alt={alt}
+      data-flight={flight}
       decoding="async"
       loading={priority || hasThumbnail(url) ? "eager" : "lazy"}
       onLoad={(event) => retainThumbnail(event.currentTarget)}

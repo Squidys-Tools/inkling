@@ -55,12 +55,15 @@ export function ItemView({ id }: { id: string }) {
 
   return (
     <div ref={viewRef} data-escape-scope {...stylex.props(styles.view)}>
+      <div data-flight="scrim" {...stylex.props(styles.scrim)} />
+      <div data-flight="backdrop" {...stylex.props(styles.backdrop)} />
       <ItemBody
         key={id}
         id={id}
         onClose={navigation.close}
         onOpenSimilar={navigation.openSimilar}
       />
+      <img hidden alt="" data-flight="clone" {...stylex.props(styles.clone)} />
     </div>
   );
 }
@@ -169,91 +172,104 @@ function ItemBody({
 
   return (
     <div {...stylex.props(styles.layout)}>
-      <div {...stylex.props(styles.stage, pdfOpen && styles.stageDocument)}>
-        {item && <Stage item={item} pdfOpen={pdfOpen} onClosePdf={() => setPdfOpen(false)} />}
+      <div data-flight="cell" {...stylex.props(styles.cell)}>
+        <div data-flight="ground" {...stylex.props(styles.ground)} />
+        <div data-flight="content" {...stylex.props(styles.stage, pdfOpen && styles.stageDocument)}>
+          {item && <Stage item={item} pdfOpen={pdfOpen} onClosePdf={() => setPdfOpen(false)} />}
+        </div>
       </div>
-      <div {...stylex.props(styles.inspector, controlsOnRight && styles.belowControls)}>
-        <header {...stylex.props(styles.header)}>
-          {item && (
-            <nav aria-label="Item sections" {...stylex.props(styles.tabs)}>
-              {sections.map(({ id: target, label }) => (
-                <button
-                  key={target}
-                  type="button"
-                  aria-current={section === target ? "true" : undefined}
-                  onClick={() => goTo(target)}
-                  {...stylex.props(styles.tab, section === target && styles.tabActive)}
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
+      <div
+        data-flight="panel"
+        {...stylex.props(styles.inspector, controlsOnRight && styles.belowControls)}
+      >
+        <div data-flight="shadow" aria-hidden="true" {...stylex.props(styles.panelShadow)} />
+        <div data-flight="details" {...stylex.props(styles.details)}>
+          <header {...stylex.props(styles.header)}>
+            {item && (
+              <nav aria-label="Item sections" {...stylex.props(styles.tabs)}>
+                {sections.map(({ id: target, label }) => (
+                  <button
+                    key={target}
+                    type="button"
+                    aria-current={section === target ? "true" : undefined}
+                    onClick={() => goTo(target)}
+                    {...stylex.props(styles.tab, section === target && styles.tabActive)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </nav>
+            )}
+            <Button
+              ref={closeButton}
+              aria-label="Close"
+              data-bench="item-close"
+              style={styles.close}
+              onClick={onClose}
+            >
+              Close <Kbd>esc</Kbd>
+            </Button>
+          </header>
+          {status && (
+            <p role="alert" {...stylex.props(styles.status)}>
+              {status}
+            </p>
           )}
-          <Button
-            ref={closeButton}
-            aria-label="Close"
-            data-bench="item-close"
-            style={styles.close}
-            onClick={onClose}
-          >
-            Close <Kbd>esc</Kbd>
-          </Button>
-        </header>
-        {status && (
-          <p role="alert" {...stylex.props(styles.status)}>
-            {status}
-          </p>
-        )}
-        {item && (
-          <>
-            <div ref={setScroller} tabIndex={-1} {...stylex.props(styles.scroller)}>
-              <div {...stylex.props(styles.page)}>
-                <div aria-hidden="true" {...stylex.props(styles.firstScreen)} />
-                <div {...stylex.props(styles.heading)}>
-                  <ItemHeading
-                    item={item}
-                    onRename={(title) => void write((client) => client.updateItem({ id, title }))}
-                  />
-                </div>
-                {swatches.length > 0 && (
-                  <div ref={pinned} {...stylex.props(styles.pinned)}>
-                    <Palette swatches={swatches} />
+          {item && (
+            <>
+              <div ref={setScroller} tabIndex={-1} {...stylex.props(styles.scroller)}>
+                <div {...stylex.props(styles.page)}>
+                  <div aria-hidden="true" {...stylex.props(styles.firstScreen)} />
+                  <div {...stylex.props(styles.heading)}>
+                    <ItemHeading
+                      item={item}
+                      onRename={(title) => void write((client) => client.updateItem({ id, title }))}
+                    />
                   </div>
-                )}
-                <div {...stylex.props(styles.info, swatches.length > 0 && styles.underPalette)}>
-                  <InfoPanel
-                    item={item}
-                    filedIn={regularSpaces.filter((space) => memberOf.includes(space.id))}
-                    onAddTag={(addTag) => void write((client) => client.updateItem({ id, addTag }))}
-                    onRemoveTag={(removeTag) =>
-                      void write((client) => client.updateItem({ id, removeTag }))
-                    }
-                    onEditNote={() => void navigate({ to: "/item/$id/write", params: { id } })}
-                    onOpenPdf={() => setPdfOpen(true)}
-                    onRead={() => void navigate({ to: "/item/$id/read", params: { id } })}
-                  />
-                  {actionError && <p {...stylex.props(styles.error)}>{actionError}</p>}
+                  {swatches.length > 0 && (
+                    <div ref={pinned} {...stylex.props(styles.pinned)}>
+                      <Palette swatches={swatches} />
+                    </div>
+                  )}
+                  <div {...stylex.props(styles.info, swatches.length > 0 && styles.underPalette)}>
+                    <InfoPanel
+                      item={item}
+                      filedIn={regularSpaces.filter((space) => memberOf.includes(space.id))}
+                      onAddTag={(addTag) =>
+                        void write((client) => client.updateItem({ id, addTag }))
+                      }
+                      onRemoveTag={(removeTag) =>
+                        void write((client) => client.updateItem({ id, removeTag }))
+                      }
+                      onEditNote={() => void navigate({ to: "/item/$id/write", params: { id } })}
+                      onOpenPdf={() => setPdfOpen(true)}
+                      onRead={() => void navigate({ to: "/item/$id/read", params: { id } })}
+                    />
+                    {actionError && <p {...stylex.props(styles.error)}>{actionError}</p>}
+                  </div>
+                  <section
+                    ref={setSimilar}
+                    aria-label="Similar"
+                    {...stylex.props(styles.similar, swatches.length > 0 && styles.similarPinned)}
+                  >
+                    {similarWanted && <SimilarPanel item={item} onOpen={onOpenSimilar} />}
+                  </section>
                 </div>
-                <section
-                  ref={setSimilar}
-                  aria-label="Similar"
-                  {...stylex.props(styles.similar, swatches.length > 0 && styles.similarPinned)}
-                >
-                  {similarWanted && <SimilarPanel item={item} onOpen={onOpenSimilar} />}
-                </section>
               </div>
-            </div>
-            <ActionBar
-              item={item}
-              spaces={regularSpaces}
-              memberOf={memberOf}
-              onToggleSpace={(spaceId, filed) => void setInSpace(spaceId, id, filed)}
-              onArchive={() => void setArchived(id, true).then((archived) => archived && onClose())}
-              onRestore={() => void setArchived(id, false)}
-              onDelete={() => void deleteForever(item.title)}
-            />
-          </>
-        )}
+              <ActionBar
+                item={item}
+                spaces={regularSpaces}
+                memberOf={memberOf}
+                onToggleSpace={(spaceId, filed) => void setInSpace(spaceId, id, filed)}
+                onArchive={() =>
+                  void setArchived(id, true).then((archived) => archived && onClose())
+                }
+                onRestore={() => void setArchived(id, false)}
+                onDelete={() => void deleteForever(item.title)}
+              />
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -268,23 +284,39 @@ const sections: readonly { id: Section; label: string }[] = [
 const narrow = "@media (max-width: 780px)";
 
 const styles = stylex.create({
-  view: { position: "absolute", inset: 0, zIndex: 10, backgroundColor: color.frame },
+  // useOpenMotion animates the data-flight layers apart: the scrim over the library, the frame's
+  // fill, the stage's ground and content, the details panel and the image clone. The view itself
+  // paints nothing.
+  view: { position: "absolute", inset: 0, zIndex: 10 },
+  scrim: {
+    position: "absolute",
+    inset: 0,
+    zIndex: -2,
+    backgroundColor: color.frame,
+    opacity: 0,
+    pointerEvents: "none",
+  },
+  backdrop: { position: "absolute", inset: 0, zIndex: -1, backgroundColor: color.frame },
+  clone: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    zIndex: 1,
+    maxWidth: "none",
+    objectFit: "cover",
+    transformOrigin: "0 0",
+    pointerEvents: "none",
+  },
   layout: {
     display: "grid",
     gridTemplateColumns: { default: "minmax(0, 1fr) 320px", [narrow]: "minmax(0, 1fr)" },
     gridTemplateRows: { default: "minmax(0, 1fr)", [narrow]: "minmax(0, 1fr) minmax(0, 1fr)" },
     height: "100%",
   },
-  stage: {
-    position: "relative",
-    display: "grid",
-    placeItems: "center",
-    minWidth: 0,
-    minHeight: 0,
-    margin: space.s2,
-    paddingBlock: { default: "60px", [narrow]: space.s4 },
-    paddingInline: { default: space.s10, [narrow]: space.s4 },
-    overflow: "hidden",
+  cell: { position: "relative", minWidth: 0, minHeight: 0, margin: space.s2 },
+  ground: {
+    position: "absolute",
+    inset: 0,
     borderRadius: `calc(${radius.frame} - 1px)`,
     borderWidth: 1,
     borderStyle: "solid",
@@ -293,8 +325,40 @@ const styles = stylex.create({
     backgroundImage: `radial-gradient(circle, ${itemColor.stageDot} 1px, transparent 1.2px)`,
     backgroundSize: "18px 18px",
   },
+  stage: {
+    position: "absolute",
+    inset: 0,
+    display: "grid",
+    placeItems: "center",
+    paddingBlock: { default: "60px", [narrow]: space.s4 },
+    paddingInline: { default: space.s10, [narrow]: space.s4 },
+    overflow: "hidden",
+    borderRadius: `calc(${radius.frame} - 1px)`,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "transparent",
+  },
   stageDocument: { padding: 0, placeItems: "stretch" },
+  // Shown only while the panel slides: on its left edge beside the stage, on top below it.
+  panelShadow: {
+    position: "absolute",
+    top: { default: 0, [narrow]: "-24px" },
+    bottom: { default: 0, [narrow]: "auto" },
+    left: { default: "-24px", [narrow]: 0 },
+    right: { default: "auto", [narrow]: 0 },
+    width: { default: "24px", [narrow]: "auto" },
+    height: { default: "auto", [narrow]: "24px" },
+    backgroundImage: {
+      default: `linear-gradient(to right, transparent, ${color.shadow})`,
+      [narrow]: `linear-gradient(to bottom, transparent, ${color.shadow})`,
+    },
+    opacity: 0,
+    pointerEvents: "none",
+  },
   inspector: {
+    position: "relative",
+    zIndex: 2,
+    backgroundColor: color.frame,
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
@@ -304,6 +368,7 @@ const styles = stylex.create({
     paddingLeft: "18px",
     fontFamily: font.body,
   },
+  details: { display: "flex", flexDirection: "column", flexGrow: 1, minHeight: 0 },
   // The Close button sits just under the window's own buttons.
   belowControls: { paddingTop: { default: `calc(3px + ${layout.titlebar})`, [narrow]: "6px" } },
   header: {
