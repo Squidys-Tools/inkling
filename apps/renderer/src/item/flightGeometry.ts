@@ -71,6 +71,13 @@ export function usableOrigin(card: FlightRect, viewport: FlightRect) {
   return width > 0 && height > 0;
 }
 
+/** How far to scroll so the whole card shows with `margin` to spare. A taller card stops at its top. */
+export function scrollToShow(card: FlightRect, viewport: FlightRect, margin: number) {
+  const above = card.top - viewport.top - margin;
+  const below = card.top + card.height - (viewport.top + viewport.height - margin);
+  return above < 0 ? above : Math.max(0, Math.min(above, below));
+}
+
 // Mirrors the branch order in Stage.tsx: only these kinds put the card's own image on the stage.
 export function flightMedia(view: {
   kind: string;

@@ -11,6 +11,7 @@ import {
   mediaFrames,
   mediaPose,
   panelOffset,
+  scrollToShow,
   settledMedia,
   stageRegion,
   usableOrigin,
@@ -149,4 +150,10 @@ test("a card flies when any part of it is on screen; offscreen and unmeasured ca
   expect(usableOrigin({ left: 200, top: 750, width: 200, height: 200 }, viewport)).toBe(false);
   expect(usableOrigin({ left: -100, top: 100, width: 200, height: 200 }, viewport)).toBe(false);
   expect(usableOrigin({ left: 200, top: 100, width: 0, height: 200 }, viewport)).toBe(false);
+  // A cut-off card is first scrolled whole into view with a margin; one already whole stays put.
+  expect(scrollToShow({ left: 200, top: 100, width: 200, height: 200 }, viewport, 24)).toBe(0);
+  expect(scrollToShow({ left: 200, top: 710, width: 200, height: 200 }, viewport, 24)).toBe(184);
+  expect(scrollToShow({ left: 200, top: 60, width: 200, height: 200 }, viewport, 24)).toBe(-14);
+  // Taller than the view: its top comes to the margin and the rest stays cut off.
+  expect(scrollToShow({ left: 200, top: 400, width: 200, height: 900 }, viewport, 24)).toBe(326);
 });
