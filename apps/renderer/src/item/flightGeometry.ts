@@ -94,9 +94,13 @@ export function clipInset(window: FlightRect, box: FlightRect, radius: number) {
 
 /** What the details panel leaves to the stage: the columns beside it, or the rows above it. */
 export function stageRegion(view: FlightRect, panel: FlightRect, below: boolean): FlightRect {
-  return below
-    ? { ...view, height: panel.top - view.top }
-    : { ...view, width: panel.left - view.left };
+  // Field by field: `view` is a DOMRect, whose fields are prototype getters that a spread drops.
+  return {
+    left: view.left,
+    top: view.top,
+    width: below ? view.width : panel.left - view.left,
+    height: below ? panel.top - view.top : view.height,
+  };
 }
 
 /** The panel starts one panel away, past the edge it is docked to. */

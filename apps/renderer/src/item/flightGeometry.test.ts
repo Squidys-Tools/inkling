@@ -29,6 +29,10 @@ test("the frame's clip grows from the card to the region the panel leaves", () =
   expect(clipInset(stageRegion(viewport, under, true), viewport, 0)).toBe(
     "inset(0px 0px 350px 0px round 0px)",
   );
+  // regression: #397. A measured DOMRect keeps its fields on its prototype, so a spread drops them.
+  const measured = Object.create(viewport) as typeof viewport;
+  expect(stageRegion(measured, beside, false)).toEqual({ ...viewport, width: 680 });
+  expect(stageRegion(measured, under, true)).toEqual({ ...viewport, height: 350 });
   expect(panelOffset(beside, false)).toBe("translateX(320px)");
   expect(panelOffset(under, true)).toBe("translateY(350px)");
 });

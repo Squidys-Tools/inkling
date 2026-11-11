@@ -61,6 +61,9 @@ export function prepareItemOpen(id: string) {
 
 export function takeItemOrigin(id: string) {
   const origin = pending?.id === id ? pending.rect : null;
-  pending = null;
+  // Cleared after this task, not now: StrictMode runs the opening effect twice in development.
+  queueMicrotask(() => {
+    pending = null;
+  });
   return origin;
 }
