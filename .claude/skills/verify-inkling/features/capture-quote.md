@@ -1,6 +1,6 @@
 # Capture a quote
 
-Capture a quote saves quote text with an optional attribution as a quote card. Status: **driven** on 2026-11-09.
+Capture a quote saves quote text with an optional attribution as a quote card. Status: **driven** on 2026-11-11.
 
 ## Sub-features
 

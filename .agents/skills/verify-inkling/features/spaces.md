@@ -1,6 +1,6 @@
 # Spaces
 
-Spaces are named collections in the sidebar: Smart (a saved search) or Regular (hand-filed). Status: **driven** on 2026-11-09 (create Smart and Regular, rename, file an item, delete empty and populated). Not driven: Space color and move up/down, the card right-click menu (needs `--headed`).
+Spaces are named collections in the sidebar: Smart (a saved search) or Regular (hand-filed). Status: **driven** on 2026-11-11 (create Smart and Regular, rename, file an item, delete populated). Not driven: Space color and move up/down, the card right-click menu (needs `--headed`).
 
 ## Sub-features
 
