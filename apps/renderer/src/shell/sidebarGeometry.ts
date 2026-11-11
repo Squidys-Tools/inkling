@@ -19,6 +19,10 @@ export function sidebarLabelFrames(opacity: number, open: boolean, reversing: bo
       ];
 }
 
+/** How many rows a dragged Space has crossed, held inside the list. */
+export const dragSteps = (offset: number, pitch: number, index: number, lastIndex: number) =>
+  Math.max(-index, Math.min(lastIndex - index, Math.round(offset / pitch))) + 0;
+
 /** Clip the retained navigation to the moving frame, preserving the gutter and round edge. */
 export const sidebarClip = (frameLeft: number, width: number) =>
   Math.max(0, width - Math.max(0, frameLeft - 8));

@@ -1,20 +1,19 @@
-import ArrowDown01Icon from "@hugeicons/core-free-icons/ArrowDown01Icon";
-import ArrowUp01Icon from "@hugeicons/core-free-icons/ArrowUp01Icon";
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import Edit01Icon from "@hugeicons/core-free-icons/Edit01Icon";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import MoreHorizontalIcon from "@hugeicons/core-free-icons/MoreHorizontalIcon";
+import { HugeiconsIcon } from "@hugeicons/react";
 import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
+import { type PointerEvent, useRef, useState } from "react";
+import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { desktop } from "../desktop.ts";
 import { search } from "../library/search.ts";
 import { deleteSpace, moveSpace, recolorSpace, renameSpace } from "../library/spaces.ts";
 import { spaceRowMarker } from "../markers.stylex.ts";
 import { CompactSpaceRow } from "./CompactSpaceRow.tsx";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
+import { dragSteps } from "./sidebarGeometry.ts";
 import { SpaceMark } from "./SpaceMark.tsx";
+import { opensMenu, openSpaceMenu } from "./spaceMenu.ts";
 
 async function confirmDelete(space: Space) {
   // A Regular Space's filing is the user's own work, so emptying it asks first.
@@ -35,18 +34,21 @@ export function SpaceRow({
   selected,
   count,
   compact,
-  canMoveUp,
-  canMoveDown,
+  index,
+  lastIndex,
 }: {
   space: Space;
   selected: boolean;
   count: number | undefined;
   compact: boolean;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
+  index: number;
+  lastIndex: number;
 }) {
   const navigate = useNavigate();
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [lift, setLift] = useState<number | null>(null);
+  const dragged = useRef(false);
+  const refocus = useRef(false);
 
   const commit = async (draft: string) => {
     setRenaming(null);
@@ -58,36 +60,88 @@ export function SpaceRow({
     if (!(await confirmDelete(space))) return;
     if ((await deleteSpace(space)) && selected) void navigate({ to: "/" });
   };
+  const can = { up: index > 0, down: index < lastIndex };
+  const actions = {
+    up: () => void moveSpace(space, -1),
+    down: () => void moveSpace(space, 1),
+    color: () => void recolorSpace(space),
+    rename: () => {
+      if (compact) setSidebarOpen(true);
+      setRenaming(space.name);
+    },
+    delete: () => void remove(),
+  };
   if (compact && renaming === null)
-    return (
-      <CompactSpaceRow
-        space={space}
-        selected={selected}
-        canMoveUp={canMoveUp}
-        canMoveDown={canMoveDown}
-        actions={{
-          up: () => void moveSpace(space, -1),
-          down: () => void moveSpace(space, 1),
-          color: () => void recolorSpace(space),
-          rename: () => {
-            setSidebarOpen(true);
-            setRenaming(space.name);
-          },
-          delete: () => void remove(),
-        }}
-      />
+    return <CompactSpaceRow space={space} selected={selected} can={can} actions={actions} />;
+
+  const startDrag = (event: PointerEvent<HTMLDivElement>) => {
+    dragged.current = false;
+    if (event.button !== 0 || renaming !== null || lastIndex === 0) return;
+    if (event.target instanceof Element && event.target.closest("button")) return;
+    const row = event.currentTarget;
+    const gap = row.parentElement ? parseFloat(getComputedStyle(row.parentElement).rowGap) : 0;
+    const pitch = row.offsetHeight + (gap || 0);
+    const startY = event.clientY;
+    let steps = 0;
+    // Listen on the window: reordering moves this row's node, which would drop a pointer capture.
+    const listening = new AbortController();
+    const signal = listening.signal;
+    const end = () => {
+      listening.abort();
+      setLift(null);
+    };
+    window.addEventListener(
+      "pointermove",
+      (move) => {
+        const offset = move.clientY - startY;
+        if (!dragged.current && Math.abs(offset) < 5) return;
+        dragged.current = true;
+        const wanted = dragSteps(offset, pitch, index, lastIndex);
+        // Each crossed row is one swap, shown at once, so the list reorders under the pointer.
+        for (; steps < wanted; steps++) void moveSpace(space, 1);
+        for (; steps > wanted; steps--) void moveSpace(space, -1);
+        const held = Math.max(-index * pitch, Math.min((lastIndex - index) * pitch, offset));
+        setLift(held - steps * pitch);
+      },
+      { signal },
     );
+    window.addEventListener("pointerup", end, { signal });
+    window.addEventListener("pointercancel", end, { signal });
+    window.addEventListener("blur", end, { signal });
+  };
 
   return (
-    <div {...stylex.props(styles.row, selected && styles.selected, spaceRowMarker)}>
+    // Dragging is a pointer shortcut; the row's menu holds Move up and Move down for the keyboard.
+    <div
+      onPointerDown={startDrag}
+      onClickCapture={(event) => {
+        // The release that ends a drag must not open the Space it was dropped on.
+        if (!dragged.current) return;
+        dragged.current = false;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onContextMenu={(event) => {
+        if (renaming === null) void openSpaceMenu(event, space.name, can, actions);
+      }}
+      {...stylex.props(
+        styles.row,
+        selected && styles.selected,
+        lift !== null && styles.lifted,
+        lift !== null && styles.lift(lift),
+        spaceRowMarker,
+      )}
+    >
       <button
         type="button"
         aria-label={`Change color of ${space.name}`}
         title={`Change color (now ${space.color})`}
+        // One tab stop per row, like every other sidebar row; the row's menu changes color by keyboard.
+        tabIndex={-1}
         onClick={() => void recolorSpace(space)}
         {...stylex.props(styles.mark)}
       >
-        <SpaceMark color={space.color} />
+        <SpaceMark color={space.color} hollow={space.kind === "smart"} />
       </button>
       {renaming !== null ? (
         <input
@@ -100,8 +154,11 @@ export function SpaceRow({
           onFocus={(event) => event.currentTarget.select()}
           onKeyDown={(event) => {
             event.stopPropagation();
+            if (event.key !== "Enter" && event.key !== "Escape") return;
+            // The field goes away under the keyboard, so focus returns to the row it renamed.
+            refocus.current = true;
             if (event.key === "Enter") void commit(renaming);
-            else if (event.key === "Escape") setRenaming(null);
+            else setRenaming(null);
           }}
           // Blur keeps what was typed, like renaming in a file manager.
           onBlur={() => void commit(renaming)}
@@ -111,69 +168,41 @@ export function SpaceRow({
         <Link
           to="/space/$id"
           params={{ id: space.id }}
+          ref={(link) => {
+            if (!link || !refocus.current) return;
+            refocus.current = false;
+            link.focus({ preventScroll: true });
+          }}
+          // A native link drag would cancel the pointer events that reorder the row.
+          draggable={false}
           onClick={() => search.clear()}
+          onKeyDown={(event) => {
+            if (opensMenu(event)) void openSpaceMenu(event, space.name, can, actions);
+          }}
           aria-current={selected ? "page" : undefined}
           {...stylex.props(styles.name)}
         >
           <span data-sidebar-label {...stylex.props(styles.nameText)}>
             {space.name}
           </span>
-          <span {...stylex.props(styles.count)}>{count?.toLocaleString()}</span>
+          <span data-sidebar-label {...stylex.props(styles.count)}>
+            {count?.toLocaleString()}
+          </span>
         </Link>
       )}
       {renaming === null && (
-        <span {...stylex.props(styles.tools)}>
-          <Tool
-            label={`Move ${space.name} up`}
-            icon={ArrowUp01Icon}
-            onSelect={() => void moveSpace(space, -1)}
-          />
-          <Tool
-            label={`Move ${space.name} down`}
-            icon={ArrowDown01Icon}
-            onSelect={() => void moveSpace(space, 1)}
-          />
-          <Tool
-            label={`Rename ${space.name}`}
-            icon={Edit01Icon}
-            onSelect={() => setRenaming(space.name)}
-          />
-          <Tool
-            label={`Delete ${space.name}`}
-            icon={Cancel01Icon}
-            danger
-            onSelect={() => void remove()}
-          />
-        </span>
+        <button
+          type="button"
+          aria-label={`Actions for ${space.name}`}
+          title="Rename, color, move, delete"
+          aria-haspopup="menu"
+          onClick={(event) => void openSpaceMenu(event, space.name, can, actions)}
+          {...stylex.props(styles.more)}
+        >
+          <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
+        </button>
       )}
     </div>
-  );
-}
-
-function Tool({
-  label,
-  icon,
-  danger = false,
-  onSelect,
-}: {
-  label: string;
-  icon: IconSvgElement;
-  danger?: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={(event) => {
-        event.stopPropagation();
-        onSelect();
-      }}
-      {...stylex.props(styles.tool, danger && styles.danger)}
-    >
-      <HugeiconsIcon icon={icon} size={12} />
-    </button>
   );
 }
 
@@ -184,22 +213,35 @@ const styles = stylex.create({
     alignItems: "center",
     height: "32px",
     minWidth: 0,
-    paddingInline: "10px",
     borderRadius: radius.control,
     backgroundColor: { default: "transparent", ":hover": color.overlayHover },
     fontSize: "14px",
     color: { default: color.inkSoft, ":hover": color.ink },
+    userSelect: "none",
     transitionProperty: "color, background-color",
     transitionDuration: motion.micro,
   },
-  selected: { fontWeight: 600, color: { default: color.inkStrong, ":hover": color.inkStrong } },
+  selected: {
+    fontWeight: 600,
+    backgroundColor: { default: color.overlayActive, ":hover": color.overlayActive },
+    color: { default: color.inkStrong, ":hover": color.inkStrong },
+  },
+  lifted: {
+    zIndex: 1,
+    backgroundColor: { default: color.hover, ":hover": color.hover },
+    boxShadow: `0 6px 18px ${color.shadow}`,
+    cursor: "grabbing",
+  },
+  lift: (offset: number) => ({ transform: `translateY(${offset}px)` }),
+  // Over the link, on the same line as the mascot and every other sidebar icon.
   mark: {
+    position: "absolute",
+    left: "18px",
+    top: "8px",
     display: "grid",
     placeItems: "center",
     width: "16px",
     height: "16px",
-    flexShrink: 0,
-    marginRight: "10px",
     padding: 0,
     borderWidth: 0,
     backgroundColor: "transparent",
@@ -215,17 +257,14 @@ const styles = stylex.create({
     flexGrow: 1,
     minWidth: 0,
     height: "100%",
+    // The link is the whole row, so a click anywhere opens the Space and focus rings the row.
+    paddingLeft: "44px",
+    paddingRight: "10px",
     color: "inherit",
     textDecoration: "none",
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "-2px",
-    borderRadius: "6px",
-    // Room for the tools, which cover the count and a little of the name.
-    paddingRight: {
-      default: 0,
-      [stylex.when.ancestor(":hover", spaceRowMarker)]: "34px",
-      [stylex.when.ancestor(":focus-within", spaceRowMarker)]: "34px",
-    },
+    borderRadius: radius.control,
   },
   nameText: {
     flexGrow: 1,
@@ -246,41 +285,40 @@ const styles = stylex.create({
     opacity: {
       default: 1,
       [stylex.when.ancestor(":hover", spaceRowMarker)]: 0,
-      [stylex.when.ancestor(":focus-within", spaceRowMarker)]: 0,
+      [stylex.when.ancestor(":has(:focus-visible)", spaceRowMarker)]: 0,
     },
   },
-  // Over the count, shown on hover or keyboard focus, so revealing them lays nothing out.
-  tools: {
+  // Over the count, shown on hover or keyboard focus, so revealing it lays nothing out.
+  // Keyboard focus only: a clicked Space keeps focus, and its count must stay readable.
+  more: {
     position: "absolute",
-    right: "8px",
-    top: 0,
-    bottom: 0,
-    display: "flex",
-    alignItems: "center",
+    right: "7px",
+    top: "5px",
+    display: "grid",
+    placeItems: "center",
+    width: "22px",
+    height: "22px",
+    padding: 0,
+    borderWidth: 0,
+    borderRadius: "6px",
+    backgroundColor: { default: "transparent", ":hover": color.overlayActive },
+    color: { default: color.muted, ":hover": color.ink },
+    cursor: "pointer",
+    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     opacity: {
       default: 0,
       [stylex.when.ancestor(":hover", spaceRowMarker)]: 1,
-      [stylex.when.ancestor(":focus-within", spaceRowMarker)]: 1,
+      [stylex.when.ancestor(":has(:focus-visible)", spaceRowMarker)]: 1,
     },
     transitionProperty: "opacity",
     transitionDuration: motion.micro,
   },
-  tool: {
-    display: "grid",
-    placeItems: "center",
-    padding: "3px",
-    borderWidth: 0,
-    borderRadius: "5px",
-    backgroundColor: "transparent",
-    color: { default: color.muted, ":hover": color.ink },
-    cursor: "pointer",
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-  },
-  danger: { color: { default: color.muted, ":hover": cardColor.dangerTool } },
   rename: {
     flexGrow: 1,
     minWidth: 0,
     minHeight: "26px",
+    marginLeft: "44px",
+    marginRight: "10px",
     paddingInline: "8px",
     borderWidth: 1,
     borderStyle: "solid",

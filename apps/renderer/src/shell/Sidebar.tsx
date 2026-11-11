@@ -165,27 +165,35 @@ export function Sidebar({
         <div {...stylex.props(styles.footer)}>
           <AddMenu compact={compact} />
           <UpdateRow compact={compact} />
-          <NavLink
-            to="/archive"
-            tone="footer"
-            compact={compact}
-            active={shown === "Archived"}
-            icon={<HugeiconsIcon icon={Archive01Icon} size={15} />}
-            label="Archive"
-            onClick={() => search.clear()}
-          />
-          <NavButton
-            tone="footer"
-            active={settingsOpen}
-            expanded={settingsOpen}
-            controls="settings-sheet"
-            compact={compact}
-            icon={<HugeiconsIcon icon={Settings01Icon} size={15} />}
-            label="Settings"
-            onClick={() =>
-              void navigate({ to: ".", search: (prev) => ({ ...prev, settings: "general" }) })
-            }
-          />
+          <div {...stylex.props(styles.lastRow, compact && styles.lastRowCompact)}>
+            <NavLink
+              to="/archive"
+              tone="footer"
+              compact={compact}
+              active={shown === "Archived"}
+              icon={<HugeiconsIcon icon={Archive01Icon} size={15} />}
+              label="Archive"
+              onClick={() => search.clear()}
+            />
+            {/* Expanded, Settings is the gear ending the Archive row, and fades with the labels. */}
+            <div
+              data-sidebar-label={compact ? undefined : ""}
+              {...stylex.props(!compact && styles.gear)}
+            >
+              <NavButton
+                tone="footer"
+                active={settingsOpen}
+                expanded={settingsOpen}
+                controls="settings-sheet"
+                compact
+                icon={<HugeiconsIcon icon={Settings01Icon} size={15} />}
+                label="Settings"
+                onClick={() =>
+                  void navigate({ to: ".", search: (prev) => ({ ...prev, settings: "general" }) })
+                }
+              />
+            </div>
+          </div>
         </div>
       </aside>
     </>
@@ -290,4 +298,8 @@ const styles = stylex.create({
     marginTop: "auto",
     flexShrink: 0,
   },
+  lastRow: { display: "flex", alignItems: "center", gap: "2px", minWidth: 0 },
+  lastRowCompact: { flexDirection: "column", alignItems: "stretch" },
+  // 36px wide, so the gear centers under the Spaces header's plus and each row's menu button.
+  gear: { width: "36px", flexShrink: 0 },
 });

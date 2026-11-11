@@ -4,6 +4,7 @@ import { lazy, Suspense } from "react";
 
 export type OpenMenu = {
   items: ContextMenuItem[];
+  label: string;
   x: number;
   y: number;
   returnFocus: HTMLElement | null;
@@ -21,11 +22,15 @@ const OpenContextMenu = lazy(() =>
 export const preloadContextMenu = () => void loadMenu();
 
 /** Native and preview share presentation; callers retain their real action APIs. */
-export function showContextMenu(items: ContextMenuItem[], at: { x: number; y: number }) {
+export function showContextMenu(
+  items: ContextMenuItem[],
+  at: { x: number; y: number },
+  label = "Item actions",
+) {
   openMenu.get()?.resolve(null);
   const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   return new Promise<string | null>((resolve) =>
-    openMenu.set({ items, ...at, returnFocus, resolve }),
+    openMenu.set({ items, label, ...at, returnFocus, resolve }),
   );
 }
 

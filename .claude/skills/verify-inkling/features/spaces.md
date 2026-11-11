@@ -1,6 +1,6 @@
 # Spaces
 
-Spaces are named collections in the sidebar: Smart (a saved search) or Regular (hand-filed). Status: **driven** on 2026-11-11 (create Smart and Regular, rename, file an item, delete populated). Not driven: Space color and move up/down, the card right-click menu (needs `--headed`).
+Spaces are named collections in the sidebar: Smart (a saved search) or Regular (hand-filed). Status: **driven** on 2026-11-11 (create Smart and Regular, rename, file an item, delete populated). Not driven: dragging a row to reorder it and right-clicking a row (both need `--headed`), the card right-click menu (needs `--headed`), and a Smart Space's remembered count after a restart (`launch` reseeds).
 
 ## Sub-features
 
@@ -12,7 +12,7 @@ Spaces are named collections in the sidebar: Smart (a saved search) or Regular (
 
 ## How to get to it (user POV)
 
-- Sidebar menubutton **Add a Space**; each row has `Rename|Delete|Move … up|down|Change color of <name>` buttons.
+- Sidebar menubutton **Add a Space**; each row has a `Change color of <name>` button (its blot: an outline for a Smart Space, filled for a Regular one) and a menubutton `Actions for <name>` whose menu holds `Rename`, `Change color`, `Move up`, `Move down`, `Delete Space`. Shift+F10 on the row's link opens the same menu.
 - Search > Save as Space (see search.md).
 - Item view > **Keep in a Space** (card right-click wraps the same Space actions in a `Keep in a Space` submenu of a bigger menu — plus an `Allow in <smart>` entry for each Smart Space the item is currently excluded from, and a top-level `Remove from <current>` inside a Space; not driven).
 
@@ -21,11 +21,12 @@ Spaces are named collections in the sidebar: Smart (a saved search) or Regular (
 Preconditions: seeded library (Spaces `Design references`, `Read later`, `Weekend reading` exist).
 
 - **Open the form.** `$I ad expand "$($I ref menubutton 'Add a Space')"`. Textfield `Space name`, radiobuttons `Smart`/`Regular`, buttons `Cancel`/`Create Space` (disabled until a name is set).
-- **Smart (default).** `$I ad set-value "$($I ref textfield 'Space name')" 'Verify Smart'`, then `$I ad click "$($I ref button 'Create Space')"`. A link `Verify Smart <n>` appears — a Smart Space shows its count only while it is the selected one, which it is right after create. `$I db "SELECT name,kind,query FROM spaces WHERE name='Verify Smart'"` → kind `smart`, query `{}` (an empty Smart Space matches every active item, so `n` is the library's active count; caveat: an empty query plus a name that is only photo subjects, like `Cats`, matches only those subjects).
+- **Smart (default).** `$I ad set-value "$($I ref textfield 'Space name')" 'Verify Smart'`, then `$I ad click "$($I ref button 'Create Space')"`. A link `Verify Smart <n>` appears — a Smart Space is counted when it is opened, which it is right after create, and its row keeps that count afterwards (a Smart Space never opened shows none). `$I db "SELECT name,kind,query FROM spaces WHERE name='Verify Smart'"` → kind `smart`, query `{}` (an empty Smart Space matches every active item, so `n` is the library's active count; caveat: an empty query plus a name that is only photo subjects, like `Cats`, matches only those subjects).
 - **Regular.** The radios cannot be clicked headless. After `set-value` on the name (which focuses that field) run `$I ad press tab --window-id '{window}'` then `$I ad press right --window-id '{window}'`; `$I tree | grep radiobutton` must show `Regular` with `states=focused|selected`. Then click `Create Space`. `db` → kind `regular`, query `{}`; the link reads `Verify Regular 0`.
-- **Rename.** `$I ad click "$($I ref button 'Rename Verify Regular')"`; a focused textfield `Rename Verify Regular` appears. `$I ad set-value "$($I ref textfield 'Rename Verify Regular')" 'Verify Renamed'` then `$I ad press return --window-id '{window}'`. `db` → name `Verify Renamed`; the sidebar link and its `Rename/Delete/Move` buttons carry the new name.
+- **Open a row's menu.** `$I ad expand "$($I ref menubutton 'Actions for Verify Regular')"` (a semantic `click` does nothing, and `expand` opens the menu yet returns `ACTION_FAILED`), then `$I tree --surface menu` and `$I ad click "$($I ref menuitem 'Move up')"`. `Move up` is disabled on the first row and `Move down` on the last; check the order with `$I db "SELECT name, position FROM spaces ORDER BY position"`.
+- **Rename.** Open the row's menu and click menuitem `Rename`; a focused textfield `Rename Verify Regular` appears. `$I ad set-value "$($I ref textfield 'Rename Verify Regular')" 'Verify Renamed'` then `$I ad press return --window-id '{window}'`. `db` → name `Verify Renamed`; the sidebar link and its `Actions for …` menubutton carry the new name.
 - **File an item.** Go to Everything (`$I ad click "$($I ref link Everything --contains)"`), open `Note: Books to reread this fall` (after earlier captures it has scrolled out of the tree: `set-value` `reread` into `Search your mind`, wait about 3 s, then click its group), `$I ad click "$($I ref button 'Keep in a Space')"`, then `$I tree --surface menu`: the menu is `Item actions`, an in-app popup listing only Regular Spaces — menuitems `Add to Weekend reading`, `Add to Verify Renamed` (a member Space shows `Remove from …`; Smart Spaces never appear). `$I ad click '<ref of Add to Verify Renamed from that tree>'`. `db "SELECT s.name, si.item_id FROM space_items si JOIN spaces s ON s.id=si.space_id WHERE s.name='Verify Renamed'"` → item `12`; sidebar link `Verify Renamed 1`.
-- **Delete populated Space.** `$I ad click "$($I ref button 'Delete Verify Renamed')"`. A second window of ours opens (a native confirm): `D=$($I windows | grep other | awk '{print $1}')`. `$I tree --window $D` lists buttons `Delete Space` and `Cancel`; `$I ad click "$($I ref button 'Delete Space' --window $D)"`. `db` → no `spaces` row named `Verify Renamed`, `items` row `12` still present.
+- **Delete populated Space.** Open the row's menu and click menuitem `Delete Space`. A second window of ours opens (a native confirm): `D=$($I windows | grep other | awk '{print $1}')`. `$I tree --window $D` lists buttons `Delete Space` and `Cancel`; `$I ad click "$($I ref button 'Delete Space' --window $D)"`. `db` → no `spaces` row named `Verify Renamed`, `items` row `12` still present.
 - **Evidence.** `$I shot` after create, after file (sidebar count), and after delete; plus the `db` rows above.
 
 ## Gotchas
