@@ -57,7 +57,7 @@ Each card may show a title, source, preview, date, tags, summary, and relevant m
 
 Search takes plain words, with no operators or filters. It runs after a pause in typing or on Enter, never on each keystroke. Text matches show at once: titles, descriptions, note and article text, OCR text, domains, and metadata such as authors and tags. Matches by meaning, over text and image embeddings, join them when the query's embedding is ready, so a query finds items that never use its words. Text matches rank first. If the models are unavailable, text search still answers. Concepts and colors drawn from images and articles are planned to feed search and Smart Spaces too.
 
-The item view's Similar tab shows images that look like an image, or articles, notes and quotes close in meaning to a text item.
+The item view's Similar section shows images that look like an image, or articles, notes and quotes close in meaning to a text item.
 
 ## Spaces
 
@@ -80,7 +80,7 @@ Archiving an item hides it from a Regular Space without removing it, so restorin
 Opening a card grows it into the library frame, and the item view replaces the library until it closes. The library stays where it was underneath, so closing flies the item back into its card.
 
 - The item's media sits on a dotted stage. Images zoom and pan, and show their pixels when zoomed far in.
-- An inspector on the right holds the title, note, Spaces, tags, and details, with a Similar tab beside Info. Tags are added and removed there.
+- An inspector on the right holds the title, note, Spaces, tags, and details. Tags are added and removed there. It is one page: Info fills the first screen and Similar follows below it, reached by scrolling or from the Info and Similar buttons above. An image's color palette stays pinned while the page scrolls.
 - An action bar files the item in a Regular Space, opens the original, shows a file in its folder, and archives it. An archived item can be restored or deleted for good.
 - The view closes only from Close or Escape. Mouse side buttons and Alt+Left/Right step back and forward through opened items.
 

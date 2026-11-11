@@ -116,7 +116,7 @@ export function PdfViewer({
 
   const turn = (delta: number) =>
     setPageNumber(Math.min(Math.max(1, page + delta), Math.max(1, pageCount)));
-  // Arrow keys a focused field or the Info and Similar tabs use stay with them.
+  // Arrow keys a focused field uses stay with it.
   useHotkeys(
     [
       { hotkey: "ArrowLeft", callback: () => turn(-1) },

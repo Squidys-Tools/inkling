@@ -1,8 +1,16 @@
-import { Tabs } from "@base-ui/react/tabs";
 import type { LibraryCard } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Button, Kbd } from "@inkling/ui";
-import { color, font, itemColor, layout, radius, space, text } from "@inkling/ui/tokens.stylex";
+import {
+  color,
+  font,
+  itemColor,
+  layout,
+  motion,
+  radius,
+  space,
+  text,
+} from "@inkling/ui/tokens.stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { controlsOnRight } from "../desktop.ts";
@@ -15,7 +23,7 @@ import { refreshJobs } from "../library/jobs.ts";
 import { setInSpace, useSpaces } from "../library/spaces.ts";
 import { showWrittenCard } from "../library/writes.ts";
 import { ActionBar } from "./ActionBar.tsx";
-import { InfoPanel } from "./InfoPanel.tsx";
+import { InfoPanel, ItemHeading, Palette, paletteOf } from "./InfoPanel.tsx";
 import { findCard } from "./itemFlight.ts";
 import { describeItem } from "./model.ts";
 import { useItemNavigation } from "./navigation.ts";
@@ -70,7 +78,12 @@ function ItemBody({
   const query = useItem(id);
   const memberships = useMemberships(id);
   const regularSpaces = useSpaces().filter((space) => space.kind === "regular");
-  const [tab, setTab] = useState<"info" | "similar">("info");
+  const [section, setSection] = useState<Section>("info");
+  // Similar items load once the user heads for them, not on every open.
+  const [similarWanted, setSimilarWanted] = useState(false);
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  const [similar, setSimilar] = useState<HTMLElement | null>(null);
+  const pinned = useRef<HTMLDivElement>(null);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -121,6 +134,34 @@ function ItemBody({
       notify("Deleted permanently");
   };
 
+  useEffect(() => {
+    if (!scroller || !similar) return;
+    // The section starts flush with the fold, which an observer counts as touching.
+    const approached = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) setSimilarWanted(true);
+      },
+      { root: scroller, rootMargin: "0px 0px -8px 0px" },
+    );
+    const reached = new IntersectionObserver(
+      (entries) => setSection(entries.some((entry) => entry.isIntersecting) ? "similar" : "info"),
+      { root: scroller, rootMargin: "0px 0px -50% 0px" },
+    );
+    approached.observe(similar);
+    reached.observe(similar);
+    return () => {
+      approached.disconnect();
+      reached.disconnect();
+    };
+  }, [scroller, similar]);
+
+  const goTo = (target: Section) => {
+    if (target === "similar") setSimilarWanted(true);
+    const below = (similar?.offsetTop ?? 0) - (pinned.current?.offsetHeight ?? 0);
+    scroller?.scrollTo({ top: target === "info" ? 0 : below });
+  };
+
+  const swatches = item ? paletteOf(item) : [];
   const memberOf = memberships.data ?? [];
   const status =
     (query.isLoadingError && errorMessage(query.error)) ??
@@ -131,21 +172,22 @@ function ItemBody({
       <div {...stylex.props(styles.stage, pdfOpen && styles.stageDocument)}>
         {item && <Stage item={item} pdfOpen={pdfOpen} onClosePdf={() => setPdfOpen(false)} />}
       </div>
-      <Tabs.Root
-        value={tab}
-        onValueChange={(value) => setTab(value === "similar" ? "similar" : "info")}
-        {...stylex.props(styles.inspector, controlsOnRight && styles.belowControls)}
-      >
+      <div {...stylex.props(styles.inspector, controlsOnRight && styles.belowControls)}>
         <header {...stylex.props(styles.header)}>
           {item && (
-            <Tabs.List activateOnFocus {...stylex.props(styles.tabs)}>
-              <Tabs.Tab value="info" className={tabClass}>
-                Info
-              </Tabs.Tab>
-              <Tabs.Tab value="similar" className={tabClass}>
-                Similar
-              </Tabs.Tab>
-            </Tabs.List>
+            <nav aria-label="Item sections" {...stylex.props(styles.tabs)}>
+              {sections.map(({ id: target, label }) => (
+                <button
+                  key={target}
+                  type="button"
+                  aria-current={section === target ? "true" : undefined}
+                  onClick={() => goTo(target)}
+                  {...stylex.props(styles.tab, section === target && styles.tabActive)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
           )}
           <Button
             ref={closeButton}
@@ -164,25 +206,43 @@ function ItemBody({
         )}
         {item && (
           <>
-            <Tabs.Panel value="info" tabIndex={-1} {...stylex.props(styles.panel)}>
-              <InfoPanel
-                item={item}
-                filedIn={regularSpaces.filter((space) => memberOf.includes(space.id))}
-                onRename={(title) => void write((client) => client.updateItem({ id, title }))}
-                onAddTag={(addTag) => void write((client) => client.updateItem({ id, addTag }))}
-                onRemoveTag={(removeTag) =>
-                  void write((client) => client.updateItem({ id, removeTag }))
-                }
-                onEditNote={() => void navigate({ to: "/item/$id/write", params: { id } })}
-                onOpenPdf={() => setPdfOpen(true)}
-                onRead={() => void navigate({ to: "/item/$id/read", params: { id } })}
-              />
-              {actionError && <p {...stylex.props(styles.error)}>{actionError}</p>}
-            </Tabs.Panel>
-            <Tabs.Panel value="similar" tabIndex={-1} {...stylex.props(styles.panel)}>
-              <h2 {...stylex.props(styles.compactTitle)}>{item.title}</h2>
-              <SimilarPanel item={item} onOpen={onOpenSimilar} />
-            </Tabs.Panel>
+            <div ref={setScroller} tabIndex={-1} {...stylex.props(styles.scroller)}>
+              <div {...stylex.props(styles.page)}>
+                <div aria-hidden="true" {...stylex.props(styles.firstScreen)} />
+                <div {...stylex.props(styles.heading)}>
+                  <ItemHeading
+                    item={item}
+                    onRename={(title) => void write((client) => client.updateItem({ id, title }))}
+                  />
+                </div>
+                {swatches.length > 0 && (
+                  <div ref={pinned} {...stylex.props(styles.pinned)}>
+                    <Palette swatches={swatches} />
+                  </div>
+                )}
+                <div {...stylex.props(styles.info, swatches.length > 0 && styles.underPalette)}>
+                  <InfoPanel
+                    item={item}
+                    filedIn={regularSpaces.filter((space) => memberOf.includes(space.id))}
+                    onAddTag={(addTag) => void write((client) => client.updateItem({ id, addTag }))}
+                    onRemoveTag={(removeTag) =>
+                      void write((client) => client.updateItem({ id, removeTag }))
+                    }
+                    onEditNote={() => void navigate({ to: "/item/$id/write", params: { id } })}
+                    onOpenPdf={() => setPdfOpen(true)}
+                    onRead={() => void navigate({ to: "/item/$id/read", params: { id } })}
+                  />
+                  {actionError && <p {...stylex.props(styles.error)}>{actionError}</p>}
+                </div>
+                <section
+                  ref={setSimilar}
+                  aria-label="Similar"
+                  {...stylex.props(styles.similar, swatches.length > 0 && styles.similarPinned)}
+                >
+                  {similarWanted && <SimilarPanel item={item} onOpen={onOpenSimilar} />}
+                </section>
+              </div>
+            </div>
             <ActionBar
               item={item}
               spaces={regularSpaces}
@@ -194,13 +254,16 @@ function ItemBody({
             />
           </>
         )}
-      </Tabs.Root>
+      </div>
     </div>
   );
 }
 
-const tabClass = (state: { active: boolean }) =>
-  stylex.props(styles.tab, state.active && styles.tabActive).className ?? "";
+type Section = "info" | "similar";
+const sections: readonly { id: Section; label: string }[] = [
+  { id: "info", label: "Info" },
+  { id: "similar", label: "Similar" },
+];
 
 const narrow = "@media (max-width: 780px)";
 
@@ -267,6 +330,9 @@ const styles = stylex.create({
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "4px",
     borderRadius: "2px",
+    transitionProperty: "color",
+    transitionDuration: motion.reveal,
+    transitionTimingFunction: motion.standard,
   },
   tabActive: { fontWeight: 600, color: { default: color.ink, ":hover": color.ink } },
   close: {
@@ -277,26 +343,74 @@ const styles = stylex.create({
     fontSize: text.sm,
     color: { default: color.muted, ":hover": color.ink },
   },
-  panel: {
-    display: "flex",
-    flexDirection: "column",
+  // One page: Info fills the first screen and Similar follows it.
+  scroller: {
     flexGrow: 1,
-    gap: space.s5,
     minHeight: 0,
     overflowY: "auto",
-    paddingTop: space.s5,
     scrollbarWidth: "none",
+    scrollBehavior: { default: "smooth", "@media (prefers-reduced-motion: reduce)": "auto" },
+    containerType: "size",
     outline: "none",
   },
-  compactTitle: {
-    margin: 0,
-    fontSize: "20px",
-    lineHeight: "26px",
-    fontWeight: 600,
-    letterSpacing: "-0.015em",
-    color: color.ink,
-    overflowWrap: "anywhere",
+  page: {
+    position: "relative",
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gridTemplateRows: "auto 1fr auto",
+    paddingTop: space.s5,
   },
+  // Holds the heading and Info rows to one screen, so Similar starts below the fold.
+  firstScreen: {
+    gridColumn: 1,
+    gridRow: "1 / 3",
+    height: `calc(100cqh - ${space.s5})`,
+    visibility: "hidden",
+    pointerEvents: "none",
+  },
+  heading: { gridColumn: 1, gridRow: 1, minWidth: 0 },
+  // A grid item sticks only within its own area, so the palette's spans Info and Similar.
+  pinned: {
+    gridColumn: 1,
+    gridRow: "2 / 4",
+    alignSelf: "start",
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
+    paddingBlock: space.s3,
+    backgroundColor: color.frame,
+    "::after": {
+      content: '""',
+      position: "absolute",
+      insetInline: 0,
+      top: "100%",
+      height: space.s3,
+      backgroundImage: `linear-gradient(${color.frame}, transparent)`,
+      pointerEvents: "none",
+    },
+  },
+  info: {
+    gridColumn: 1,
+    gridRow: 2,
+    display: "flex",
+    flexDirection: "column",
+    gap: space.s5,
+    minWidth: 0,
+    paddingTop: space.s5,
+    paddingBottom: space.s5,
+  },
+  // The pinned band is a swatch (22px) with s3 above and below it.
+  underPalette: { paddingTop: `calc(${space.s3} + 22px + ${space.s5})` },
+  // Tall enough that Similar can scroll all the way up to the top.
+  similar: {
+    gridColumn: 1,
+    gridRow: 3,
+    minWidth: 0,
+    minHeight: "100cqh",
+    paddingTop: space.s5,
+    paddingBottom: space.s5,
+  },
+  similarPinned: { minHeight: `calc(100cqh - 22px - 2 * ${space.s3})`, paddingTop: space.s2 },
   status: {
     margin: 0,
     paddingTop: space.s5,

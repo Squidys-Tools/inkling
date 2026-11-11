@@ -49,11 +49,45 @@ function Detail({ label, value, mono }: { label: string; value: string; mono?: b
   );
 }
 
-/** The Info tab: what the item is, where it came from, and what to do with it. */
+const quoteOf = (item: DescribedItem) => (item.kind === "Quote" ? quoteArtworkText(item) : null);
+
+/** The colors measured from the item's image; a quote shows none. */
+export const paletteOf = (item: DescribedItem) => (quoteOf(item) ? [] : [...new Set(item.palette)]);
+
+export function Palette({ swatches }: { swatches: readonly string[] }) {
+  return (
+    <div aria-hidden="true" {...stylex.props(styles.palette)}>
+      {swatches.map((swatch) => (
+        <span key={swatch} {...stylex.props(styles.swatch, styles.swatchColor(swatch))} />
+      ))}
+    </div>
+  );
+}
+
+/** What opens the Info section: the quote itself, or the item's editable title. */
+export function ItemHeading({
+  item,
+  onRename,
+}: {
+  item: DescribedItem;
+  onRename: (title: string) => void;
+}) {
+  const quote = quoteOf(item);
+  if (!quote) return <TitleField title={item.title} onRename={onRename} />;
+  return (
+    <div {...stylex.props(styles.heading)}>
+      <blockquote {...stylex.props(styles.quote)}>
+        “{quote.text.replace(/^["“]|["”]$/gu, "")}”
+      </blockquote>
+      {quote.attribution && <p {...stylex.props(styles.attribution)}>{quote.attribution}</p>}
+    </div>
+  );
+}
+
+/** The Info section under its heading: where the item came from, and what to do with it. */
 export function InfoPanel({
   item,
   filedIn,
-  onRename,
   onAddTag,
   onRemoveTag,
   onEditNote,
@@ -62,7 +96,6 @@ export function InfoPanel({
 }: {
   item: DescribedItem;
   filedIn: readonly Space[];
-  onRename: (title: string) => void;
   onAddTag: (tag: string) => void;
   onRemoveTag: (tag: string) => void;
   onEditNote: () => void;
@@ -73,31 +106,12 @@ export function InfoPanel({
   const site = hostname(item.webUrl);
   const type = site ? null : fileType(item.source);
   const from = site ?? (type ? null : item.source);
-  const quote = item.kind === "Quote" ? quoteArtworkText(item) : null;
+  const quote = quoteOf(item);
   const canRead = item.hasArticleContent;
   const canOpenPdf = item.kind === "PDF" && Boolean(item.file);
 
   return (
     <>
-      {quote ? (
-        <>
-          <blockquote {...stylex.props(styles.quote)}>
-            “{quote.text.replace(/^["“]|["”]$/gu, "")}”
-          </blockquote>
-          {quote.attribution && <p {...stylex.props(styles.attribution)}>{quote.attribution}</p>}
-        </>
-      ) : (
-        <div {...stylex.props(styles.heading)}>
-          <TitleField title={item.title} onRename={onRename} />
-          {item.palette.length > 0 && (
-            <div aria-hidden="true" {...stylex.props(styles.palette)}>
-              {[...new Set(item.palette)].map((swatch) => (
-                <span key={swatch} {...stylex.props(styles.swatch, styles.swatchColor(swatch))} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
       {item.kind !== "Note" && !quote && item.description && (
         <p {...stylex.props(styles.box)}>{item.description}</p>
       )}
@@ -149,7 +163,7 @@ export function InfoPanel({
 }
 
 const styles = stylex.create({
-  heading: { display: "flex", flexDirection: "column", gap: space.s3 },
+  heading: { display: "flex", flexDirection: "column", gap: space.s5 },
   palette: { display: "flex", gap: "6px" },
   swatch: {
     flexShrink: 0,
