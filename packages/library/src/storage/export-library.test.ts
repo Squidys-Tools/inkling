@@ -1,5 +1,5 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -37,8 +37,13 @@ test("export counts and copies assets from the database snapshot", async () => {
     new DatabaseSync(join(report.directory, "library.sqlite3"), { readOnly: true }),
   );
   const snapshotCount = snapshot.prepare("SELECT COUNT(*) AS count FROM items").get()?.count;
+  const snapshotMode = snapshot.prepare("PRAGMA journal_mode").get();
   closeDatabase(snapshot);
 
+  // The live library is in WAL; its export must stay one self-contained file.
+  expect(library.db.prepare("PRAGMA journal_mode").get()).toEqual({ journal_mode: "wal" });
+  expect(snapshotMode).toEqual({ journal_mode: "delete" });
+  expect(readdirSync(report.directory).toSorted()).toEqual(["library.sqlite3", "manifest.json"]);
   expect(await library.listActiveItems()).toHaveLength(2);
   expect(report.items).toBe(1);
   expect(snapshotCount).toBe(1);
