@@ -8,8 +8,9 @@ const ownDrag = "application/x-inkling-drag";
 
 /**
  * Dropping a file anywhere must never navigate the window to it, so every drag is taken here,
- * and only the library accepts what is dropped. A drag that began inside the window (a link,
- * an image, selected text) is the app's own content, never a capture.
+ * and only the library accepts what is dropped. A DOM drag that began inside the window (a
+ * link, an image, selected text) is the app's own content, never a capture. A card dragged out
+ * is an OS file drag started by the main process, which this cannot see.
  */
 export function watchDrops(
   target: EventTarget,

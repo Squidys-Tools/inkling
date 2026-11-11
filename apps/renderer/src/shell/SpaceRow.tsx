@@ -89,6 +89,8 @@ export function SpaceRow({
     const end = () => {
       listening.abort();
       setLift(null);
+      // After this release's click: one that lands outside the row would leave the flag set.
+      setTimeout(() => (dragged.current = false));
     };
     window.addEventListener(
       "pointermove",

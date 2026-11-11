@@ -19,7 +19,7 @@ export function sidebarLabelFrames(opacity: number, open: boolean, reversing: bo
       ];
 }
 
-/** How many rows a dragged Space has crossed, held inside the list. */
+/** How many rows a dragged Space has crossed, held inside the list. `+ 0` turns -0 into 0. */
 export const dragSteps = (offset: number, pitch: number, index: number, lastIndex: number) =>
   Math.max(-index, Math.min(lastIndex - index, Math.round(offset / pitch))) + 0;
 
