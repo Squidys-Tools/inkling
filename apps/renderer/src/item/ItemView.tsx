@@ -170,6 +170,9 @@ function ItemBody({
                 filedIn={regularSpaces.filter((space) => memberOf.includes(space.id))}
                 onRename={(title) => void write((client) => client.updateItem({ id, title }))}
                 onAddTag={(addTag) => void write((client) => client.updateItem({ id, addTag }))}
+                onRemoveTag={(removeTag) =>
+                  void write((client) => client.updateItem({ id, removeTag }))
+                }
                 onEditNote={() => void navigate({ to: "/item/$id/write", params: { id } })}
                 onOpenPdf={() => setPdfOpen(true)}
                 onRead={() => void navigate({ to: "/item/$id/read", params: { id } })}

@@ -6,7 +6,7 @@
 - Search is the primary organizing system.
 - Every saved item should receive a visual treatment appropriate to its content.
 - AI classification is invisible implementation detail. Do not label tags as AI-generated.
-- Do not provide tag correction, tag deletion, confidence scores, or AI-management workflows.
+- Do not provide tag correction flows, confidence scores, or AI-management workflows. Any tag can be removed from an item, the same way whoever added it.
 - Manual tags and Spaces are available for intentional projects, not required maintenance.
 - Local processing is explained during onboarding and settings, not repeatedly in the main interface.
 - User-authored notes and content must never be silently rewritten by AI.
@@ -80,7 +80,7 @@ Archiving an item hides it from a Regular Space without removing it, so restorin
 Opening a card grows it into the library frame, and the item view replaces the library until it closes. The library stays where it was underneath, so closing flies the item back into its card.
 
 - The item's media sits on a dotted stage. Images zoom and pan, and show their pixels when zoomed far in.
-- An inspector on the right holds the title, note, Spaces, tags, and details, with a Similar tab beside Info.
+- An inspector on the right holds the title, note, Spaces, tags, and details, with a Similar tab beside Info. Tags are added and removed there.
 - An action bar files the item in a Regular Space, opens the original, shows a file in its folder, and archives it. An archived item can be restored or deleted for good.
 - The view closes only from Close or Escape. Mouse side buttons and Alt+Left/Right step back and forward through opened items.
 

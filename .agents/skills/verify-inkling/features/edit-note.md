@@ -17,7 +17,7 @@ Edit note reopens a saved note's body in the full-page editor and saves the chan
 
 Preconditions: a note with body `verify probe alpha` exists (run capture-note first), Everything is shown.
 
-- **Open the note.** `$I ad click "$($I ref group 'Note: Untitled note')"`. Tabs `Info`/`Similar` and buttons `Close`, `Edit note`, `Keep in a Space`, `Archive` appear (plus the title button, `Add tag`, and `Saved`/`From` options); `$I shot 04-open`.
+- **Open the note.** `$I ad click "$($I ref group 'Note: Untitled note')"`. Tabs `Info`/`Similar` and buttons `Close`, `Edit note`, `Keep in a Space`, `Archive` appear (plus the title button, `Add tag`, a `Remove tag <name>` button per tag, and `Saved`/`From` options); `$I shot 04-open`.
 - **Open the editor.** `$I ad click "$($I ref button 'Edit note')"`. The route is `#/item/<id>/write`; textfield `Note` has value `verify probe alpha`; buttons `Cancel`, `Save note`, `Close focus mode`.
 - **Replace the body.** `$I ad set-value "$($I ref textfield Note)" 'verify probe edited'`; `$I shot 05-typed`.
 - **Save.** `$I ad click "$($I ref button 'Save note')"`. The item view returns (`Edit note` button visible again).

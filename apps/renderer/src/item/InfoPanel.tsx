@@ -55,6 +55,7 @@ export function InfoPanel({
   filedIn,
   onRename,
   onAddTag,
+  onRemoveTag,
   onEditNote,
   onOpenPdf,
   onRead,
@@ -63,6 +64,7 @@ export function InfoPanel({
   filedIn: readonly Space[];
   onRename: (title: string) => void;
   onAddTag: (tag: string) => void;
+  onRemoveTag: (tag: string) => void;
   onEditNote: () => void;
   onOpenPdf: () => void;
   onRead: () => void;
@@ -102,7 +104,7 @@ export function InfoPanel({
       {processing && (
         <ProcessingRows processing={processing} onPaper={false} onRetry={retryProcessing} />
       )}
-      <TagList tags={item.tags} spaces={filedIn} onAddTag={onAddTag} />
+      <TagList tags={item.tags} spaces={filedIn} onAddTag={onAddTag} onRemoveTag={onRemoveTag} />
       <section>
         <h3 {...stylex.props(styles.sectionTitle)}>Details</h3>
         <dl {...stylex.props(styles.details)}>

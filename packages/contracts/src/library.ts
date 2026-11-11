@@ -81,6 +81,7 @@ export const UpdateItemInput = Schema.Struct({
   metadata: Schema.optional(Metadata),
   metadataPatch: Schema.optional(Metadata),
   addTag: OptionalText,
+  removeTag: OptionalText,
 });
 export type UpdateItemInput = typeof UpdateItemInput.Type;
 

@@ -306,11 +306,22 @@ export function createPreviewClient(): LibraryClient {
         ),
       );
     },
-    updateItem: async ({ id, title, description, body, sourceUrl, metadataPatch, addTag }) => {
+    updateItem: async ({
+      id,
+      title,
+      description,
+      body,
+      sourceUrl,
+      metadataPatch,
+      addTag,
+      removeTag,
+    }) => {
       const found = entry(id);
-      const tags = Array.isArray(found.card.metadata.tags)
+      const stored = Array.isArray(found.card.metadata.tags)
         ? found.card.metadata.tags.map(String)
         : [];
+      const kept = stored.filter((tag) => tag.toLowerCase() !== removeTag?.toLowerCase());
+      const tags = addTag ? [...new Set([...kept, addTag])] : kept;
       const card: LibraryCard = {
         ...found.card,
         title: title ?? found.card.title,
@@ -320,7 +331,7 @@ export function createPreviewClient(): LibraryClient {
         metadata: {
           ...found.card.metadata,
           ...metadataPatch,
-          ...(addTag ? { tags: [...new Set([...tags, addTag])] } : {}),
+          ...(addTag || removeTag ? { tags } : {}),
         },
       };
       return write(card, body ?? found.body).card;
