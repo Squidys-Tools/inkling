@@ -17,22 +17,37 @@ import { SizeStepper } from "./SizeStepper.tsx";
 import { desktop } from "../desktop.ts";
 import { reportActionError } from "../cards/actionError.ts";
 
+// Height of the native video controls bar, which a drag must not hijack.
+const VIDEO_CONTROLS_HEIGHT = 48;
+// A video drag pans only after this many pixels, so a plain click still plays it.
+const VIDEO_DRAG_THRESHOLD = 4;
+
 // Zoom and pan live here, so panning re-renders only this stage. The caller
-// keys it by item, which resets zoom when the shown item changes.
-export function ZoomableImage({
+// keys it by item, which resets zoom when the shown item changes. A video is
+// an image here: the same free zoom and pan, with its native controls.
+export function ZoomableMedia({
   src,
   originalSrc,
   alt,
   itemId,
+  video,
 }: {
   itemId?: string;
-  src: string;
+  /** The image, or a video's poster. */
+  src?: string;
   /** The full-size file, swapped in once the image is zoomed past fit. */
   originalSrc?: string;
   alt: string;
+  /** The video file to play in place of the image. */
+  video?: string;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ pointerX: number; pointerY: number; origin: Offset } | null>(null);
+  const dragRef = useRef<{
+    pointerX: number;
+    pointerY: number;
+    origin: Offset;
+    captured: boolean;
+  } | null>(null);
   const [frame, setFrame] = useState<Size | null>(null);
   // The first image's size fixes the layout box, so the original can swap in
   // without the picture moving or resizing.
@@ -98,13 +113,12 @@ export function ZoomableImage({
   }
   const zoomOnWheel = useEffectEvent(zoomBy);
 
-  // React's wheel listener is passive, so Ctrl+wheel is attached here to stop
-  // the page zooming instead of the image.
+  // React's wheel listener is passive, so the wheel is attached here to stop
+  // the page scrolling or zooming instead of the media.
   useEffect(() => {
     const element = frameRef.current;
     if (!element) return;
     const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey) return;
       event.preventDefault();
       const rect = element.getBoundingClientRect();
       zoomOnWheel(wheelZoomFactor(event.deltaY), {
@@ -136,9 +150,26 @@ export function ZoomableImage({
       }
     }
     if (!isZoomed || (event.button !== 0 && event.button !== 1)) return;
+    if (video && event.button === 0) {
+      // Left-drag on a video leaves the scaled controls bar to the video itself.
+      const rect = event.target instanceof Element ? event.target.getBoundingClientRect() : null;
+      if (rect && rect.bottom - event.clientY < VIDEO_CONTROLS_HEIGHT * (zoom / fit)) return;
+      dragRef.current = {
+        pointerX: event.clientX,
+        pointerY: event.clientY,
+        origin: offset,
+        captured: false,
+      };
+      return;
+    }
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = { pointerX: event.clientX, pointerY: event.clientY, origin: offset };
+    dragRef.current = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      origin: offset,
+      captured: true,
+    };
     setIsDragging(true);
   }
 
@@ -162,6 +193,12 @@ export function ZoomableImage({
     if (!start || !shown || !frame) return;
     const x = start.origin.x + event.clientX - start.pointerX;
     const y = start.origin.y + event.clientY - start.pointerY;
+    if (!start.captured) {
+      if (Math.hypot(x - start.origin.x, y - start.origin.y) < VIDEO_DRAG_THRESHOLD) return;
+      start.captured = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setIsDragging(true);
+    }
     setPan(clampPan({ x, y }, shown, frame));
   }
 
@@ -173,6 +210,16 @@ export function ZoomableImage({
   }
 
   const base = ready ? { width: natural.width * fit, height: natural.height * fit } : null;
+  const pixelView = zoom >= PIXEL_ZOOM && !video;
+  const mediaProps = stylex.props(
+    styles.image,
+    // A shadow would be recomputed over the whole scaled media on every pan.
+    !isZoomed && styles.shadow,
+    base && styles.box(base.width, base.height),
+    styles.transform(offset.x, offset.y, zoom / fit),
+    isDragging && styles.direct,
+    pixelView && styles.pixelated,
+  );
   return (
     <>
       <div
@@ -187,33 +234,43 @@ export function ZoomableImage({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
-        <img
-          src={original?.url ?? src}
-          alt={alt}
-          draggable={!isZoomed}
-          onDragStart={(event) => {
-            if (!desktop || !itemId) return;
-            event.preventDefault();
-            void desktop
-              .startItemDrag(itemId)
-              .catch(() => reportActionError("Couldn’t drag this item out."));
-          }}
-          onLoad={(event) => {
-            const { naturalWidth, naturalHeight } = event.currentTarget;
-            if (naturalWidth > 0 && naturalHeight > 0)
-              setNatural((previous) => previous ?? { width: naturalWidth, height: naturalHeight });
-          }}
-          {...stylex.props(
-            styles.image,
-            // A shadow would be recomputed over the whole scaled image on every pan.
-            !isZoomed && styles.shadow,
-            base && styles.box(base.width, base.height),
-            styles.transform(offset.x, offset.y, zoom / fit),
-            isDragging && styles.direct,
-            zoom >= PIXEL_ZOOM && styles.pixelated,
-          )}
-        />
-        {ready && zoom >= PIXEL_ZOOM && shown && (
+        {video ? (
+          // oxlint-disable-next-line jsx-a11y/media-has-caption -- a file the user saved has no captions to offer.
+          <video
+            src={video}
+            poster={src}
+            controls
+            preload="metadata"
+            onLoadedMetadata={(event) => {
+              const { videoWidth, videoHeight } = event.currentTarget;
+              if (videoWidth > 0 && videoHeight > 0)
+                setNatural((previous) => previous ?? { width: videoWidth, height: videoHeight });
+            }}
+            {...mediaProps}
+          />
+        ) : (
+          <img
+            src={original?.url ?? src}
+            alt={alt}
+            draggable={!isZoomed}
+            onDragStart={(event) => {
+              if (!desktop || !itemId) return;
+              event.preventDefault();
+              void desktop
+                .startItemDrag(itemId)
+                .catch(() => reportActionError("Couldn’t drag this item out."));
+            }}
+            onLoad={(event) => {
+              const { naturalWidth, naturalHeight } = event.currentTarget;
+              if (naturalWidth > 0 && naturalHeight > 0)
+                setNatural(
+                  (previous) => previous ?? { width: naturalWidth, height: naturalHeight },
+                );
+            }}
+            {...mediaProps}
+          />
+        )}
+        {ready && pixelView && shown && (
           <div
             {...stylex.props(
               styles.grid,
@@ -224,7 +281,7 @@ export function ZoomableImage({
         )}
       </div>
       {ready && (
-        <Glass style={styles.pill}>
+        <Glass style={video ? [styles.pill, styles.pillTop] : styles.pill}>
           <SizeStepper
             label="Zoom"
             percent={Math.round(zoom * 100)}
@@ -295,4 +352,6 @@ const styles = stylex.create({
     padding: space.s1,
     borderRadius: radius.round,
   },
+  // A video's native controls run along the bottom, so its pill sits at the top.
+  pillTop: { top: space.s4, bottom: "auto" },
 });

@@ -7,7 +7,7 @@ export const PIXEL_ZOOM = 8;
 // One button press scales by this much, so each step feels the same size at 20%
 // as at 2000%.
 export const BUTTON_ZOOM_FACTOR = 1.25;
-// Ctrl+wheel: a typical 100px notch scales by about 1.22.
+// Wheel: a typical 100px notch scales by about 1.22.
 const WHEEL_ZOOM_RATE = 0.002;
 
 export type Size = { width: number; height: number };
