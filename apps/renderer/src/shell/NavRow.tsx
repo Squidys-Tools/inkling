@@ -24,6 +24,8 @@ export function NavLink({
   return (
     <Link
       {...link}
+      // A dragged link would leave the window as a URL, and it is not one the user saved.
+      draggable={false}
       onClick={onClick}
       aria-label={compact ? label : undefined}
       title={compact ? label : undefined}
@@ -105,7 +107,9 @@ const styles = stylex.create({
     gap: "10px",
     height: "32px",
     minWidth: 0,
-    paddingInline: "18px",
+    flexGrow: 1,
+    paddingLeft: "18px",
+    paddingRight: "10px",
     borderRadius: radius.control,
     backgroundColor: { default: "transparent", ":hover": color.overlayHover },
     lineHeight: "18px",
@@ -117,11 +121,15 @@ const styles = stylex.create({
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "-2px",
   },
-  compact: { justifyContent: "center", paddingInline: 0 },
+  compact: { justifyContent: "center", paddingLeft: 0, paddingRight: 0 },
   button: { width: "100%", borderWidth: 0, fontFamily: font.body, textAlign: "left" },
   nav: { fontSize: "14px", color: { default: color.inkSoft, ":hover": color.ink } },
   footer: { fontSize: "13px", color: { default: color.muted, ":hover": color.ink } },
-  active: { fontWeight: 600, color: { default: color.inkStrong, ":hover": color.inkStrong } },
+  active: {
+    fontWeight: 600,
+    backgroundColor: { default: color.overlayActive, ":hover": color.overlayActive },
+    color: { default: color.inkStrong, ":hover": color.inkStrong },
+  },
   icon: { display: "grid", placeItems: "center", width: "16px", flexShrink: 0, color: color.muted },
   activeIcon: { color: color.accent },
   label: {

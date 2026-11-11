@@ -1,67 +1,39 @@
-import type { ContextMenuItem } from "@inkling/contracts/desktop";
 import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Link } from "@tanstack/react-router";
-import type { KeyboardEvent, MouseEvent } from "react";
 import { color, motion, radius } from "@inkling/ui/tokens.stylex";
 import { search } from "../library/search.ts";
-import { menuPoint, showContextMenu } from "../menu/contextMenu.tsx";
 import { SpaceMark } from "./SpaceMark.tsx";
-
-type Actions = {
-  up: () => void;
-  down: () => void;
-  color: () => void;
-  rename: () => void;
-  delete: () => void;
-};
+import { opensMenu, openSpaceMenu, type SpaceActions } from "./spaceMenu.ts";
 
 /** The compact rail keeps each Space's colored blot and the full row's actions. */
 export function CompactSpaceRow({
   space,
   selected,
-  canMoveUp,
-  canMoveDown,
+  can,
   actions,
 }: {
   space: Space;
   selected: boolean;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
-  actions: Actions;
+  can: { up: boolean; down: boolean };
+  actions: SpaceActions;
 }) {
-  const menu = async (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => {
-    event.preventDefault();
-    const entries: ContextMenuItem[] = [
-      { type: "item", id: "up", label: "Move up", enabled: canMoveUp },
-      { type: "item", id: "down", label: "Move down", enabled: canMoveDown },
-      { type: "item", id: "color", label: "Change color" },
-      { type: "item", id: "rename", label: "Rename" },
-      { type: "separator" },
-      { type: "item", id: "delete", label: "Delete Space", destructive: true },
-    ];
-    const target = event.currentTarget;
-    const chosen = await showContextMenu(entries, menuPoint(event));
-    if (target.isConnected && (!document.activeElement || document.activeElement === document.body))
-      target.focus({ preventScroll: true });
-    if (chosen && Object.hasOwn(actions, chosen)) actions[chosen as keyof Actions]();
-  };
   return (
     <Link
       to="/space/$id"
       params={{ id: space.id }}
+      draggable={false}
       aria-label={space.name}
       title={space.name}
       aria-current={selected ? "page" : undefined}
       onClick={() => search.clear()}
-      onContextMenu={(event) => void menu(event)}
+      onContextMenu={(event) => void openSpaceMenu(event, space.name, can, actions)}
       onKeyDown={(event) => {
-        if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))
-          void menu(event);
+        if (opensMenu(event)) void openSpaceMenu(event, space.name, can, actions);
       }}
       {...stylex.props(styles.row, selected && styles.selected)}
     >
-      <SpaceMark color={space.color} />
+      <SpaceMark color={space.color} hollow={space.kind === "smart"} />
     </Link>
   );
 }
@@ -83,5 +55,5 @@ const styles = stylex.create({
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "-2px",
   },
-  selected: { backgroundColor: color.accentSoft },
+  selected: { backgroundColor: { default: color.overlayActive, ":hover": color.overlayActive } },
 });

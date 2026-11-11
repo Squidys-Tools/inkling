@@ -1,14 +1,18 @@
 import { Menu } from "@base-ui/react/menu";
 import Archive03Icon from "@hugeicons/core-free-icons/Archive03Icon";
+import ArrowDown01Icon from "@hugeicons/core-free-icons/ArrowDown01Icon";
 import ArrowRight01Icon from "@hugeicons/core-free-icons/ArrowRight01Icon";
+import ArrowUp01Icon from "@hugeicons/core-free-icons/ArrowUp01Icon";
 import ArrowUpRight01Icon from "@hugeicons/core-free-icons/ArrowUpRight01Icon";
 import Bookmark01Icon from "@hugeicons/core-free-icons/Bookmark01Icon";
 import Copy01Icon from "@hugeicons/core-free-icons/Copy01Icon";
 import Delete02Icon from "@hugeicons/core-free-icons/Delete02Icon";
+import Edit01Icon from "@hugeicons/core-free-icons/Edit01Icon";
 import FileTextIcon from "@hugeicons/core-free-icons/FileTextIcon";
 import Folder01Icon from "@hugeicons/core-free-icons/Folder01Icon";
 import Image01Icon from "@hugeicons/core-free-icons/Image01Icon";
 import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
+import PaintBoardIcon from "@hugeicons/core-free-icons/PaintBoardIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
@@ -34,6 +38,14 @@ function actionIcon(id: string) {
       return Link01Icon;
     case "open":
       return ArrowUpRight01Icon;
+    case "rename":
+      return Edit01Icon;
+    case "color":
+      return PaintBoardIcon;
+    case "up":
+      return ArrowUp01Icon;
+    case "down":
+      return ArrowDown01Icon;
     default:
       return FileTextIcon;
   }
@@ -109,7 +121,7 @@ export function OpenContextMenu({ menu }: { menu: Open }) {
           {...stylex.props(styles.positioner)}
         >
           <Menu.Popup
-            aria-label="Item actions"
+            aria-label={menu.label}
             data-inkling-context-popup=""
             finalFocus={() =>
               keyboardClose.current && menu.returnFocus?.isConnected ? menu.returnFocus : false

@@ -4,10 +4,11 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, srOnly } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
-import { useId } from "react";
+import { useEffect, useId } from "react";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { shownScope, useScope } from "../library/cards.ts";
 import { search } from "../library/search.ts";
+import { rememberSpaceCount, useSpaceCounts } from "../library/spaceCounts.ts";
 import { createSpace, dismissSpaceError, useSpaceError, useSpaces } from "../library/spaces.ts";
 import { useSelector } from "@tanstack/react-store";
 import { SpaceRow } from "./SpaceRow.tsx";
@@ -32,6 +33,14 @@ export function SpacesSection({
   const shownState = useScope(shown);
   const draft = useSpaceDraft();
   const error = useSpaceError();
+  const remembered = useSpaceCounts();
+  const shownSpace = shown._tag === "Space" ? shown.spaceId : null;
+  const shownTotal = shownState?.status === "ready" ? shownState.total : undefined;
+  const shownSmart = spaces.some((space) => space.id === shownSpace && space.kind === "smart");
+  useEffect(() => {
+    if (shownSpace !== null && shownSmart && shownTotal !== undefined)
+      rememberSpaceCount(shownSpace, shownTotal);
+  }, [shownSpace, shownSmart, shownTotal]);
 
   return (
     <div {...stylex.props(styles.section)}>
@@ -56,9 +65,10 @@ export function SpacesSection({
       </div>
       <div {...stylex.props(styles.list)}>
         {spaces.map((space, index) => {
-          const selected = shown._tag === "Space" && shown.spaceId === space.id;
-          // A Smart Space has no stored membership, so its count is known only while it is open.
-          const count = space.itemCount ?? (selected ? shownState?.total : undefined);
+          const selected = shownSpace === space.id;
+          // A Smart Space has no stored membership: its count is read when it opens and kept after.
+          const count =
+            space.itemCount ?? (selected ? shownTotal : undefined) ?? remembered[space.id];
           return (
             <SpaceRow
               key={space.id}
@@ -66,8 +76,8 @@ export function SpacesSection({
               selected={selected}
               count={count}
               compact={compact}
-              canMoveUp={index > 0}
-              canMoveDown={index < spaces.length - 1}
+              index={index}
+              lastIndex={spaces.length - 1}
             />
           );
         })}
@@ -172,7 +182,8 @@ const styles = stylex.create({
     alignItems: "center",
     justifyContent: "space-between",
     height: "28px",
-    paddingInline: "10px",
+    paddingLeft: "18px",
+    paddingRight: "10px",
     fontFamily: font.body,
     fontSize: "12px",
     lineHeight: "16px",
@@ -180,7 +191,7 @@ const styles = stylex.create({
     letterSpacing: "0.02em",
     color: color.muted,
   },
-  compactHeader: { justifyContent: "center", paddingInline: 0 },
+  compactHeader: { justifyContent: "center", paddingLeft: 0, paddingRight: 0 },
   add: {
     display: "grid",
     placeItems: "center",
