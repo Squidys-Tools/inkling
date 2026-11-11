@@ -141,10 +141,12 @@ test("only kinds whose stage shows the card's own image lift it", () => {
   expect(flightMedia({ ...card, image: undefined })).toBe(null);
 });
 
-test("offscreen, mostly covered and unmeasured cards fade instead of flying", () => {
+test("a card flies when any part of it is on screen; offscreen and unmeasured cards fade", () => {
   expect(usableOrigin({ left: 200, top: 100, width: 200, height: 200 }, viewport)).toBe(true);
-  expect(usableOrigin({ left: 50, top: 100, width: 200, height: 200 }, viewport)).toBe(true);
-  expect(usableOrigin({ left: 49, top: 100, width: 200, height: 200 }, viewport)).toBe(false);
-  expect(usableOrigin({ left: 200, top: -20, width: 200, height: 200 }, viewport)).toBe(false);
+  // Cut off by the bottom of the grid, with a fifth of it showing.
+  expect(usableOrigin({ left: 200, top: 710, width: 200, height: 200 }, viewport)).toBe(true);
+  expect(usableOrigin({ left: 200, top: -20, width: 200, height: 200 }, viewport)).toBe(true);
+  expect(usableOrigin({ left: 200, top: 750, width: 200, height: 200 }, viewport)).toBe(false);
+  expect(usableOrigin({ left: -100, top: 100, width: 200, height: 200 }, viewport)).toBe(false);
   expect(usableOrigin({ left: 200, top: 100, width: 0, height: 200 }, viewport)).toBe(false);
 });

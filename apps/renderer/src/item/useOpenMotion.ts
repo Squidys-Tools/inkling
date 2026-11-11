@@ -164,10 +164,12 @@ function buildParts(view: HTMLElement, origin: FlightOrigin, opening: boolean, s
 
   const target = clone && origin.media ? mediaTarget(content, origin.media, opening) : null;
   if (!clone || !origin.media || !target) {
-    parts.push(fade(content, "ground"), {
+    // No image to fly: the content waits for the frame to open, then arrives with the details.
+    // Sooner, the growing clip would show an arbitrary slice of it.
+    parts.push(fade(content, "details"), {
       element: content,
-      beat: "media",
-      closed: { transform: "scale(0.9)" },
+      beat: "shift",
+      closed: { transform: "scale(0.96)" },
       open: { transform: "scale(1)" },
     });
     return parts;

@@ -55,7 +55,7 @@ export function beatTiming([start, end, easing = "linear"]: Beat, duration: numb
 
 const px = (value: number) => `${Math.round(value * 100) / 100}px`;
 
-/** Only fly to a card when at least three quarters of each axis is visible. */
+/** Fly to any card with a part on screen: the view's own edge crops the rest of the flight. */
 export function usableOrigin(card: FlightRect, viewport: FlightRect) {
   if (card.width <= 0 || card.height <= 0) return false;
   const width = Math.max(
@@ -68,7 +68,7 @@ export function usableOrigin(card: FlightRect, viewport: FlightRect) {
     Math.min(card.top + card.height, viewport.top + viewport.height) -
       Math.max(card.top, viewport.top),
   );
-  return width / card.width >= 0.75 && height / card.height >= 0.75;
+  return width > 0 && height > 0;
 }
 
 // Mirrors the branch order in Stage.tsx: only these kinds put the card's own image on the stage.
