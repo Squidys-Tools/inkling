@@ -23,6 +23,8 @@ import {
 import { attempt, invalidInput, itemNotFound } from "./errors.ts";
 import { URL_ENRICHMENT_JOB } from "./jobs.ts";
 
+const tagName = (value: string) => value.trim().replace(/^#+/u, "").trim().toLowerCase();
+
 export function makeItems(ctx: StorageContext) {
   const { sql, jobs } = ctx;
   const getItem = (id: string) => readItem(ctx, id);
@@ -110,18 +112,25 @@ export function makeItems(ctx: StorageContext) {
       if (!current) return yield* itemNotFound(input.id);
       metadata = { ...current.metadata, ...input.metadataPatch };
     }
-    if (input.addTag != null) {
-      const tag = input.addTag.trim().replace(/^#+/u, "").trim().toLowerCase();
-      if (!tag) return yield* invalidInput("tag cannot be empty");
+    if (input.addTag != null || input.removeTag != null) {
       const base = metadata ?? (yield* getItem(input.id))?.metadata;
       if (!base) return yield* itemNotFound(input.id);
-      const tagged = { ...base };
-      if (tagged.tags == null) tagged.tags = [];
-      if (!Array.isArray(tagged.tags))
-        return yield* invalidInput("metadata tags must be an array to add a tag");
-      if (!tagged.tags.some((value) => typeof value === "string" && value.toLowerCase() === tag))
-        tagged.tags = [...tagged.tags, tag];
-      metadata = tagged;
+      const stored = base.tags ?? [];
+      if (!Array.isArray(stored))
+        return yield* invalidInput("metadata tags must be an array to change a tag");
+      let tags: ReadonlyArray<unknown> = stored;
+      for (const [value, add] of [
+        [input.addTag, true],
+        [input.removeTag, false],
+      ] as const) {
+        if (value == null) continue;
+        const tag = tagName(value);
+        if (!tag) return yield* invalidInput("tag cannot be empty");
+        const others = tags.filter((kept) => typeof kept !== "string" || tagName(kept) !== tag);
+        if (!add) tags = others;
+        else if (others.length === tags.length) tags = [...tags, tag];
+      }
+      metadata = { ...base, tags };
     }
     const body = input.body == null ? null : input.body.trim();
     if (body != null && !body) return yield* invalidInput("body cannot be empty");
@@ -158,6 +167,7 @@ export function makeItems(ctx: StorageContext) {
         "metadata",
         "metadataPatch",
         "addTag",
+        "removeTag",
         "localAssetPath",
       ] as const
     ).some((key) => input[key] != null);

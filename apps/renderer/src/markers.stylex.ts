@@ -7,3 +7,4 @@ export const libraryMarker = stylex.defineMarker();
 export const cardMarker = stylex.defineMarker();
 export const tileMarker = stylex.defineMarker();
 export const spaceRowMarker = stylex.defineMarker();
+export const tagMarker = stylex.defineMarker();

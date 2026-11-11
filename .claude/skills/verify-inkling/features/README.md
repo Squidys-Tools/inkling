@@ -38,6 +38,7 @@ Every feature was executed end to end with agent-desktop on 2026-11-11 unless it
 - [Search](./search.md): `Search your mind`, Ctrl+K, empty state, Clear search, Save as Space.
 - [Spaces](./spaces.md): create Smart and Regular, rename, file an item (native menu), delete (native confirm).
 - [Archive and restore](./archive-restore.md): item Archive, Archive view, Restore.
+- [Tags](./tags.md): item view > Add tag, Enter, Escape, Remove tag.
 - [Windows setup window](./installer.md): `launch --installer`, Install, progress pacing, ready, failed. Driven 2026-11-08.
 
 ## Not covered, with the reason

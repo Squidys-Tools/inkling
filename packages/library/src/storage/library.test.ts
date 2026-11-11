@@ -82,6 +82,10 @@ test("demo-seed search, Smart Space, Regular Space, CRUD, and semantic ranking m
   });
   const updated = await library.updateItem({ id: note.id, addTag: "#Reading" });
   expect(updated?.metadata.tags).toEqual(["reading"]);
+  expect(ids(await library.searchItems("reading"))).toEqual([note.id]);
+  const untagged = await library.updateItem({ id: note.id, addTag: "fall", removeTag: "#READING" });
+  expect(untagged?.metadata.tags).toEqual(["fall"]);
+  expect(ids(await library.searchItems("reading"))).toEqual([]);
   await library.archiveItem(note.id);
   expect(ids(await library.listArchivedItems())).toContain(note.id);
   await library.archiveItem(note.id, false);
