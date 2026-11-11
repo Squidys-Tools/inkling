@@ -114,7 +114,9 @@ export class Library extends Context.Service<
 >()("inkling/storage/Library") {}
 
 const clientLayer = (filename: string, syncToDisk: boolean) => {
-  const client = SqliteClient.layer({ filename, disableWAL: true });
+  // The client switches the file to WAL. synchronous stays at SQLite's FULL, so a
+  // commit still survives a power cut; NORMAL would trade that for speed.
+  const client = SqliteClient.layer({ filename });
   if (syncToDisk) return client;
   // The client holds one connection, so the pragma covers every query it runs.
   const skipSyncs = Layer.effectDiscard(

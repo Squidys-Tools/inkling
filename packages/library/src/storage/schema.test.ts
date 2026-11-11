@@ -68,6 +68,8 @@ test("v7 libraries migrate note bodies, Space kind, jobs, and FTS to the current
   expect(await pragma(migrated, "synchronous")).toEqual({ synchronous: 0 });
   const syncing = await trackedLibrary(databasePath, { syncToDisk: true });
   expect(await pragma(syncing, "synchronous")).toEqual({ synchronous: 2 });
+  // A library created in rollback-journal mode moves to WAL when it opens.
+  expect(await pragma(syncing, "journal_mode")).toEqual({ journal_mode: "wal" });
 });
 
 // A library saved by a newer app must survive an older app untouched, not be
