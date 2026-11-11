@@ -3,10 +3,55 @@ type Size = { width: number; height: number };
 /** How the stage shows a card's image: at its own size, or covering the video art box. */
 export type FlightMedia = "fit" | "poster";
 
-export const flightDuration = 510;
-export const flightEase = "cubic-bezier(0.65, 0, 0.35, 1)";
-/** Beats in eased progress: the frame fills in early, the dotted stage through the middle. */
-export const flightBeats = { frame: [0, 0.25], stage: [0.15, 0.75] } as const;
+export const flightDuration = { open: 620, close: 420 } as const;
+const main = "cubic-bezier(0.3, 0, 0.1, 1)";
+/** The curve of anything that leaves one rest pose for another. */
+export const flightEase = main;
+
+/** When a layer moves, as fractions of the flight's clock, and on which curve. Fades are linear. */
+type Beat = readonly [start: number, end: number, easing?: string];
+// The image leads. The panel arrives from off screen, so it only decelerates, and its text and
+// the stage's own content come in last. Closing is shorter: the panel leaves first, the image last.
+const open = {
+  window: [0, 0.85, main],
+  frame: [0, 0.12],
+  scrim: [0, 0.4],
+  ground: [0.2, 0.7],
+  media: [0, 1, main],
+  panel: [0.15, 1, "cubic-bezier(0.05, 0.7, 0.1, 1)"],
+  details: [0.45, 0.9],
+  shift: [0.45, 0.9, main],
+  reveal: [0, 0.85, "step-end"],
+  handoff: [0.85, 1],
+} satisfies Record<string, Beat>;
+export type FlightBeat = keyof typeof open;
+export type FlightBeats = Record<FlightBeat, Beat>;
+const close = {
+  window: [0.1, 1, main],
+  frame: [0.85, 1],
+  scrim: [0.3, 1],
+  ground: [0.1, 0.5],
+  media: [0.1, 1, main],
+  panel: [0, 0.7, "cubic-bezier(0.3, 0, 0.8, 0.15)"],
+  details: [0, 0.25],
+  shift: [0, 0.25],
+  reveal: [0, 0.1, "step-end"],
+  handoff: [0, 0.1],
+} satisfies FlightBeats;
+export const flightBeats: { open: FlightBeats; close: FlightBeats } = { open, close };
+
+/** How far the library recedes behind the opening frame. */
+export const scrimOpacity = 0.6;
+export const detailsShift = 24;
+
+export function beatTiming([start, end, easing = "linear"]: Beat, duration: number) {
+  return {
+    delay: start * duration,
+    duration: (end - start) * duration,
+    easing,
+    fill: "both" as const,
+  };
+}
 
 const px = (value: number) => `${Math.round(value * 100) / 100}px`;
 
@@ -59,16 +104,6 @@ export function panelOffset(panel: FlightRect, below: boolean) {
   return below ? `translateY(${px(panel.height)})` : `translateX(${px(panel.width)})`;
 }
 
-/** Opacity that rises between two points of eased progress and holds outside them. */
-export function fadeBetween([start, end]: readonly [number, number]): Keyframe[] {
-  return [
-    { opacity: 0, offset: 0 },
-    { opacity: 0, offset: start },
-    { opacity: 1, offset: end },
-    { opacity: 1, offset: 1 },
-  ];
-}
-
 export const mediaRadius = { fit: 4, poster: 12 } as const;
 
 // Mirrors ZoomableImage's fit (never above its own size) and Stage's 720 by 520 art box.
@@ -116,6 +151,33 @@ export function mediaPose(size: Size, box: FlightRect, view: FlightRect, radii: 
   };
 }
 
+/**
+ * The image's flight in evenly spaced steps. Its box and corners move in screen pixels and each
+ * step is posed afresh: easing two poses directly swells the corners as the scale changes.
+ */
+export function mediaFrames(
+  size: Size,
+  from: { box: FlightRect; radii: readonly number[] },
+  to: { box: FlightRect; radii: readonly number[] },
+  view: FlightRect,
+  steps = 8,
+) {
+  return Array.from({ length: steps + 1 }, (_, step) => {
+    const mix = (a: number, b: number) => a + ((b - a) * step) / steps;
+    return mediaPose(
+      size,
+      {
+        left: mix(from.box.left, to.box.left),
+        top: mix(from.box.top, to.box.top),
+        width: mix(from.box.width, to.box.width),
+        height: mix(from.box.height, to.box.height),
+      },
+      view,
+      from.radii.map((radius, corner) => mix(radius, to.radii[corner] ?? radius)),
+    );
+  });
+}
+
 /** The card rounds only the image corners that sit in its own corners: top-left, clockwise. */
 export function cornerRadii(image: FlightRect, card: FlightRect, radius: number) {
   const near = (a: number, b: number) => Math.abs(a - b) <= 1;
@@ -126,13 +188,4 @@ export function cornerRadii(image: FlightRect, card: FlightRect, radius: number)
   return [top && left, top && right, bottom && right, bottom && left].map((rounded) =>
     rounded ? radius : 0,
   );
-}
-
-/** The same keyframes played from the open pose back to the card. */
-export function reverseFrames(frames: readonly Keyframe[]) {
-  return frames
-    .toReversed()
-    .map((frame) =>
-      typeof frame.offset === "number" ? { ...frame, offset: 1 - frame.offset } : frame,
-    );
 }

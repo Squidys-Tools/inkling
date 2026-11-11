@@ -1,16 +1,16 @@
 import { expect, test } from "bun:test";
 import {
+  beatTiming,
   clipInset,
   contains,
   cornerRadii,
   coverSize,
-  fadeBetween,
   flightBeats,
   flightDuration,
   flightMedia,
+  mediaFrames,
   mediaPose,
   panelOffset,
-  reverseFrames,
   settledMedia,
   stageRegion,
   usableOrigin,
@@ -31,25 +31,32 @@ test("the frame's clip grows from the card to the region the panel leaves", () =
   );
   expect(panelOffset(beside, false)).toBe("translateX(320px)");
   expect(panelOffset(under, true)).toBe("translateY(350px)");
-  expect(flightDuration).toBe(510);
 });
 
-test("fades hold outside their beats of eased progress", () => {
-  expect(fadeBetween(flightBeats.stage)).toEqual([
-    { opacity: 0, offset: 0 },
-    { opacity: 0, offset: 0.15 },
-    { opacity: 1, offset: 0.75 },
-    { opacity: 1, offset: 1 },
-  ]);
-  expect(fadeBetween(flightBeats.frame)[2]).toEqual({ opacity: 1, offset: 0.25 });
-  // Closing fades the frame out over the last quarter instead of the first.
-  expect(reverseFrames(fadeBetween(flightBeats.frame))).toEqual([
-    { opacity: 1, offset: 0 },
-    { opacity: 1, offset: 0.75 },
-    { opacity: 0, offset: 1 },
-    { opacity: 0, offset: 1 },
-  ]);
-  expect(reverseFrames([{ opacity: 0 }, { opacity: 1 }])).toEqual([{ opacity: 1 }, { opacity: 0 }]);
+test("each layer runs on its own beat of one clock", () => {
+  expect(beatTiming(flightBeats.open.panel, flightDuration.open)).toEqual({
+    delay: 93,
+    duration: 527,
+    easing: "cubic-bezier(0.05, 0.7, 0.1, 1)",
+    fill: "both",
+  });
+  expect(beatTiming(flightBeats.close.details, flightDuration.close)).toEqual({
+    delay: 0,
+    duration: 105,
+    easing: "linear",
+    fill: "both",
+  });
+  // No beat outlasts the clock, and in each direction one ends with it, so the flight lands then.
+  for (const beats of [flightBeats.open, flightBeats.close]) {
+    const ends = Object.values(beats).map(([start, end]) => {
+      expect(start).toBeLessThanOrEqual(end);
+      return end;
+    });
+    expect(Math.max(...ends)).toBe(1);
+  }
+  // The stage's content appears before the clone starts to fade off it, never after.
+  expect(flightBeats.open.reveal[1]).toBeLessThanOrEqual(flightBeats.open.handoff[0]);
+  expect(flightBeats.close.handoff[1]).toBeLessThanOrEqual(flightBeats.close.media[0]);
 });
 
 test("the image clone covers both boxes at one uniform scale, cropped to each", () => {
@@ -69,6 +76,21 @@ test("the image clone covers both boxes at one uniform scale, cropped to each", 
     transform: "translate(44px, 60px) scale(1)",
     clipPath: "inset(0px 0px round 4px 4px 4px 4px)",
   });
+  // Mid-flight the corners are posed for that step's scale: 5.5px on screen, between 7 and 4.
+  const frames = mediaFrames(
+    size,
+    { box: cardImage, radii },
+    { box: settled, radii: [4, 4, 4, 4] },
+    view,
+    2,
+  );
+  expect(frames).toHaveLength(3);
+  expect(frames[0]).toEqual(mediaPose(size, cardImage, view, radii));
+  expect(frames[1]).toEqual({
+    transform: "translate(106px, 34.25px) scale(0.7917)",
+    clipPath: "inset(4.74px 0px round 6.95px 6.95px 2.53px 2.53px)",
+  });
+  expect(frames[2]).toEqual(mediaPose(size, settled, view, [4, 4, 4, 4]));
   // A poster box wider than the image crops top and bottom, and the view's offset is removed.
   const wide = coverSize({ width: 400, height: 300 }, { left: 0, top: 0, width: 720, height: 360 });
   expect(wide).toEqual({ width: 720, height: 540 });

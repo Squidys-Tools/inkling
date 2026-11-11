@@ -1,19 +1,22 @@
 import { useBlocker, type ShouldBlockFn } from "@tanstack/react-router";
 import { type RefObject, useCallback, useEffectEvent, useLayoutEffect, useRef } from "react";
 import {
+  beatTiming,
   clipInset,
   contains,
   cornerRadii,
   coverSize,
-  fadeBetween,
+  detailsShift,
+  type FlightBeat,
+  type FlightBeats,
   flightBeats,
   flightDuration,
   flightEase,
   type FlightRect,
-  mediaPose,
+  mediaFrames,
   mediaRadius,
   panelOffset,
-  reverseFrames,
+  scrimOpacity,
   settledMedia,
   stageRegion,
 } from "./flightGeometry.ts";
@@ -22,11 +25,23 @@ import { cardOrigin, type FlightOrigin, setFlightPainting, takeItemOrigin } from
 const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const fadeDuration = 180;
 
-/** One animated layer: its pose on the card, its settled pose, and any beats between them. */
-type Part = { element: HTMLElement; closed: Keyframe; open: Keyframe; frames?: Keyframe[] };
+/**
+ * One animated layer: its pose on the card, its settled pose, any steps between them, and the
+ * beat of the flight it moves on. Without a beat it runs the whole flight on the main curve.
+ */
+type Part = {
+  element: HTMLElement;
+  beat?: FlightBeat;
+  closed: Keyframe;
+  open: Keyframe;
+  frames?: Keyframe[];
+};
 type Flight = {
   animations: Animation[];
   parts: Part[];
+  /** The animation that ends last, and the length of the clock it runs on. */
+  lead: Animation | null;
+  total: number;
   /** Hides the card's own image while its clone is out. */
   cover: Animation | null;
   clone: HTMLImageElement | null;
@@ -37,6 +52,8 @@ type Flight = {
 const idle = (): Flight => ({
   animations: [],
   parts: [],
+  lead: null,
+  total: 0,
   cover: null,
   clone: null,
   frame: 0,
@@ -87,13 +104,16 @@ function mediaTarget(
 function buildParts(view: HTMLElement, origin: FlightOrigin, opening: boolean, state: Flight) {
   const layer = (name: string) => view.querySelector<HTMLElement>(`[data-flight="${name}"]`);
   const backdrop = layer("backdrop");
+  const scrim = layer("scrim");
   const cell = layer("cell");
   const ground = layer("ground");
   const content = layer("content");
   const panel = layer("panel");
+  const details = layer("details");
   const shadow = layer("shadow");
   const clone = view.querySelector<HTMLImageElement>("img[data-flight='clone']");
-  if (!backdrop || !cell || !ground || !content || !panel || !shadow) return [fadePart(view)];
+  if (!backdrop || !scrim || !cell || !ground || !content || !panel || !details || !shadow)
+    return [fadePart(view)];
 
   const frame = view.getBoundingClientRect();
   const panelBox = panel.getBoundingClientRect();
@@ -103,42 +123,50 @@ function buildParts(view: HTMLElement, origin: FlightOrigin, opening: boolean, s
     const box = element.getBoundingClientRect();
     return {
       element,
+      beat: "window",
       closed: { clipPath: clipInset(origin.card, box, origin.radius) },
       open: { clipPath: clipInset(region, box, 0) },
     };
   };
-  const fade = (element: HTMLElement, beats: readonly [number, number]): Part => ({
+  const fade = (element: HTMLElement, beat: FlightBeat, opacity = 1): Part => ({
     element,
+    beat,
     closed: { opacity: 0 },
-    open: { opacity: 1 },
-    frames: fadeBetween(beats),
+    open: { opacity },
   });
   const parts: Part[] = [
     clip(backdrop),
-    fade(backdrop, flightBeats.frame),
+    fade(backdrop, "frame"),
+    fade(scrim, "scrim", scrimOpacity),
     clip(cell),
-    fade(ground, flightBeats.stage),
+    fade(ground, "ground"),
     {
       element: panel,
+      beat: "panel",
       closed: { transform: panelOffset(panelBox, below) },
       open: { transform: "none" },
     },
     {
       element: shadow,
+      beat: "panel",
       closed: { opacity: 0 },
       open: { opacity: 0 },
-      frames: [
-        { opacity: 0, offset: 0 },
-        { opacity: 0.6, offset: 0.5 },
-        { opacity: 0, offset: 1 },
-      ],
+      frames: [{ opacity: 0 }, { opacity: 0.6 }, { opacity: 0 }],
+    },
+    fade(details, "details"),
+    {
+      element: details,
+      beat: "shift",
+      closed: { transform: `translate${below ? "Y" : "X"}(${detailsShift}px)` },
+      open: { transform: "none" },
     },
   ];
 
   const target = clone && origin.media ? mediaTarget(content, origin.media, opening) : null;
   if (!clone || !origin.media || !target) {
-    parts.push(fade(content, flightBeats.stage), {
+    parts.push(fade(content, "ground"), {
       element: content,
+      beat: "media",
       closed: { transform: "scale(0.9)" },
       open: { transform: "scale(1)" },
     });
@@ -147,25 +175,26 @@ function buildParts(view: HTMLElement, origin: FlightOrigin, opening: boolean, s
 
   const { image, mode, rect } = origin.media;
   const size = coverSize({ width: image.naturalWidth, height: image.naturalHeight }, target);
+  const settled = mediaRadius[mode];
+  const frames = mediaFrames(
+    size,
+    { box: rect, radii: cornerRadii(rect, origin.card, origin.radius) },
+    { box: target, radii: [settled, settled, settled, settled] },
+    frame,
+  );
+  const [closed, open] = [frames[0], frames.at(-1)];
+  if (!closed || !open) return parts;
   clone.src = image.currentSrc || image.src;
   clone.style.width = `${size.width}px`;
   clone.style.height = `${size.height}px`;
   clone.hidden = false;
   state.clone = clone;
-  const settled = mediaRadius[mode];
+  // The stage's own content shows under the landed clone, which then fades off it, so the
+  // stage's controls arrive with the image instead of popping in after it.
   parts.push(
-    { element: content, closed: { opacity: 0 }, open: { opacity: 0 } },
-    {
-      element: clone,
-      closed: {
-        ...mediaPose(size, rect, frame, cornerRadii(rect, origin.card, origin.radius)),
-        opacity: 1,
-      },
-      open: {
-        ...mediaPose(size, target, frame, [settled, settled, settled, settled]),
-        opacity: mode === "poster" ? 0.88 : 1,
-      },
-    },
+    { element: content, beat: "reveal", closed: { opacity: 0 }, open: { opacity: 1 } },
+    { element: clone, beat: "handoff", closed: { opacity: 1 }, open: { opacity: 0 } },
+    { element: clone, beat: "media", closed, open, frames },
   );
   // The card keeps its image until the clone can paint, so neither end shows a blank frame.
   void clone.decode().then(
@@ -181,11 +210,29 @@ function buildParts(view: HTMLElement, origin: FlightOrigin, opening: boolean, s
   return parts;
 }
 
-function play(state: Flight, frames: (part: Part) => Keyframe[], duration: number) {
+const endOf = (animation: Animation) => Number(animation.effect?.getComputedTiming().endTime ?? 0);
+
+/** Plays every part on one clock: on its beat when given the beats, otherwise all together. */
+function play(
+  state: Flight,
+  frames: (part: Part) => Keyframe[],
+  duration: number,
+  beats?: FlightBeats,
+) {
   state.animations = state.parts.map((part) =>
-    part.element.animate(frames(part), { duration, easing: flightEase, fill: "both" }),
+    part.element.animate(
+      frames(part),
+      part.beat && beats
+        ? beatTiming(beats[part.beat], duration)
+        : { duration, easing: flightEase, fill: "both" },
+    ),
   );
-  return state.animations[0];
+  state.total = duration;
+  state.lead = state.animations.reduce<Animation | null>(
+    (last, animation) => (last && endOf(last) > endOf(animation) ? last : animation),
+    null,
+  );
+  return state.lead;
 }
 
 function settle(state: Flight) {
@@ -194,6 +241,7 @@ function settle(state: Flight) {
   if (state.clone) state.clone.hidden = true;
   state.animations = [];
   state.parts = [];
+  state.lead = null;
   state.cover = null;
   state.clone = null;
   setFlightPainting(false);
@@ -202,9 +250,10 @@ function settle(state: Flight) {
 const cssName = (key: string) => (key === "clipPath" ? "clip-path" : key);
 
 /**
- * Opens from the card on one clock: the frame is revealed through a growing clip, the card's
- * image flies to the stage and the details slide in from the edge. Back, Close and Escape
- * share the flight home, and wait for it before routing away.
+ * Opens from the card on one clock: the library recedes, the frame is revealed through a
+ * growing clip, the card's image flies to the stage and the details slide in from the edge
+ * behind it. Back, Close and Escape share the shorter flight home, and wait for it before
+ * routing away.
  */
 export function useOpenMotion(id: string, viewRef: RefObject<HTMLElement | null>) {
   const active = useRef<Flight>(idle());
@@ -218,11 +267,12 @@ export function useOpenMotion(id: string, viewRef: RefObject<HTMLElement | null>
     const lead = play(
       state,
       (part) => part.frames ?? [part.closed, part.open],
-      origin ? flightDuration : fadeDuration,
+      origin ? flightDuration.open : fadeDuration,
+      flightBeats.open,
     );
     if (!lead) return settle(state);
     lead.onfinish = () => {
-      if (state.animations[0] === lead) settle(state);
+      if (state.lead === lead) settle(state);
     };
   });
   useLayoutEffect(() => {
@@ -247,17 +297,17 @@ export function useOpenMotion(id: string, viewRef: RefObject<HTMLElement | null>
     state.pending = new Promise<void>((resolve) => {
       state.resolve = resolve;
     });
-    const land = (lead: Animation | undefined) => {
+    const land = (lead: Animation | null) => {
       if (!lead) return state.resolve?.();
       lead.onfinish = () => {
-        if (state.animations[0] === lead) state.resolve?.();
+        if (state.lead === lead) state.resolve?.();
       };
     };
 
-    const opening = state.animations[0];
+    const opening = state.lead;
     if (opening) {
-      // Closing can interrupt opening: every layer turns around from the pose it is in.
-      const progress = Number(opening.effect?.getComputedTiming().progress ?? 1);
+      // Closing can interrupt opening: every layer turns around together from the pose it is in.
+      const progress = Math.min(1, Number(opening.currentTime ?? state.total) / state.total);
       const fade = state.parts.length === 1;
       const poses = state.parts.map((part) => {
         const style = getComputedStyle(part.element);
@@ -271,7 +321,7 @@ export function useOpenMotion(id: string, viewRef: RefObject<HTMLElement | null>
         play(
           state,
           (part) => [from.get(part) ?? part.open, part.closed],
-          fade ? fadeDuration : Math.max(fadeDuration, flightDuration * progress),
+          fade ? fadeDuration : Math.max(fadeDuration, flightDuration.close * progress),
         ),
       );
       return state.pending;
@@ -285,8 +335,9 @@ export function useOpenMotion(id: string, viewRef: RefObject<HTMLElement | null>
       land(
         play(
           state,
-          (part) => reverseFrames(part.frames ?? [part.closed, part.open]),
-          target ? flightDuration : fadeDuration,
+          (part) => (part.frames ?? [part.closed, part.open]).toReversed(),
+          target ? flightDuration.close : fadeDuration,
+          flightBeats.close,
         ),
       );
     });
