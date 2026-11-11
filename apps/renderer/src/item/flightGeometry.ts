@@ -32,7 +32,7 @@ const close = {
   scrim: [0.3, 1],
   ground: [0.1, 0.5],
   media: [0.1, 1, main],
-  panel: [0, 0.7, "cubic-bezier(0.3, 0, 0.8, 0.15)"],
+  panel: [0, 0.55, "cubic-bezier(0.4, 0, 1, 1)"],
   details: [0, 0.25],
   shift: [0, 0.25],
   reveal: [0, 0.1, "step-end"],
@@ -52,6 +52,10 @@ export function beatTiming([start, end, easing = "linear"]: Beat, duration: numb
     fill: "both" as const,
   };
 }
+
+const itemPath = /^\/item\/[^/]+$/;
+/** One item to another, as Similar and Back do: the view stays up, so nothing flies home. */
+export const staysInView = (from: string, to: string) => itemPath.test(from) && itemPath.test(to);
 
 const px = (value: number) => `${Math.round(value * 100) / 100}px`;
 
@@ -117,7 +121,7 @@ export function panelOffset(panel: FlightRect, below: boolean) {
 
 export const mediaRadius = { fit: 4, poster: 12 } as const;
 
-// Mirrors ZoomableImage's fit (never above its own size) and Stage's 720 by 520 art box.
+// Mirrors ZoomableMedia's fit (never above its own size) and Stage's 720 by 520 art box.
 export function settledMedia(mode: FlightMedia, natural: Size, stage: FlightRect): FlightRect {
   const fit = Math.min(1, stage.width / natural.width, stage.height / natural.height);
   const width = mode === "poster" ? Math.min(stage.width, 720) : natural.width * fit;

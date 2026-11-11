@@ -19,6 +19,7 @@ import {
   scrimOpacity,
   settledMedia,
   stageRegion,
+  staysInView,
 } from "./flightGeometry.ts";
 import { cardOrigin, type FlightOrigin, setFlightPainting, takeItemOrigin } from "./itemFlight.ts";
 
@@ -42,6 +43,8 @@ type Flight = {
   /** The animation that ends last, and the length of the clock it runs on. */
   lead: Animation | null;
   total: number;
+  /** One item replacing another in the open view: only its content fades in. */
+  swap: boolean;
   /** Hides the card's own image while its clone is out. */
   cover: Animation | null;
   clone: HTMLImageElement | null;
@@ -54,6 +57,7 @@ const idle = (): Flight => ({
   parts: [],
   lead: null,
   total: 0,
+  swap: false,
   cover: null,
   clone: null,
   frame: 0,
@@ -66,6 +70,12 @@ const fadePart = (view: HTMLElement): Part => ({
   closed: { transform: "scale(0.96)", opacity: 0 },
   open: { transform: "none", opacity: 1 },
 });
+
+const swapParts = (view: HTMLElement) =>
+  ["content", "details"].flatMap((name): Part[] => {
+    const element = view.querySelector<HTMLElement>(`[data-flight="${name}"]`);
+    return element ? [{ element, closed: { opacity: 0 }, open: { opacity: 1 } }] : [];
+  });
 
 function contentBox(element: HTMLElement): FlightRect {
   const box = element.getBoundingClientRect();
@@ -244,6 +254,7 @@ function settle(state: Flight) {
   state.animations = [];
   state.parts = [];
   state.lead = null;
+  state.swap = false;
   state.cover = null;
   state.clone = null;
   setFlightPainting(false);
@@ -259,17 +270,21 @@ const cssName = (key: string) => (key === "clipPath" ? "clip-path" : key);
  */
 export function useOpenMotion(id: string, viewRef: RefObject<HTMLElement | null>) {
   const active = useRef<Flight>(idle());
-  const open = useEffectEvent((itemId: string) => {
+  const open = useEffectEvent((itemId: string, swap: boolean) => {
     const view = viewRef.current;
     const origin = takeItemOrigin(itemId);
     if (!view || reduced()) return;
     const state = active.current;
-    setFlightPainting(true);
-    state.parts = origin ? buildParts(view, origin, true, state) : [fadePart(view)];
+    state.swap = swap;
+    if (swap) state.parts = swapParts(view);
+    else {
+      setFlightPainting(true);
+      state.parts = origin ? buildParts(view, origin, true, state) : [fadePart(view)];
+    }
     const lead = play(
       state,
       (part) => part.frames ?? [part.closed, part.open],
-      origin ? flightDuration.open : fadeDuration,
+      origin && !swap ? flightDuration.open : fadeDuration,
       flightBeats.open,
     );
     if (!lead) return settle(state);
@@ -277,10 +292,13 @@ export function useOpenMotion(id: string, viewRef: RefObject<HTMLElement | null>
       if (state.lead === lead) settle(state);
     };
   });
+  const shown = useRef<string | null>(null);
   useLayoutEffect(() => {
     const state = idle();
     active.current = state;
-    open(id);
+    // Not a mount flag: StrictMode mounts twice with the same id, which must not read as a swap.
+    open(id, shown.current !== null && shown.current !== id);
+    shown.current = id;
     return () => {
       cancelAnimationFrame(state.frame);
       settle(state);
@@ -306,6 +324,8 @@ export function useOpenMotion(id: string, viewRef: RefObject<HTMLElement | null>
       };
     };
 
+    // A swap is not a flight to turn around: drop it and fly home from rest.
+    if (state.swap) settle(state);
     const opening = state.lead;
     if (opening) {
       // Closing can interrupt opening: every layer turns around together from the pose it is in.
@@ -347,7 +367,8 @@ export function useOpenMotion(id: string, viewRef: RefObject<HTMLElement | null>
   }, [id, viewRef]);
   const shouldBlockFn = useCallback<ShouldBlockFn>(
     async ({ current, next }) => {
-      if (current.pathname !== next.pathname) await close();
+      if (current.pathname !== next.pathname && !staysInView(current.pathname, next.pathname))
+        await close();
       return false;
     },
     [close],

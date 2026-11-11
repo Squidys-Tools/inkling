@@ -14,6 +14,7 @@ import {
   scrollToShow,
   settledMedia,
   stageRegion,
+  staysInView,
   usableOrigin,
 } from "./flightGeometry.ts";
 
@@ -156,4 +157,13 @@ test("a card flies when any part of it is on screen; offscreen and unmeasured ca
   expect(scrollToShow({ left: 200, top: 60, width: 200, height: 200 }, viewport, 24)).toBe(-14);
   // Taller than the view: its top comes to the margin and the rest stays cut off.
   expect(scrollToShow({ left: 200, top: 400, width: 200, height: 900 }, viewport, 24)).toBe(326);
+});
+
+test("only a step between two items keeps the view up instead of flying home", () => {
+  expect(staysInView("/item/a", "/item/b")).toBe(true);
+  expect(staysInView("/item/a", "/")).toBe(false);
+  expect(staysInView("/item/a", "/space/s")).toBe(false);
+  // The reader and the note editor are pages of their own, over the library.
+  expect(staysInView("/item/a", "/item/a/read")).toBe(false);
+  expect(staysInView("/item/a", "/item/b/write")).toBe(false);
 });
