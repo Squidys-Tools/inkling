@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
-import { cardColor, color, font, radius, text } from "@inkling/ui/tokens.stylex";
+import { cardColor, color, font, motion, radius, text } from "@inkling/ui/tokens.stylex";
 import { type CardView, cardView } from "../library/cardModel.ts";
 import { errorMessage } from "../library/errors.ts";
 import { labelClock } from "../library/labelClock.ts";
@@ -29,7 +29,7 @@ function columns(views: readonly CardView[]) {
   return split;
 }
 
-/** Items that look or read like this one. Loads once per item, while the tab is open. */
+/** Items that look or read like this one. Loads once per item, when the user heads for the section. */
 export function SimilarPanel({
   item,
   onOpen,
@@ -54,8 +54,13 @@ export function SimilarPanel({
     <div {...stylex.props(styles.columns)}>
       {columns(similar.data).map((column, index) => (
         <div key={index === 0 ? "left" : "right"} {...stylex.props(styles.column)}>
-          {column.map((view) => (
-            <SimilarTile key={view.id} view={view} onOpen={() => onOpen(view.id)} />
+          {column.map((view, row) => (
+            <SimilarTile
+              key={view.id}
+              view={view}
+              order={row * 2 + index}
+              onOpen={() => onOpen(view.id)}
+            />
           ))}
         </div>
       ))}
@@ -63,8 +68,17 @@ export function SimilarPanel({
   );
 }
 
-function SimilarTile({ view, onOpen }: { view: CardView; onOpen: () => void }) {
-  const height = styles.height(tileHeight(view));
+function SimilarTile({
+  view,
+  order,
+  onOpen,
+}: {
+  view: CardView;
+  order: number;
+  onOpen: () => void;
+}) {
+  // Tiles rise in reading order; past the first screenful they arrive together.
+  const height = styles.tileBox(tileHeight(view), Math.min(order, 8) * 35);
   if (view.image)
     return (
       <button
@@ -121,6 +135,11 @@ function SimilarTile({ view, onOpen }: { view: CardView; onOpen: () => void }) {
   );
 }
 
+const rise = stylex.keyframes({
+  from: { opacity: 0, transform: "translateY(10px)" },
+  to: { opacity: 1, transform: "none" },
+});
+
 const styles = stylex.create({
   note: { margin: 0, fontSize: text.md, lineHeight: "20px", color: color.muted },
   columns: { display: "flex", alignItems: "flex-start", gap: `${TILE_GAP}px` },
@@ -132,8 +151,15 @@ const styles = stylex.create({
     flexShrink: 0,
     minWidth: 0,
   },
-  height: (value: number) => ({ height: `${value}px` }),
+  tileBox: (height: number, delay: number) => ({
+    height: `${height}px`,
+    animationDelay: `${delay}ms`,
+  }),
   tile: {
+    animationName: { default: rise, "@media (prefers-reduced-motion: reduce)": "none" },
+    animationDuration: motion.layout,
+    animationTimingFunction: motion.enter,
+    animationFillMode: "backwards",
     display: "flex",
     flexDirection: "column",
     justifyContent: "space-between",

@@ -2,7 +2,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useRef } from "react";
 import { createCloseIntent } from "./closeIntent.ts";
 
-// Each item opened from another item's Similar tab is a history step of its own,
+// Each item opened from another item's Similar section is a history step of its own,
 // so Back walks through them. Close skips them all: this counts, per history
 // entry, how many such steps lie between it and the library. After a reload
 // the count is gone, and Close steps back once.
