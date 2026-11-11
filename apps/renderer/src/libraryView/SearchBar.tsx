@@ -12,10 +12,25 @@ import { handleCommand } from "../shell/commands.ts";
 import { setSearchFocused, useViewState } from "./viewState.ts";
 import { searchSurfaceFrames } from "./searchSurface.ts";
 
-const reveal = stylex.keyframes({
-  from: { opacity: 0, transform: "translateY(3px)" },
+// The glass grows outward from the centred pill, so its content travels outward
+// with it: eyes and query from the right, the hint from the left.
+const fromCentre = stylex.keyframes({
+  from: { opacity: 0, transform: "translateX(28px) scale(0.9)" },
   to: { opacity: 1, transform: "none" },
 });
+const fromCentreSoft = stylex.keyframes({
+  from: { opacity: 0, transform: "translateX(16px)" },
+  to: { opacity: 1, transform: "none" },
+});
+const towardEdge = stylex.keyframes({
+  from: { opacity: 0, transform: "translateX(-16px)" },
+  to: { opacity: 1, transform: "none" },
+});
+const settle = stylex.keyframes({
+  from: { opacity: 0, transform: "scale(0.94)" },
+  to: { opacity: 1, transform: "none" },
+});
+const reduced = "@media (prefers-reduced-motion: reduce)";
 
 /**
  * At rest a pill naming what the grid shows; focused, the full search field.
@@ -129,7 +144,7 @@ export function SearchBar({ viewName, inLibrary }: { viewName: string; inLibrary
             search.clear();
             event.currentTarget.blur();
           }}
-          {...stylex.props(styles.input, !focused && styles.hidden)}
+          {...stylex.props(styles.input, focused ? styles.inputEnter : styles.hidden)}
         />
         {focused && <kbd {...stylex.props(styles.hint)}>esc to close</kbd>}
       </label>
@@ -179,6 +194,11 @@ const styles = stylex.create({
     transitionProperty: "none",
     transitionDuration: motion.layout,
     transitionTimingFunction: motion.enter,
+    backgroundColor: color.glassThin,
+    backgroundImage: `radial-gradient(90% 180% at 22% 0%, ${color.glassSheen}, transparent 70%)`,
+    backdropFilter: "blur(32px) saturate(1.6)",
+    borderColor: color.glassRim,
+    boxShadow: `inset 0 1px 0 ${color.glassSheen}, 0 10px 30px ${color.shadow}`,
   },
   resting: {
     top: "9px",
@@ -190,7 +210,7 @@ const styles = stylex.create({
     height: "50px",
     width: "min(700px, calc(100% - 304px))",
     minWidth: "min(420px, calc(100% - 28px))",
-    borderRadius: radius.frame,
+    borderRadius: radius.card,
   },
   label: {
     position: "relative",
@@ -207,9 +227,6 @@ const styles = stylex.create({
     gap: "12px",
     paddingInline: "16px",
     cursor: "text",
-    animationName: reveal,
-    animationDuration: motion.reveal,
-    animationTimingFunction: motion.enter,
   },
   rest: {
     display: "inline-flex",
@@ -220,9 +237,26 @@ const styles = stylex.create({
     lineHeight: "16px",
     fontWeight: 600,
     color: color.ink,
+    // Waits for the closing glass to reach the pill before the name lands in it.
+    animationName: settle,
+    animationDuration: motion.reveal,
+    animationTimingFunction: motion.enter,
+    animationDelay: { default: "90ms", [reduced]: "0s" },
+    animationFillMode: "backwards",
   },
   restIcon: { display: "grid", opacity: 0.55 },
-  eyes: { display: "flex", alignItems: "center", width: "24px", flexShrink: 0 },
+  eyes: {
+    display: "flex",
+    alignItems: "center",
+    width: "24px",
+    flexShrink: 0,
+    animationName: fromCentre,
+    animationDuration: motion.layout,
+    animationTimingFunction: motion.enter,
+    // Each delay keeps its element behind the glass edge that is travelling out to it.
+    animationDelay: { default: "60ms", [reduced]: "0s" },
+    animationFillMode: "backwards",
+  },
   input: {
     flexGrow: 1,
     minWidth: 0,
@@ -235,6 +269,13 @@ const styles = stylex.create({
     outline: "none",
     "::placeholder": { color: color.muted },
     "::-webkit-search-cancel-button": { display: "none" },
+  },
+  inputEnter: {
+    animationName: fromCentreSoft,
+    animationDuration: motion.layout,
+    animationTimingFunction: motion.enter,
+    animationDelay: { default: "90ms", [reduced]: "0s" },
+    animationFillMode: "backwards",
   },
   // Kept focusable at rest, so Tab and the shortcut still reach it.
   hidden: {
@@ -250,5 +291,10 @@ const styles = stylex.create({
     whiteSpace: "nowrap",
     color: color.muted,
     display: { default: "inline", "@media (max-width: 780px)": "none" },
+    animationName: towardEdge,
+    animationDuration: motion.layout,
+    animationTimingFunction: motion.enter,
+    animationDelay: { default: "130ms", [reduced]: "0s" },
+    animationFillMode: "backwards",
   },
 });
