@@ -40,9 +40,9 @@ export const color = stylex.defineVars({
   glass: "rgba(12, 11, 10, 0.62)",
   glassEdge: "rgba(255, 255, 255, 0.08)",
   // The search field: a thinner tint under a heavier blur, so the library tints it.
-  glassThin: "rgba(12, 11, 10, 0.56)",
-  glassRim: "rgba(255, 255, 255, 0.13)",
-  glassSheen: "rgba(255, 255, 255, 0.09)",
+  glassThin: "rgba(9, 8, 8, 0.76)",
+  glassRim: "rgba(255, 255, 255, 0.1)",
+  glassSheen: "rgba(255, 255, 255, 0.06)",
   overlayHover: "rgba(255, 255, 255, 0.04)",
   overlayActive: "rgba(255, 255, 255, 0.08)",
   scrim: "rgba(0, 0, 0, 0.5)",
