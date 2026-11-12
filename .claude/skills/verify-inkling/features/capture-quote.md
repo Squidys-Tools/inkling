@@ -10,7 +10,7 @@ Capture a quote saves quote text with an optional attribution as a quote card. S
 
 ## How to get to it (user POV)
 
-- Choose **Add**, then **Quote**.
+- Choose **Add**, then **Quote**, or press Ctrl+Shift+N.
 
 ## Driving it with agent-desktop
 
@@ -23,6 +23,6 @@ Preconditions: seeded library; leave `Source URL` empty to stay offline.
 
 ## Gotchas
 
-- Unlike the note editor, the fields are plain textfields.
+- Unlike the note editor, the fields are plain textfields. An unsubmitted quote draft persists for the session — reopening the form restores it.
 - A filled `Source URL` never fetches: quotes only queue `generate_embedding`. It does change the row — `source_url` set, `source_label` becomes the URL's hostname instead of the comma split, `metadata.sourceUrl` added. Leave it empty for a deterministic `source_label`.
 - Attribution is stored whole in `description`; `source_label` is the part before the first comma when no `Source URL` is given (null when attribution is also empty).

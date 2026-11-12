@@ -1,6 +1,6 @@
 # Windows setup window
 
-`inkling-setup-<version>-win-<arch>.exe` (`apps/setup`, packed by `tools/installer/pack.ts`) shows a branded window over the silent NSIS installer: Install, a progress bar, "You're all set" with a 3 s countdown that opens inkling, or "Setup didn't finish" with Try again and Copy details. Status: **driven** on 2026-11-11 on Windows 11, every screen. Windows only.
+`inkling-setup-<version>-win-<arch>.exe` (`apps/setup`, packed by `tools/installer/pack.ts`) shows a branded window over the silent NSIS installer: Install, a progress bar, "You're all set" with a 3 s countdown that opens inkling, or "Setup didn't finish" with Try again and Copy details. Status: **driven** on 2026-11-12 on Windows 11, every screen. Windows only.
 
 ## Sub-features
 
@@ -18,7 +18,7 @@
 
 Preconditions: `.artifacts/electron/win-unpacked` from `bun run dist` (any recent build; the payload's content does not matter), Rust with the MSVC toolchain.
 
-- `$I launch --installer` builds a test-identity NSIS from `win-unpacked` once (about 2 min; cached in `.artifacts/setup-verify/` until `app.asar`, `build/installer.nsh` or `instance.ts` changes), packs the current stub and UI around it, and opens the window with `/D=<run>/install`. `$I doctor` checks the window.
+- `$I launch --installer` builds a test-identity NSIS from `win-unpacked` once (about 2 min; cached in `.artifacts/setup-verify/` until `app.asar`, `build/installer.nsh` or `instance.ts` changes), packs the current stub and UI around it, copies `WebView2Loader.dll` from the cargo build's `webview2-com-sys` OUT_DIR beside the exe (the stub imports it eagerly and cannot start without it), and opens the window with `/D=<run>/install`. `$I doctor` checks the window.
 - `$I ad click "$($I ref button Install)"`. Screens are asserted with `ref`: `Install` on welcome, `Open now` on ready, `Try again` on failed; each is found only while its screen shows.
 - `$I progress` reads the stub's samples: the bar at each tenth of the real duration. An even pace climbs about 10 points a row; a 13 s install ends at 99% with no row more than ~20 points off.
 - Wait for `ref button "Open now"`, then `$I shot`: the countdown fires `open` 3 s later. Under the harness the stub logs `open` to `progress.log` and starts nothing, then closes.
@@ -37,4 +37,5 @@ The test identity has its own appId, package name, NSIS guid, uninstall name and
 - A launch right after repacking can wait on an antivirus scan of the 330 MB exe; `launch` allows 90 s.
 - Copy details (clipboard) and Minimize are not driven.
 - The bar sits at 0% for the first seconds after Install while the stub copies the 330 MB NSIS to temp; that copy is not counted yet.
-- The ready screen closes ~3 s after `Open now` appears, faster than a `ref` then a separate `shot` can run (each command is a process spawn). Poll `ref button "Open now"` in a loop and take the shot in the same iteration — or read `open` in `progress.log`, which only the ready countdown writes.
+- A stub exe packed outside `launch` (e.g. by running `pack.ts` by hand) has no `WebView2Loader.dll` beside it and dies at startup with a Windows system error before `main` runs — deploy the dll beside it or use `launch --installer`.
+- The ready screen closes ~3 s after `Open now` appears, faster than a `ref` then a separate `shot` can run (each command is a process spawn). Poll `ref button "Open now"` in a loop and take the shot in the same iteration — or read `open` in `progress.log`, which proves the ready screen's action fired (both the countdown and an `Open now` click write it).
