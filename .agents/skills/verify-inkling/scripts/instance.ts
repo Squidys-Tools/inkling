@@ -202,8 +202,8 @@ const buildTestNsis = (logPath: string) => {
   return nsisPath;
 };
 
-// The stub imports WebView2Loader.dll eagerly, so the packed exe only starts with the
-// dll beside it; webview2-com-sys leaves the arch copies under its build OUT_DIR.
+// Built with a windows-gnu Rust toolchain the stub imports WebView2Loader.dll and dies at
+// startup without it beside the exe (MSVC links the loader statically, as CI ships it).
 const deployWebView2Loader = (exe: string) => {
   const buildDir = join(root, ".artifacts", "setup-target", "release", "build");
   const arch = process.arch === "arm64" ? "arm64" : "x64";
