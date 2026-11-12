@@ -6,9 +6,11 @@
 import { spawn, spawnSync, type StdioOptions } from "node:child_process";
 import {
   closeSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   statSync,
   writeFileSync,
@@ -200,6 +202,22 @@ const buildTestNsis = (logPath: string) => {
   return nsisPath;
 };
 
+// Built with a windows-gnu Rust toolchain the stub imports WebView2Loader.dll and dies at
+// startup without it beside the exe (MSVC links the loader statically, as CI ships it).
+const deployWebView2Loader = (exe: string) => {
+  const buildDir = join(root, ".artifacts", "setup-target", "release", "build");
+  const arch = process.arch === "arm64" ? "arm64" : "x64";
+  const hits = existsSync(buildDir)
+    ? readdirSync(buildDir)
+        .filter((dir) => dir.startsWith("webview2-com-sys-"))
+        .map((dir) => join(buildDir, dir, "out", arch, "WebView2Loader.dll"))
+        .filter((dll) => existsSync(dll))
+    : [];
+  if (hits.length === 0)
+    throw new Error(`no WebView2Loader.dll under ${buildDir}; run \`bun run dist\` first`);
+  copyFileSync(hits[0], join(dirname(exe), "WebView2Loader.dll"));
+};
+
 const launchInstaller = async (flags: string[]) => {
   if (process.platform !== "win32") fail("--installer needs Windows");
   const livePids = new Set(liveOwned().map((p) => p.pid));
@@ -231,6 +249,7 @@ const launchInstaller = async (flags: string[]) => {
     const nsisPath = buildTestNsis(join(base, "build.log"));
     const setupExe = join(setupVerifyDir, "inkling-setup-verify.exe");
     await packSetup({ nsisPath, unpackedDir: unpackedApp, outPath: setupExe });
+    deployWebView2Loader(setupExe);
     // A file where the install folder belongs makes NSIS fail, for the failed screen.
     if (flags.includes("--fail")) writeFileSync(installDir, "blocks the install folder\n");
     const script = `(Start-Process -FilePath '${setupExe.replaceAll("'", "''")}' -ArgumentList '/D=${installDir.replaceAll("'", "''")}' -PassThru).Id`;
