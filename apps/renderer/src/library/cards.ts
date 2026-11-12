@@ -15,6 +15,7 @@ import {
 } from "./indexState.ts";
 import { refreshJobs } from "./jobs.ts";
 import { activeScope, archivedScope, scopeKey } from "./scope.ts";
+import { thumbPaths } from "./spaceThumbs.ts";
 import { spacesStore } from "./spaces.ts";
 import { createAtom, useSelector } from "@tanstack/react-store";
 
@@ -150,6 +151,16 @@ export const useScope = (scope: CardScope) => {
   return useSelector(libraryIndex, (state) => state.scopes.get(key));
 };
 export const useCard = (id: string) => useSelector(libraryIndex, (state) => state.cards.get(id));
+/** The thumbnails of a scope's newest cards, joined by newlines so the selection stays stable. */
+export const useScopeThumbs = (scope: CardScope, limit: number) => {
+  const key = scopeKey(scope);
+  return useSelector(libraryIndex, (state) =>
+    thumbPaths(
+      (state.scopes.get(key)?.ids.slice(0, 24) ?? []).flatMap((id) => state.cards.get(id) ?? []),
+      limit,
+    ).join("\n"),
+  );
+};
 /** Undefined until the first page answers: an unread library is not an empty one. */
 export const useActiveTotal = () =>
   useSelector(libraryIndex, (state) => {

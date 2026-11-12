@@ -11,8 +11,10 @@ import { deleteSpace, moveSpace, recolorSpace, renameSpace } from "../library/sp
 import { spaceRowMarker } from "../markers.stylex.ts";
 import { CompactSpaceRow } from "./CompactSpaceRow.tsx";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
+import { slidingSelection } from "./NavRow.tsx";
 import { dragSteps } from "./sidebarGeometry.ts";
 import { SpaceMark } from "./SpaceMark.tsx";
+import { SpaceStack } from "./SpaceStack.tsx";
 import { opensMenu, openSpaceMenu } from "./spaceMenu.ts";
 
 async function confirmDelete(space: Space) {
@@ -34,6 +36,7 @@ export function SpaceRow({
   selected,
   count,
   compact,
+  shelf,
   index,
   lastIndex,
 }: {
@@ -41,6 +44,8 @@ export function SpaceRow({
   selected: boolean;
   count: number | undefined;
   compact: boolean;
+  /** The Shelf look: a taller row led by a stack of the Space's newest items. */
+  shelf: boolean;
   index: number;
   lastIndex: number;
 }) {
@@ -126,9 +131,11 @@ export function SpaceRow({
       onContextMenu={(event) => {
         if (renaming === null) void openSpaceMenu(event, space.name, can, actions);
       }}
+      data-sidebar-selected={slidingSelection(selected && !shelf)}
       {...stylex.props(
         styles.row,
-        selected && styles.selected,
+        shelf && styles.shelfRow,
+        selected && (shelf ? styles.shelfSelected : styles.selected),
         lift !== null && styles.lifted,
         lift !== null && styles.lift(lift),
         spaceRowMarker,
@@ -141,10 +148,11 @@ export function SpaceRow({
         // One tab stop per row, like every other sidebar row; the row's menu changes color by keyboard.
         tabIndex={-1}
         onClick={() => void recolorSpace(space)}
-        {...stylex.props(styles.mark)}
+        {...stylex.props(styles.mark, shelf && styles.shelfMark)}
       >
-        <SpaceMark color={space.color} hollow={space.kind === "smart"} />
+        <SpaceMark small={shelf} color={space.color} hollow={space.kind === "smart"} />
       </button>
+      {shelf && <SpaceStack space={space} />}
       {renaming !== null ? (
         <input
           // oxlint-disable-next-line jsx-a11y/no-autofocus -- The field appears because the user asked to rename; typing goes straight into it.
@@ -164,7 +172,7 @@ export function SpaceRow({
           }}
           // Blur keeps what was typed, like renaming in a file manager.
           onBlur={() => void commit(renaming)}
-          {...stylex.props(styles.rename)}
+          {...stylex.props(styles.rename, shelf && styles.shelfRename)}
         />
       ) : (
         <Link
@@ -182,14 +190,26 @@ export function SpaceRow({
             if (opensMenu(event)) void openSpaceMenu(event, space.name, can, actions);
           }}
           aria-current={selected ? "page" : undefined}
-          {...stylex.props(styles.name)}
+          {...stylex.props(styles.name, shelf && styles.shelfName)}
         >
-          <span data-sidebar-label {...stylex.props(styles.nameText)}>
+          <span data-sidebar-label {...stylex.props(styles.nameText, shelf && styles.shelfText)}>
             {space.name}
           </span>
-          <span data-sidebar-label {...stylex.props(styles.count)}>
-            {count?.toLocaleString()}
-          </span>
+          {shelf ? (
+            <span data-sidebar-label {...stylex.props(styles.sub)}>
+              {[
+                space.kind === "smart" && "Smart",
+                count !== undefined &&
+                  `${count.toLocaleString()} ${count === 1 ? "item" : "items"}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          ) : (
+            <span data-sidebar-label {...stylex.props(styles.count)}>
+              {count?.toLocaleString()}
+            </span>
+          )}
         </Link>
       )}
       {renaming === null && (
@@ -199,7 +219,7 @@ export function SpaceRow({
           title="Rename, color, move, delete"
           aria-haspopup="menu"
           onClick={(event) => void openSpaceMenu(event, space.name, can, actions)}
-          {...stylex.props(styles.more)}
+          {...stylex.props(styles.more, shelf && styles.shelfMore)}
         >
           <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
         </button>
@@ -223,11 +243,44 @@ const styles = stylex.create({
     transitionProperty: "color, background-color",
     transitionDuration: motion.micro,
   },
+  // The sidebar's sliding pill is the fill.
   selected: {
     fontWeight: 600,
-    backgroundColor: { default: color.overlayActive, ":hover": color.overlayActive },
+    backgroundColor: { default: "transparent", ":hover": "transparent" },
     color: { default: color.inkStrong, ":hover": color.inkStrong },
   },
+  shelfRow: { height: "56px", borderRadius: radius.tile },
+  shelfSelected: {
+    fontWeight: 600,
+    backgroundColor: { default: color.hover, ":hover": color.hover },
+    boxShadow: `inset 0 0 0 1px ${color.borderStrong}`,
+    color: { default: color.inkStrong, ":hover": color.inkStrong },
+  },
+  // Beside the count line, under the name.
+  shelfMark: { left: "64px", top: "30px" },
+  shelfName: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    justifyContent: "center",
+    gap: "3px",
+    paddingLeft: "66px",
+    paddingRight: "34px",
+    borderRadius: radius.tile,
+  },
+  sub: {
+    minHeight: "14px",
+    paddingLeft: "19px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    fontSize: "12px",
+    lineHeight: "14px",
+    fontWeight: 400,
+    color: color.muted,
+  },
+  shelfText: { flexGrow: 0, lineHeight: "18px" },
+  shelfMore: { top: "17px" },
+  shelfRename: { marginLeft: "62px" },
   lifted: {
     zIndex: 1,
     backgroundColor: { default: color.hover, ":hover": color.hover },

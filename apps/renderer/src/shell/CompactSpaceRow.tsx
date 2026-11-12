@@ -3,6 +3,7 @@ import * as stylex from "@stylexjs/stylex";
 import { Link } from "@tanstack/react-router";
 import { color, motion, radius } from "@inkling/ui/tokens.stylex";
 import { search } from "../library/search.ts";
+import { slidingSelection } from "./NavRow.tsx";
 import { SpaceMark } from "./SpaceMark.tsx";
 import { opensMenu, openSpaceMenu, type SpaceActions } from "./spaceMenu.ts";
 
@@ -26,6 +27,7 @@ export function CompactSpaceRow({
       aria-label={space.name}
       title={space.name}
       aria-current={selected ? "page" : undefined}
+      data-sidebar-selected={slidingSelection(selected)}
       onClick={() => search.clear()}
       onContextMenu={(event) => void openSpaceMenu(event, space.name, can, actions)}
       onKeyDown={(event) => {
@@ -49,11 +51,12 @@ const styles = stylex.create({
     textDecoration: "none",
     backgroundColor: { default: "transparent", ":hover": color.overlayHover },
     cursor: "pointer",
-    transform: { default: "none", ":active": "translateY(1px)" },
+    transform: { default: "none", ":active": "scale(0.94)" },
     transitionProperty: "background-color, transform",
     transitionDuration: motion.micro,
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "-2px",
   },
-  selected: { backgroundColor: { default: color.overlayActive, ":hover": color.overlayActive } },
+  // The sidebar's sliding pill is the fill.
+  selected: { backgroundColor: { default: "transparent", ":hover": "transparent" } },
 });

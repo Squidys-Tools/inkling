@@ -1,5 +1,6 @@
 import GridViewIcon from "@hugeicons/core-free-icons/GridViewIcon";
 import Layout01Icon from "@hugeicons/core-free-icons/Layout01Icon";
+import SidebarLeftIcon from "@hugeicons/core-free-icons/SidebarLeftIcon";
 import * as stylex from "@stylexjs/stylex";
 import { SegmentedControl } from "@inkling/ui";
 import { chrome } from "../desktop.ts";
@@ -14,10 +15,25 @@ import { inset, Panel, PanelBody, Row } from "./parts.tsx";
 
 export function AppearancePanel({ onClose }: { onClose: () => void }) {
   const viewToggle = useViewToggleStyle();
-  const { windowControlsAtRest } = useAppearance();
+  const { sidebar, windowControlsAtRest } = useAppearance();
   return (
     <Panel title="Appearance" onClose={onClose}>
       <PanelBody>
+        <Row
+          icon={SidebarLeftIcon}
+          title="Sidebar"
+          description="Plain rows, or Shelf, which shows each Space by its newest items."
+          action={
+            <SegmentedControl
+              name="appearance-sidebar"
+              label="Sidebar style"
+              options={appearanceOptions.sidebar}
+              value={sidebar}
+              onChange={(value) => setAppearance("sidebar", value)}
+              style={[inset.capsule, styles.segmented]}
+            />
+          }
+        />
         <Row
           icon={GridViewIcon}
           title="Grid and list toggle"

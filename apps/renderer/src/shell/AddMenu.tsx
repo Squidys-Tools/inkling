@@ -18,7 +18,14 @@ const AddChoices = lazy(() =>
  * The sidebar's Add button. Note, Link and Quote open their pages; File and
  * Screenshot save straight into the library without leaving it.
  */
-export function AddMenu({ compact }: { compact: boolean }) {
+export function AddMenu({
+  compact,
+  beside = 0,
+}: {
+  compact: boolean;
+  /** The width of what shares the button's row, which the sidebar's motion leaves for it. */
+  beside?: number;
+}) {
   const navigate = useNavigate();
   const files = useRef<HTMLInputElement>(null);
   const saving = useCaptureState((state) => state.saving > 0);
@@ -47,7 +54,11 @@ export function AddMenu({ compact }: { compact: boolean }) {
   );
 
   return (
-    <div data-sidebar-add {...stylex.props(styles.anchor)}>
+    <div
+      data-sidebar-add
+      data-sidebar-add-beside={beside || undefined}
+      {...stylex.props(styles.anchor, beside > 0 && styles.inRow(beside))}
+    >
       <input
         ref={files}
         type="file"
@@ -77,6 +88,12 @@ export function AddMenu({ compact }: { compact: boolean }) {
 
 const styles = stylex.create({
   anchor: { position: "relative", marginBottom: "8px" },
+  // A width, not flex growth, so the sidebar's motion can still size the button.
+  inRow: (beside: number) => ({
+    width: `calc(100% - ${beside}px)`,
+    flexShrink: 0,
+    marginBottom: 0,
+  }),
   label: { display: "inline-block", overflow: "hidden", whiteSpace: "nowrap" },
   fileInput: {
     position: "absolute",

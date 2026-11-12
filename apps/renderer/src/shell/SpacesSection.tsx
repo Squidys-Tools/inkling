@@ -6,9 +6,10 @@ import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useId } from "react";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
-import { shownScope, useScope } from "../library/cards.ts";
+import { shownScope, useScope, useScopeThumbs } from "../library/cards.ts";
 import { search } from "../library/search.ts";
 import { rememberSpaceCount, useSpaceCounts } from "../library/spaceCounts.ts";
+import { rememberSpaceThumbs } from "../library/spaceThumbs.ts";
 import { createSpace, dismissSpaceError, useSpaceError, useSpaces } from "../library/spaces.ts";
 import { useSelector } from "@tanstack/react-store";
 import { SpaceRow } from "./SpaceRow.tsx";
@@ -23,9 +24,11 @@ import {
 
 export function SpacesSection({
   compact = false,
+  shelf = false,
   onExpand,
 }: {
   compact?: boolean;
+  shelf?: boolean;
   onExpand?: () => void;
 }) {
   const spaces = useSpaces();
@@ -41,6 +44,12 @@ export function SpacesSection({
     if (shownSpace !== null && shownSmart && shownTotal !== undefined)
       rememberSpaceCount(shownSpace, shownTotal);
   }, [shownSpace, shownSmart, shownTotal]);
+  const shownThumbs = useScopeThumbs(shown, 3);
+  const shownReady = shownState?.status === "ready";
+  useEffect(() => {
+    if (shownSpace !== null && shownReady)
+      rememberSpaceThumbs(shownSpace, shownThumbs ? shownThumbs.split("\n") : []);
+  }, [shownSpace, shownReady, shownThumbs]);
 
   return (
     <div {...stylex.props(styles.section)}>
@@ -76,6 +85,7 @@ export function SpacesSection({
               selected={selected}
               count={count}
               compact={compact}
+              shelf={shelf}
               index={index}
               lastIndex={spaces.length - 1}
             />

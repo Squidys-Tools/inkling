@@ -2,6 +2,7 @@ import type { Space, SpaceColor, SpaceKind } from "@inkling/contracts";
 import { libraryClient } from "./connection.ts";
 import { errorMessage } from "./errors.ts";
 import { forgetSpaceCount } from "./spaceCounts.ts";
+import { forgetSpaceThumbs } from "./spaceThumbs.ts";
 import { createAtom, useSelector } from "@tanstack/react-store";
 import { notify, notifyError } from "../notifications/toasts.ts";
 
@@ -143,6 +144,7 @@ export async function deleteSpace(space: Space) {
       spaces: state.spaces.filter((candidate) => candidate.id !== space.id),
     }));
     forgetSpaceCount(space.id);
+    forgetSpaceThumbs(space.id);
   }
   if (done) notify("Space deleted", { description: "Its items are still in your library." });
   return done === true;

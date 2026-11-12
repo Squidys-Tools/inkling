@@ -1,11 +1,15 @@
 import { expect, test } from "bun:test";
 import { parseAppearance } from "./appearanceModel.ts";
 
-test("old Appearance choices migrate, but sidebar style cannot turn Codex off", () => {
+test("old Appearance choices migrate, but an old sidebar style does not choose a sidebar", () => {
   const actual = parseAppearance(
     JSON.stringify({ sidebarStyle: "classic", viewToggle: "segmented", sidebarToggle: "edge" }),
   );
-  expect(actual).toEqual({ viewToggle: "segmented", windowControlsAtRest: "hover" });
+  expect(actual).toEqual({
+    sidebar: "refined",
+    viewToggle: "segmented",
+    windowControlsAtRest: "hover",
+  });
   expect(actual).not.toHaveProperty("sidebarStyle");
   expect(actual).not.toHaveProperty("sidebarToggle");
   expect(parseAppearance('{"windowControls":"inset"}')).not.toHaveProperty("windowControls");
@@ -16,7 +20,16 @@ test("old Appearance choices migrate, but sidebar style cannot turn Codex off", 
 
 test("invalid or missing Appearance settings use known defaults", () => {
   for (const raw of [null, "not json", "null", "[]", '{"viewToggle":"oops"}'])
-    expect(parseAppearance(raw)).toEqual({ viewToggle: "pill", windowControlsAtRest: "hover" });
+    expect(parseAppearance(raw)).toEqual({
+      sidebar: "refined",
+      viewToggle: "pill",
+      windowControlsAtRest: "hover",
+    });
+});
+
+test("Shelf is the sidebar only when chosen", () => {
+  expect(parseAppearance('{"sidebar":"shelf"}').sidebar).toBe("shelf");
+  expect(parseAppearance('{"sidebar":"classic"}').sidebar).toBe("refined");
 });
 
 test("the pill stays hidden at rest unless Always is chosen", () => {

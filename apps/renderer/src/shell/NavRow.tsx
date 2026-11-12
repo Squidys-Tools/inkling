@@ -5,6 +5,9 @@ import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 
 type RowLook = { active?: boolean; tone?: "nav" | "footer"; compact: boolean };
 
+/** How a selected row is filled: by the sidebar's sliding pill, or by itself. */
+export const slidingSelection = (selected: boolean) => (selected ? "" : undefined);
+
 /** A sidebar destination keeps its name when only its icon is visible. */
 export function NavLink({
   active = false,
@@ -13,12 +16,15 @@ export function NavLink({
   icon,
   label,
   count,
+  slides = false,
   onClick,
   ...link
 }: RowLook & {
   icon: ReactNode;
   label: string;
   count?: ReactNode;
+  /** The sidebar's sliding pill draws this row's selection. */
+  slides?: boolean;
   onClick?: () => void;
 } & Pick<LinkProps, "to" | "params">) {
   return (
@@ -30,11 +36,13 @@ export function NavLink({
       aria-label={compact ? label : undefined}
       title={compact ? label : undefined}
       aria-current={active ? "page" : undefined}
+      data-sidebar-selected={slidingSelection(active && slides)}
       {...stylex.props(
         styles.row,
         styles[tone],
         compact && styles.compact,
         active && styles.active,
+        active && slides && styles.slid,
       )}
     >
       <span {...stylex.props(styles.icon, active && styles.activeIcon)}>{icon}</span>
@@ -115,9 +123,10 @@ const styles = stylex.create({
     lineHeight: "18px",
     textDecoration: "none",
     cursor: "pointer",
-    transform: { default: "none", ":active": "translateY(1px)" },
+    transform: { default: "none", ":active": "scale(0.985)" },
     transitionProperty: "color, background-color, transform",
     transitionDuration: motion.micro,
+    transitionTimingFunction: motion.enter,
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "-2px",
   },
@@ -130,6 +139,7 @@ const styles = stylex.create({
     backgroundColor: { default: color.overlayActive, ":hover": color.overlayActive },
     color: { default: color.inkStrong, ":hover": color.inkStrong },
   },
+  slid: { backgroundColor: { default: "transparent", ":hover": "transparent" } },
   icon: { display: "grid", placeItems: "center", width: "16px", flexShrink: 0, color: color.muted },
   activeIcon: { color: color.accent },
   label: {

@@ -1,4 +1,9 @@
 export const appearanceOptions = {
+  // The compact rail is the same in both: Shelf is a look of the expanded sidebar.
+  sidebar: [
+    { value: "refined", label: "Rows" },
+    { value: "shelf", label: "Shelf" },
+  ],
   viewToggle: [
     { value: "pill", label: "Pill" },
     { value: "segmented", label: "Segmented" },
@@ -14,7 +19,7 @@ export type Appearance = {
   [Key in keyof typeof appearanceOptions]: (typeof appearanceOptions)[Key][number]["value"];
 };
 
-// Sidebar style is deliberately not a preference: Codex is the only sidebar.
+// Earlier builds stored `sidebarStyle` and `sidebarToggle`; neither is read, so an old choice picks no sidebar.
 export function parseAppearance(
   raw: string | null,
   viewToggleStyle: string | null = null,
@@ -26,6 +31,7 @@ export function parseAppearance(
       stored = parsed as Record<string, unknown>;
   } catch {}
   return {
+    sidebar: stored.sidebar === "shelf" ? "shelf" : "refined",
     viewToggle:
       viewToggleStyle === "pill" || viewToggleStyle === "segmented"
         ? viewToggleStyle
