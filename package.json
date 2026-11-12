@@ -34,7 +34,7 @@
     "bench": "bun tools/bench/index.ts"
   },
   "dependencies": {
-    "@effect/sql-sqlite-node": "4.1.2",
+    "@effect/sql-sqlite-node": "4.1.4",
     "@huggingface/tokenizers": "0.2.0",
     "@img/sharp-wasm32": "0.35.5",
     "@napi-rs/canvas": "1.1.0",
@@ -42,7 +42,7 @@
     "builder-util-runtime": "9.7.0",
     "defuddle": "0.19.6",
     "dompurify": "3.4.17",
-    "effect": "4.1.2",
+    "effect": "4.1.4",
     "electron-updater": "6.8.11",
     "entities": "9.0.0",
     "ipaddr.js": "2.5.0",
@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@base-ui/react": "1.9.0",
-    "@effect/platform-browser": "4.1.2",
+    "@effect/platform-browser": "4.1.4",
     "@fontsource-variable/dm-sans": "5.3.0",
     "@fontsource/arimo": "5.3.0",
     "@fontsource/bitter": "5.3.0",
