@@ -14,7 +14,7 @@ Spaces are named collections in the sidebar: Smart (a saved search) or Regular (
 
 ## How to get to it (user POV)
 
-- Sidebar button **Add a Space**; each row has a `Change color of <name>` button (its blot: an outline for a Smart Space, filled for a Regular one) and a menubutton `Actions for <name>` whose menu holds `Rename`, `Change color`, `Move up`, `Move down`, `Delete Space`. Shift+F10 on the row's link opens the same menu.
+- Sidebar **Add a Space** (the `+` beside the Spaces heading); each row has a `Change color of <name>` button (its blot: an outline for a Smart Space, filled for a Regular one) and a menubutton `Actions for <name>` whose menu holds `Rename`, `Change color`, `Move up`, `Move down`, `Delete Space`. Shift+F10 on the row's link opens the same menu.
 - Search > Save as Space (see search.md).
 - Item view > **Keep in a Space** (card right-click wraps the same Space actions in a `Keep in a Space` submenu of a bigger menu — plus an `Allow in <smart>` entry for each Smart Space the item is currently excluded from, and a top-level `Remove from <current>` inside a Space; driven on the Linux box, not on Windows).
 
@@ -22,7 +22,7 @@ Spaces are named collections in the sidebar: Smart (a saved search) or Regular (
 
 Preconditions: seeded library (Spaces `Design references`, `Read later`, `Weekend reading` exist).
 
-- **Open the form.** `$I ad click "$($I ref button 'Add a Space')"` (`expand` also works; some platforms may map the control as `menubutton` — try the other role if `ref` finds nothing). Textfield `Space name`, radiobuttons `Smart`/`Regular`, buttons `Cancel`/`Create Space` (disabled until a name is set).
+- **Open the form.** `$I ad click "$($I ref menubutton 'Add a Space')"` (Windows maps it `menubutton` because it carries `aria-expanded`; if `ref` finds nothing on another platform, try `button`). Textfield `Space name`, radiobuttons `Smart`/`Regular`, buttons `Cancel`/`Create Space` (disabled until a name is set).
 - **Smart (default).** `$I ad set-value "$($I ref textfield 'Space name')" 'Verify Smart'`, then `$I ad click "$($I ref button 'Create Space')"`. A link `Verify Smart <n>` appears — a Smart Space is counted when it is opened, which it is right after create, and its row keeps that count afterwards (a Smart Space never opened shows none). `$I db "SELECT name,kind,query FROM spaces WHERE name='Verify Smart'"` → kind `smart`, query `{}` (an empty Smart Space matches every active item, so `n` is the library's active count; caveat: an empty query plus a name that is only photo subjects, like `Cats`, matches only those subjects).
 - **Regular.** The radios cannot be clicked headless. After `set-value` on the name (which focuses that field) run `$I ad press tab --window-id '{window}'` then `$I ad press right --window-id '{window}'`; `$I tree | grep radiobutton` must show `Regular` focused and checked — `states=focused|selected` on Windows, `focused|checked` on the Linux box. Then click `Create Space`. `db` → kind `regular`, query `{}`; the link reads `Verify Regular 0`.
 - **Open a row's menu.** `$I ad expand "$($I ref menubutton 'Actions for Verify Regular')"` (a semantic `click` does nothing, and `expand` opens the menu yet returns `ACTION_FAILED`), then `$I tree --surface menu` and `$I ad click "$($I ref menuitem 'Move up')"`. `Move up` is disabled on the first row and `Move down` on the last; check the order with `$I db "SELECT name, position FROM spaces ORDER BY position"`.

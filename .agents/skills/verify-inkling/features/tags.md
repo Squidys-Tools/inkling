@@ -25,5 +25,5 @@ Preconditions: seeded library, Everything shown. Item `5` (`Post: The first post
 ## Gotchas
 
 - The stored tag is lowercased with its leading `#` stripped, so the remove button's name is `Remove tag launch`, not `#Launch`.
-- `tree` prints the whole row as `listitem`s inside `list "Spaces and tags"` (each tag's `Remove tag <name>` button sits in its own listitem); `ref button 'Add tag'` is still unique.
+- The row is `list "Spaces and tags"`; on Windows `tree` prints its entries as `option`s (so `option "Add tag"` sits beside `button "Add tag"`), and each tag's `Remove tag <name>` button sits in its own entry. `ref button 'Add tag'` is still unique.
 - In bash, escape the `$` in `'$.tags'` when the query sits in double quotes.
