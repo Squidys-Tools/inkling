@@ -108,8 +108,8 @@ export type DesktopBridge = {
   };
   capture: {
     receiver: () => Promise<CaptureReceiver>;
-    pairingToken: () => Promise<string>;
-    regeneratePairingToken: () => Promise<string>;
+    /** Every paired browser must connect again afterwards. */
+    regeneratePairingToken: () => Promise<void>;
     /** Main asks the receiver's health URL itself: the page's CSP blocks loopback requests. */
     testReceiver: () => Promise<boolean>;
   };

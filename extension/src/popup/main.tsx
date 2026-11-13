@@ -4,9 +4,8 @@ import * as stylex from "@stylexjs/stylex";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import browser from "webextension-polyfill";
-import { readLoopbackConfig } from "../deliver";
+import { locateReceiver } from "../deliver";
 import { pageChoices, readPage } from "../page";
-import { loopbackHealth } from "../transport";
 import { Popup } from "./Popup";
 
 async function openTab() {
@@ -33,11 +32,11 @@ async function openTab() {
   return pageChoices(tab, facts);
 }
 
-async function link() {
-  const config = await readLoopbackConfig().catch(() => null);
-  if (!config) return "unpaired" as const;
-  return loopbackHealth(config.baseUrl, config.token);
-}
+const link = () =>
+  locateReceiver().then(
+    (receiver) => receiver.state,
+    () => "unpaired" as const,
+  );
 
 // Chrome sizes a popup to its content, so the page sets its width and never its height.
 const styles = stylex.create({

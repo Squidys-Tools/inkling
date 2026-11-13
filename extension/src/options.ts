@@ -1,43 +1,57 @@
 import browser from "webextension-polyfill";
-import {
-  BASE_URL_KEY,
-  isPairingToken,
-  normalizeCaptureServerAddress,
-  TOKEN_KEY,
-} from "./connection";
+import { PORT_KEY, portsToTry, TOKEN_KEY } from "./connection";
+import { locateReceiver } from "./deliver";
+import { pairingAnswer, requestPairing } from "./transport";
 
-const baseUrlInput = document.getElementById("base-url") as HTMLInputElement;
-const tokenInput = document.getElementById("token") as HTMLInputElement;
-const saveButton = document.getElementById("save") as HTMLButtonElement;
-const statusLine = document.getElementById("status") as HTMLSpanElement;
+const connectButton = document.getElementById("connect") as HTMLButtonElement;
+const disconnectButton = document.getElementById("disconnect") as HTMLButtonElement;
+const statusLine = document.getElementById("status") as HTMLParagraphElement;
 
-async function load() {
-  const stored = await browser.storage.local.get([BASE_URL_KEY, TOKEN_KEY]);
-  if (typeof stored[BASE_URL_KEY] === "string") baseUrlInput.value = stored[BASE_URL_KEY];
-  if (typeof stored[TOKEN_KEY] === "string") tokenInput.value = stored[TOKEN_KEY];
+const show = (text: string, connected: boolean) => {
+  statusLine.textContent = text;
+  connectButton.hidden = connected;
+  disconnectButton.hidden = !connected;
+};
+
+async function showCurrent() {
+  const { state } = await locateReceiver();
+  if (state === "connected") show("Connected to inkling.", true);
+  else if (state === "silent") show("Connected. inkling isn't running right now.", true);
+  else if (state === "refused") show("inkling disconnected this browser. Connect again.", false);
+  else show("Not connected. Saves open the inkling app instead.", false);
 }
 
-async function save() {
-  const enteredAddress = baseUrlInput.value.trim();
-  const normalizedAddress = enteredAddress.includes("://")
-    ? enteredAddress
-    : `http://${enteredAddress}`;
-  const baseUrl = normalizeCaptureServerAddress(normalizedAddress);
-  if (!baseUrl) {
-    statusLine.textContent =
-      "Enter the 127.0.0.1 address shown in inkling Settings → Browser extension.";
-    return;
+// This page, not the popup, waits for the answer: the popup closes when the app comes forward.
+async function connect() {
+  connectButton.disabled = true;
+  try {
+    const request = await requestPairing(portsToTry(null));
+    if (!request) {
+      show("inkling didn't answer. Open inkling, then press Connect again.", false);
+      return;
+    }
+    show("inkling is asking you to allow this. Choose Connect there.", false);
+    let answer = await pairingAnswer(request.port, request.id);
+    while (answer.status === "pending") {
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      answer = await pairingAnswer(request.port, request.id);
+    }
+    if (answer.status !== "approved") {
+      show("inkling didn't allow the connection. Press Connect to ask again.", false);
+      return;
+    }
+    await browser.storage.local.set({ [TOKEN_KEY]: answer.token, [PORT_KEY]: request.port });
+    show("Connected to inkling.", true);
+  } finally {
+    connectButton.disabled = false;
   }
-
-  const token = tokenInput.value.trim();
-  if (!isPairingToken(token)) {
-    statusLine.textContent = "Enter the pairing token from inkling Settings → Browser extension.";
-    return;
-  }
-
-  await browser.storage.local.set({ [BASE_URL_KEY]: baseUrl, [TOKEN_KEY]: token });
-  statusLine.textContent = "Saved.";
 }
 
-saveButton.addEventListener("click", () => void save());
-void load();
+async function disconnect() {
+  await browser.storage.local.remove([TOKEN_KEY, PORT_KEY]);
+  await showCurrent();
+}
+
+connectButton.addEventListener("click", () => void connect());
+disconnectButton.addEventListener("click", () => void disconnect());
+void showCurrent();

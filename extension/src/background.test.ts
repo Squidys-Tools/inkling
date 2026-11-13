@@ -38,7 +38,7 @@ mock.module("webextension-polyfill", () => ({
         },
       },
     },
-    storage: { local: { get: async () => stored } },
+    storage: { local: { get: async () => stored, set: async () => {} } },
     tabs: {
       create: async ({ url }: { url: string }) => {
         if (tabsCreateFails) throw new Error("could not open the capture link");
@@ -93,11 +93,13 @@ describe("delivery", () => {
   test("a stale pairing falls back to the link, and a refusal the link would share does not", async () => {
     const { buildUrlCapturePayload } = await import("./capture");
     const { deliver } = await import("./deliver");
-    stored = { "inkling.base-url": "http://127.0.0.1:41234", "inkling.token": "a".repeat(64) };
+    stored = { "inkling.token": "a".repeat(64) };
     tabsCreateFails = false;
     const originalFetch = globalThis.fetch;
     let status = 401;
-    globalThis.fetch = (async () => new Response(null, { status })) as unknown as typeof fetch;
+    // The app is found on its first port; `status` is how it answers the capture itself.
+    globalThis.fetch = (async (url: string) =>
+      new Response(null, { status: url.endsWith("/v1/health") ? 200 : status })) as typeof fetch;
     try {
       const page = buildUrlCapturePayload("https://example.com/a", "A");
       openedLinks.length = 0;

@@ -59,7 +59,6 @@ const bridge: DesktopBridge = {
   },
   capture: {
     receiver: () => invoke(channels.captureReceiver),
-    pairingToken: () => invoke(channels.capturePairingToken),
     regeneratePairingToken: () => invoke(channels.captureRegenerateToken),
     testReceiver: () => invoke(channels.captureTestReceiver),
   },

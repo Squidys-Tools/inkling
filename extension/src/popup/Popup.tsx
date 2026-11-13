@@ -222,16 +222,18 @@ function ConnectionLine({ connection }: { connection: Connection }) {
         {connection === "unpaired"
           ? "Saving opens the inkling app."
           : connection === "refused"
-            ? "inkling no longer knows this pairing, so saving opens the app."
-            : "inkling isn't answering, so saving opens the app."}
+            ? "inkling disconnected this browser, so saving opens the app."
+            : "inkling isn't running, so saving opens it."}
       </span>
-      <button
-        type="button"
-        onClick={() => void browser.runtime.openOptionsPage()}
-        {...stylex.props(styles.textButton)}
-      >
-        {connection === "unpaired" ? "Pair" : "Update pairing"}
-      </button>
+      {connection !== "silent" && (
+        <button
+          type="button"
+          onClick={() => void browser.runtime.openOptionsPage()}
+          {...stylex.props(styles.textButton)}
+        >
+          {connection === "unpaired" ? "Connect" : "Connect again"}
+        </button>
+      )}
     </p>
   );
 }

@@ -4,6 +4,9 @@ dist
 *.local
 .artifacts/
 
+# Chrome Web Store upload from `bun run package:extension`
+extension/*.zip
+
 # The site's /demo/, built from the renderer by apps/site's `demo` script
 apps/site/public/demo/
 

@@ -11,7 +11,7 @@ import {
 import {
   CaptureResponseError,
   buildCaptureDeepLink,
-  loopbackHealth,
+  findReceiver,
   postPayloadToLoopback,
 } from "./transport";
 
@@ -73,18 +73,27 @@ describe("capture delivery", () => {
         body: payload,
       });
 
-      expect(await loopbackHealth(baseUrl, token)).toBe("connected");
+      // Another inkling on an earlier port refuses the token; the search goes on to this one.
+      const other = createServer((_, outgoing) => outgoing.writeHead(401).end());
+      await new Promise<void>((resolve) => other.listen(0, "127.0.0.1", resolve));
+      const otherAddress = other.address();
+      if (!otherAddress || typeof otherAddress === "string") throw new Error("did not bind");
+      expect(await findReceiver([otherAddress.port, address.port], token)).toEqual({
+        state: "connected",
+        port: address.port,
+      });
+      await new Promise((resolve) => other.close(resolve));
 
       responseStatus = 401;
       await expect(postPayloadToLoopback(baseUrl, token, payload)).rejects.toBeInstanceOf(
         CaptureResponseError,
       );
-      expect(await loopbackHealth(baseUrl, token)).toBe("refused");
+      expect(await findReceiver([address.port], token)).toEqual({ state: "refused" });
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
       });
     }
-    expect(await loopbackHealth(baseUrl, token)).toBe("silent");
+    expect(await findReceiver([address.port], token)).toEqual({ state: "silent" });
   });
 });

@@ -4,13 +4,13 @@ Click the inkling toolbar icon, or press Alt+Shift+S, to open the save popup. It
 
 The popup reads the page's title, description, preview image and selection to draw the card. It sends inkling only the URL, title, selected text or image address; inkling extracts and processes the rest in the background.
 
-## Connect the local receiver
+## Connect to the app
 
-Pairing is optional. When the extension has the app's receiver address and token, it posts to `http://127.0.0.1:<port>/v1/captures` with the bearer token from inkling's **Settings → Browser extension** panel, and the popup shows **Connected to inkling**. inkling picks a new loopback port each time it starts, so after a restart the popup says inkling isn't answering; copy the new address into the extension's options. Until then, saves go through the capture link. The token stays in this browser profile and is sent only to `127.0.0.1`.
+Connecting is optional and takes one click. With inkling open, press **Connect** in the popup (or its settings button, or **Details → Extension options**), then choose **Connect** in the question inkling asks. The popup then shows **Connected to inkling**, and it stays connected across restarts of the app and the browser.
 
-Without pairing, or if the receiver is unavailable, the extension hands the capture to the app through the `inkling://capture?url=...` link, which carries quotes (`&selection=`) and images (`&image=`) too. Both paths save the same way; the extension does not contact a remote service.
+The app listens on the first free port of a short fixed list (`captureReceiverPorts` in `packages/contracts/src/capture.ts`) and the extension tries each, so no address is typed. Approving hands the extension a token, which it sends with every save to `http://127.0.0.1:<port>/v1/captures`. The token stays in this browser profile and is sent only to `127.0.0.1`. **Disconnect** on the extension's page forgets it; **Disconnect browsers** in inkling's **Settings → Browser extension** makes every browser connect again.
 
-To pair, open the popup's settings button (or **Details → Extension options**), copy the listening address and pairing token from inkling's **Settings → Browser extension**, and save them there. If inkling is not running, the capture link can start it when the operating system has registered the `inkling://` protocol.
+Not connected, or when inkling is not running, the extension hands the capture to the app through the `inkling://capture?url=...` link, which carries quotes (`&selection=`) and images (`&image=`) too and can start the app when the operating system has registered the `inkling://` protocol. Both paths save the same way; the extension does not contact a remote service.
 
 ## Load unpacked
 

@@ -31,7 +31,6 @@ export const channels = {
   screenshotSetEnabled: "inkling:screenshots:set-enabled",
   screenshotChooseDirectory: "inkling:screenshots:choose-directory",
   captureReceiver: "inkling:capture:receiver",
-  capturePairingToken: "inkling:capture:pairing-token",
   captureRegenerateToken: "inkling:capture:regenerate-token",
   captureTestReceiver: "inkling:capture:test-receiver",
 } as const;

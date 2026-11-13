@@ -23,6 +23,7 @@
     "build:web": "vite build --config apps/renderer/vite.config.ts --mode preview",
     "build:site": "bun run --cwd apps/site build",
     "build:extension": "bun run --cwd extension build",
+    "package:extension": "bun tools/repo/package-extension.ts",
     "dist": "bun run build:app && bun tools/models/prepare.ts && bun tools/repo/dist.ts",
     "test": "bun test --timeout 5000",
     "typecheck": "tsc-rs -p apps/renderer --noEmit && tsc-rs -p apps/desktop --noEmit && tsc-rs -p apps/site --noEmit && tsc-rs -p packages/library --noEmit && tsc-rs -p packages/jobs --noEmit && tsc-rs -p packages/ingestion --noEmit && tsc-rs -p tools --noEmit && tsc-rs -p extension --noEmit && tsc-rs -p benchmarks --noEmit",

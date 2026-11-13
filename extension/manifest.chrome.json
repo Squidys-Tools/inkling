@@ -8,9 +8,10 @@
     "default_title": "Save to inkling",
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icons/inkling.svg",
-      "48": "icons/inkling.svg",
-      "128": "icons/inkling.svg"
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
     }
   },
   "commands": {
@@ -29,8 +30,9 @@
   "permissions": ["storage", "activeTab", "contextMenus", "scripting"],
   "host_permissions": ["http://127.0.0.1/*"],
   "icons": {
-    "16": "icons/inkling.svg",
-    "48": "icons/inkling.svg",
-    "128": "icons/inkling.svg"
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
   }
 }
