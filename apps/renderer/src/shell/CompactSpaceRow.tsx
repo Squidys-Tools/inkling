@@ -24,6 +24,7 @@ export function CompactSpaceRow({
       to="/space/$id"
       params={{ id: space.id }}
       draggable={false}
+      data-space-id={space.id}
       aria-label={space.name}
       title={space.name}
       aria-current={selected ? "page" : undefined}

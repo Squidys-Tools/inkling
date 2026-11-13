@@ -6,7 +6,7 @@ test("old Appearance choices migrate, but an old sidebar style does not choose a
     JSON.stringify({ sidebarStyle: "classic", viewToggle: "segmented", sidebarToggle: "edge" }),
   );
   expect(actual).toEqual({
-    sidebar: "refined",
+    sidebar: "cover",
     viewToggle: "segmented",
     gridColumns: "4",
     windowControlsAtRest: "hover",
@@ -22,16 +22,18 @@ test("old Appearance choices migrate, but an old sidebar style does not choose a
 test("invalid or missing Appearance settings use known defaults", () => {
   for (const raw of [null, "not json", "null", "[]", '{"viewToggle":"oops"}'])
     expect(parseAppearance(raw)).toEqual({
-      sidebar: "refined",
+      sidebar: "cover",
       viewToggle: "pill",
       gridColumns: "4",
       windowControlsAtRest: "hover",
     });
 });
 
-test("Shelf is the sidebar only when chosen", () => {
-  expect(parseAppearance('{"sidebar":"shelf"}').sidebar).toBe("shelf");
-  expect(parseAppearance('{"sidebar":"classic"}').sidebar).toBe("refined");
+test("Strip is the sidebar only when chosen, and an old Shelf choice becomes Strip", () => {
+  expect(parseAppearance('{"sidebar":"strip"}').sidebar).toBe("strip");
+  expect(parseAppearance('{"sidebar":"shelf"}').sidebar).toBe("strip");
+  expect(parseAppearance('{"sidebar":"refined"}').sidebar).toBe("cover");
+  expect(parseAppearance('{"sidebar":"classic"}').sidebar).toBe("cover");
 });
 
 test("the pill stays hidden at rest unless Always is chosen", () => {

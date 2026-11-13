@@ -3,9 +3,10 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { type PointerEvent, useRef, useState } from "react";
+import { type ImgHTMLAttributes, type PointerEvent, useRef, useState } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { search } from "../library/search.ts";
+import { useSpaceThumbs } from "../library/spaceThumbs.ts";
 import { deleteSpace, moveSpace, recolorSpace, renameSpace } from "../library/spaces.ts";
 import { spaceRowMarker } from "../markers.stylex.ts";
 import { CompactSpaceRow } from "./CompactSpaceRow.tsx";
@@ -14,7 +15,7 @@ import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { slidingSelection } from "./NavRow.tsx";
 import { dragSteps } from "./sidebarGeometry.ts";
 import { SpaceMark } from "./SpaceMark.tsx";
-import { SpaceStack } from "./SpaceStack.tsx";
+import { glide } from "./useReorderGlide.ts";
 import { opensMenu, openSpaceMenu } from "./spaceMenu.ts";
 
 async function confirmDelete(space: Space) {
@@ -33,7 +34,7 @@ export function SpaceRow({
   selected,
   count,
   compact,
-  shelf,
+  strip,
   index,
   lastIndex,
 }: {
@@ -41,8 +42,8 @@ export function SpaceRow({
   selected: boolean;
   count: number | undefined;
   compact: boolean;
-  /** The Shelf look: a taller row led by a stack of the Space's newest items. */
-  shelf: boolean;
+  /** The Strip look: the name over the four newest pictures. Otherwise the newest is the cover. */
+  strip: boolean;
   index: number;
   lastIndex: number;
 }) {
@@ -51,6 +52,10 @@ export function SpaceRow({
   const [lift, setLift] = useState<number | null>(null);
   const dragged = useRef(false);
   const refocus = useRef(false);
+  const thumbs = useSpaceThumbs(space);
+  // A remembered cover may belong to an item deleted since; then the plain mark returns.
+  const [brokenCover, setBrokenCover] = useState<string>();
+  const cover = strip || thumbs[0] === brokenCover ? undefined : thumbs[0];
 
   const commit = async (draft: string) => {
     setRenaming(null);
@@ -85,12 +90,16 @@ export function SpaceRow({
     const pitch = row.offsetHeight + (gap || 0);
     const startY = event.clientY;
     let steps = 0;
+    let held = 0;
     // Listen on the window: reordering moves this row's node, which would drop a pointer capture.
     const listening = new AbortController();
     const signal = listening.signal;
     const end = () => {
       listening.abort();
       setLift(null);
+      delete row.dataset.lifted;
+      // The dropped row settles into its slot instead of jumping there.
+      if (dragged.current) glide(row, held);
       // After this release's click: one that lands outside the row would leave the flag set.
       setTimeout(() => (dragged.current = false));
     };
@@ -100,12 +109,16 @@ export function SpaceRow({
         const offset = move.clientY - startY;
         if (!dragged.current && Math.abs(offset) < 5) return;
         dragged.current = true;
+        // On the node, not in state: a swap's store update renders before setLift does,
+        // and that render's reorder glide must already skip the row under the pointer.
+        row.dataset.lifted = "";
         const wanted = dragSteps(offset, pitch, index, lastIndex);
         // Each crossed row is one swap, shown at once, so the list reorders under the pointer.
         for (; steps < wanted; steps++) void moveSpace(space, 1);
         for (; steps > wanted; steps--) void moveSpace(space, -1);
-        const held = Math.max(-index * pitch, Math.min((lastIndex - index) * pitch, offset));
-        setLift(held - steps * pitch);
+        held =
+          Math.max(-index * pitch, Math.min((lastIndex - index) * pitch, offset)) - steps * pitch;
+        setLift(held);
       },
       { signal },
     );
@@ -128,11 +141,12 @@ export function SpaceRow({
       onContextMenu={(event) => {
         if (renaming === null) void openSpaceMenu(event, space.name, can, actions);
       }}
-      data-sidebar-selected={slidingSelection(selected && !shelf)}
+      data-space-id={space.id}
+      data-sidebar-selected={slidingSelection(selected && !strip)}
       {...stylex.props(
         styles.row,
-        shelf && styles.shelfRow,
-        selected && (shelf ? styles.shelfSelected : styles.selected),
+        strip ? styles.stripRow : styles.coverRow,
+        selected && (strip ? styles.stripSelected : styles.selected),
         lift !== null && styles.lifted,
         lift !== null && styles.lift(lift),
         spaceRowMarker,
@@ -145,11 +159,23 @@ export function SpaceRow({
         // One tab stop per row, like every other sidebar row; the row's menu changes color by keyboard.
         tabIndex={-1}
         onClick={() => void recolorSpace(space)}
-        {...stylex.props(styles.mark, shelf && styles.shelfMark)}
+        {...stylex.props(
+          styles.mark,
+          strip && styles.stripMark,
+          cover !== undefined && styles.badge,
+        )}
       >
-        <SpaceMark small={shelf} color={space.color} hollow={space.kind === "smart"} />
+        <SpaceMark small={Boolean(cover)} color={space.color} hollow={space.kind === "smart"} />
       </button>
-      {shelf && <SpaceStack space={space} />}
+      {cover && (
+        <img
+          src={cover}
+          alt=""
+          {...thumbProps}
+          onError={() => setBrokenCover(cover)}
+          {...stylex.props(styles.cover)}
+        />
+      )}
       {renaming !== null ? (
         <input
           // oxlint-disable-next-line jsx-a11y/no-autofocus -- The field appears because the user asked to rename; typing goes straight into it.
@@ -169,7 +195,7 @@ export function SpaceRow({
           }}
           // Blur keeps what was typed, like renaming in a file manager.
           onBlur={() => void commit(renaming)}
-          {...stylex.props(styles.rename, shelf && styles.shelfRename)}
+          {...stylex.props(styles.rename, strip && styles.stripRename)}
         />
       ) : (
         <Link
@@ -187,27 +213,34 @@ export function SpaceRow({
             if (opensMenu(event)) void openSpaceMenu(event, space.name, can, actions);
           }}
           aria-current={selected ? "page" : undefined}
-          {...stylex.props(styles.name, shelf && styles.shelfName)}
+          {...stylex.props(styles.name, strip && styles.stripName)}
         >
-          <span data-sidebar-label {...stylex.props(styles.nameText, shelf && styles.shelfText)}>
+          <span data-sidebar-label {...stylex.props(styles.nameText)}>
             {space.name}
           </span>
-          {shelf ? (
-            <span data-sidebar-label {...stylex.props(styles.sub)}>
-              {[
-                space.kind === "smart" && "Smart",
-                count !== undefined &&
-                  `${count.toLocaleString()} ${count === 1 ? "item" : "items"}`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          ) : (
-            <span data-sidebar-label {...stylex.props(styles.count)}>
-              {count?.toLocaleString()}
-            </span>
-          )}
+          <span data-sidebar-label {...stylex.props(styles.count)}>
+            {count?.toLocaleString()}
+          </span>
         </Link>
+      )}
+      {strip && (
+        // Outside the link, so renaming keeps the row's height and pictures.
+        <span aria-hidden="true" data-sidebar-label {...stylex.props(styles.strip)}>
+          {Array.from({ length: 4 }, (_, slot) => {
+            const url = thumbs[slot];
+            return url ? (
+              <img
+                key={`${slot} ${url}`}
+                src={url}
+                alt=""
+                {...thumbProps}
+                {...stylex.props(styles.stripImage)}
+              />
+            ) : (
+              <span key={`empty-${slot}`} {...stylex.props(styles.stripImage, styles.emptySlot)} />
+            );
+          })}
+        </span>
       )}
       {renaming === null && (
         <button
@@ -216,7 +249,7 @@ export function SpaceRow({
           title="Rename, color, move, delete"
           aria-haspopup="menu"
           onClick={(event) => void openSpaceMenu(event, space.name, can, actions)}
-          {...stylex.props(styles.more, shelf && styles.shelfMore)}
+          {...stylex.props(styles.more)}
         >
           <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
         </button>
@@ -224,6 +257,14 @@ export function SpaceRow({
     </div>
   );
 }
+
+const thumbProps = {
+  draggable: false,
+  loading: "lazy",
+  decoding: "async",
+  // A remembered thumbnail may belong to an item deleted since.
+  onError: (event) => (event.currentTarget.style.visibility = "hidden"),
+} satisfies ImgHTMLAttributes<HTMLImageElement>;
 
 const styles = stylex.create({
   row: {
@@ -237,47 +278,62 @@ const styles = stylex.create({
     fontSize: "14px",
     color: { default: color.inkSoft, ":hover": color.ink },
     userSelect: "none",
-    transitionProperty: "color, background-color",
+    transitionProperty: "color, background-color, box-shadow",
     transitionDuration: motion.micro,
   },
+  coverRow: { height: "36px" },
   // The sidebar's sliding pill is the fill.
   selected: {
     fontWeight: 600,
     backgroundColor: { default: "transparent", ":hover": "transparent" },
     color: { default: color.inkStrong, ":hover": color.inkStrong },
   },
-  shelfRow: { height: "56px", borderRadius: radius.tile },
-  shelfSelected: {
+  stripRow: { height: "70px", borderRadius: radius.tile },
+  stripSelected: {
     fontWeight: 600,
     backgroundColor: { default: color.hover, ":hover": color.hover },
     boxShadow: `inset 0 0 0 1px ${color.borderStrong}`,
     color: { default: color.inkStrong, ":hover": color.inkStrong },
   },
-  // Beside the count line, under the name.
-  shelfMark: { left: "64px", top: "30px" },
-  shelfName: {
-    flexDirection: "column",
-    alignItems: "stretch",
-    justifyContent: "center",
+  stripMark: { top: "7px" },
+  // The link still covers the whole row, pictures included, so any click opens the Space.
+  stripName: { alignItems: "flex-start", paddingTop: "7px", borderRadius: radius.tile },
+  stripRename: { alignSelf: "flex-start", marginTop: "4px" },
+  strip: {
+    position: "absolute",
+    left: "8px",
+    right: "8px",
+    bottom: "8px",
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     gap: "3px",
-    paddingLeft: "66px",
-    paddingRight: "34px",
-    borderRadius: radius.tile,
-  },
-  sub: {
-    minHeight: "14px",
-    paddingLeft: "19px",
+    height: "32px",
+    borderRadius: "7px",
     overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    fontSize: "12px",
-    lineHeight: "14px",
-    fontWeight: 400,
-    color: color.muted,
+    pointerEvents: "none",
   },
-  shelfText: { flexGrow: 0, lineHeight: "18px" },
-  shelfMore: { top: "17px" },
-  shelfRename: { marginLeft: "62px" },
+  stripImage: { display: "block", width: "100%", height: "32px", objectFit: "cover" },
+  emptySlot: { backgroundColor: color.raised },
+  cover: {
+    position: "absolute",
+    left: "14px",
+    top: "6px",
+    width: "24px",
+    height: "24px",
+    borderRadius: "6px",
+    objectFit: "cover",
+    boxShadow: `0 0 0 1px ${color.border}`,
+    pointerEvents: "none",
+  },
+  // Over the cover's corner, still the recolor target.
+  badge: {
+    zIndex: 1,
+    left: "27px",
+    top: "17px",
+    width: "17px",
+    height: "17px",
+    backgroundColor: color.window,
+  },
   lifted: {
     zIndex: 1,
     backgroundColor: { default: color.hover, ":hover": color.hover },
@@ -289,7 +345,7 @@ const styles = stylex.create({
   mark: {
     position: "absolute",
     left: "18px",
-    top: "8px",
+    top: "10px",
     display: "grid",
     placeItems: "center",
     width: "16px",
@@ -345,7 +401,7 @@ const styles = stylex.create({
   more: {
     position: "absolute",
     right: "7px",
-    top: "5px",
+    top: "7px",
     display: "grid",
     placeItems: "center",
     width: "22px",
