@@ -158,9 +158,9 @@ export function createUpdateStore(bridge: UpdateBridge | undefined) {
       if (!snapshot.state?.availableVersion || isReadyToInstall(snapshot)) return;
       await run("download", (updates) => updates.download());
     },
-    install: async () => {
+    install: async (version: string) => {
       if (!isReadyToInstall(snapshot)) return;
-      await run("install", (updates) => updates.install());
+      await run("install", (updates) => updates.install(version));
     },
     cancel,
   };

@@ -18,13 +18,6 @@ export type ContextMenuItem =
   | { type: "item"; id: string; label: string; enabled?: boolean; destructive?: boolean }
   | { type: "separator" };
 
-export type ConfirmOptions = {
-  message: string;
-  detail?: string;
-  confirmLabel: string;
-  destructive?: boolean;
-};
-
 export type UpdateChannel = "latest" | "nightly";
 export type UpdateErrorContext = "check" | "download" | "install";
 export type UpdateState = {
@@ -84,7 +77,6 @@ export type DesktopBridge = {
   onCommand: (listener: (command: Command) => void) => () => void;
   onCaptures: (listener: (failures: FailedCapture[]) => void) => () => void;
   showContextMenu: (items: ContextMenuItem[]) => Promise<string | null>;
-  confirm: (options: ConfirmOptions) => Promise<boolean>;
   chooseDirectory: (title: string) => Promise<string | null>;
   showItemInFolder: (itemId: string) => Promise<void>;
   copyItemImage: (itemId: string) => Promise<{ scaled: boolean }>;
@@ -95,7 +87,8 @@ export type DesktopBridge = {
     state: () => Promise<UpdateState>;
     check: () => Promise<UpdateState>;
     download: () => Promise<UpdateState>;
-    install: () => Promise<UpdateState>;
+    /** Installs `version` only if it is the verified download; the renderer has already asked. */
+    install: (version: string) => Promise<UpdateState>;
     /** Stops a download in progress; the download call then answers `cancelled`. */
     cancel: () => Promise<UpdateState>;
     setChannel: (channel: UpdateChannel) => Promise<UpdateState>;

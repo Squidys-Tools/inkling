@@ -12,6 +12,7 @@ import { ContextMenuLayer } from "../menu/contextMenu.tsx";
 import { Toaster } from "../notifications/Toaster.tsx";
 import { useFirstRun } from "../onboarding/useFirstRun.ts";
 import { handleCommand } from "./commands.ts";
+import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { Sidebar } from "./Sidebar.tsx";
 import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
 import { TitleBar } from "./TitleBar.tsx";
@@ -95,6 +96,7 @@ export function AppShell() {
         <SettingsSheet />
       </Suspense>
       <ContextMenuLayer />
+      <ConfirmDialog />
       <Toaster />
     </div>
   );

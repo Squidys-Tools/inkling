@@ -11,6 +11,7 @@ import { errorMessage } from "../library/errors.ts";
 import { setInSpace, spacesStore } from "../library/spaces.ts";
 import { showWrittenCard } from "../library/writes.ts";
 import { showContextMenu } from "../menu/contextMenu.tsx";
+import { confirm } from "../shell/confirm.ts";
 import { dismissActionError, reportActionError } from "./actionError.ts";
 import { notify } from "../notifications/toasts.ts";
 
@@ -64,16 +65,13 @@ export const setArchived = (id: string, archived: boolean) =>
   });
 
 /** Deleting is the one action that cannot be undone, so the card menu and the item view ask first. */
-export async function confirmDeleteForever(title: string) {
-  const options = {
+export function confirmDeleteForever(title: string) {
+  return confirm({
     message: `Delete “${title}” for good?`,
     detail: "It leaves every Space, and its files are removed from the library.",
     confirmLabel: "Delete",
     destructive: true,
-  };
-  return desktop
-    ? desktop.confirm(options)
-    : window.confirm(`${options.message}\n\n${options.detail}`);
+  });
 }
 
 export async function deleteForever(view: CardView) {

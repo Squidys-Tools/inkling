@@ -13,7 +13,6 @@ export const channels = {
   windowReady: "inkling:window:ready",
   appVersion: "inkling:app-version",
   contextMenu: "inkling:context-menu",
-  confirm: "inkling:confirm",
   chooseDirectory: "inkling:choose-directory",
   showItemInFolder: "inkling:show-item-in-folder",
   copyItemImage: "inkling:copy-item-image",

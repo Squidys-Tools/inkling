@@ -2,7 +2,6 @@ import * as stylex from "@stylexjs/stylex";
 import { color, text } from "@inkling/ui/tokens.stylex";
 import { useBlocker, useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
-import { desktop } from "../desktop.ts";
 import { useStepBack } from "../item/navigation.ts";
 import { useItem } from "../item/queries.ts";
 import { useEscape } from "../item/useEscape.ts";
@@ -10,17 +9,16 @@ import { useMounted } from "../item/useMounted.ts";
 import { libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
 import { showWrittenCard } from "../library/writes.ts";
+import { confirm } from "../shell/confirm.ts";
 import { NoteEditor } from "./NoteEditor.tsx";
 import { noteBodyForEditor, noteBodyForStorage, normalizeNoteBody } from "./notes.ts";
 
-async function confirmDiscard() {
-  const options = {
+const confirmDiscard = () =>
+  confirm({
     message: "Discard your changes to this note?",
     confirmLabel: "Discard",
     destructive: true,
-  };
-  return desktop ? desktop.confirm(options) : window.confirm(options.message);
-}
+  });
 
 /** Focus Mode for a saved note: the whole stage to write in, saved only on Save. */
 export function FocusEditor({ id }: { id: string }) {
