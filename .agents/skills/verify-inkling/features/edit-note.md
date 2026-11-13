@@ -1,6 +1,6 @@
 # Edit a note
 
-Edit note reopens a saved note's body in the full-page editor and saves the change in place. Status: **driven** (run `mwbu7jw3-f8a8`, after capture-note).
+Edit note reopens a saved note's body in the full-page editor and saves the change in place. Status: **driven** on 2026-11-13 (after capture-note).
 
 ## Sub-features
 
