@@ -15,7 +15,7 @@ import { inset, Panel, PanelBody, Row } from "./parts.tsx";
 
 export function AppearancePanel({ onClose }: { onClose: () => void }) {
   const viewToggle = useViewToggleStyle();
-  const { sidebar, windowControlsAtRest } = useAppearance();
+  const { sidebar, gridColumns, windowControlsAtRest } = useAppearance();
   return (
     <Panel title="Appearance" onClose={onClose}>
       <PanelBody>
@@ -45,6 +45,21 @@ export function AppearancePanel({ onClose }: { onClose: () => void }) {
               options={viewToggleStyles}
               value={viewToggle}
               onChange={setViewToggleStyle}
+              style={[inset.capsule, styles.segmented]}
+            />
+          }
+        />
+        <Row
+          icon={GridViewIcon}
+          title="Grid columns"
+          description="The library always shows this many columns. Cards grow and shrink with the window."
+          action={
+            <SegmentedControl
+              name="appearance-grid-columns"
+              label="Grid columns"
+              options={appearanceOptions.gridColumns}
+              value={gridColumns}
+              onChange={(value) => setAppearance("gridColumns", value)}
               style={[inset.capsule, styles.segmented]}
             />
           }

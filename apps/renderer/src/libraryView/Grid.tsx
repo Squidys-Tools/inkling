@@ -1,29 +1,26 @@
 import * as stylex from "@stylexjs/stylex";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { flushSync } from "react-dom";
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from "react";
 import { GridCell } from "../cards/Card.tsx";
 import type { CardLayout } from "../cards/CardMedia.tsx";
 import { GradualBlur } from "./GradualBlur.tsx";
 import { relayoutLanes } from "./masonryLanes.ts";
 import { warmCards } from "../library/cards.ts";
+import { useAppearance } from "../settings/appearance.ts";
 import { viewState } from "./viewState.ts";
 import { animateArrival } from "./viewTransition.ts";
 
 const gap = 12;
 const sidePadding = 14;
-const targetWidth: Record<CardLayout, number> = {
-  grid: 286,
-  list: Number.POSITIVE_INFINITY,
-  archive: 180,
-};
-const maxColumns = 12;
+// Below this width a card's contents no longer fit, so the whole card is drawn smaller instead.
+const designWidth: Record<CardLayout, number> = { grid: 220, list: 0, archive: 160 };
 const estimatedHeight: Record<CardLayout, number> = { grid: 300, list: 96, archive: 190 };
 
-function columnCount(width: number, layout: CardLayout) {
+// Archive tiles are smaller than cards, so the archive shows two more columns than the library.
+function columnCount(gridColumns: number, layout: CardLayout) {
   if (layout === "list") return 1;
-  const columns = Math.round((width + gap) / (targetWidth[layout] + gap));
-  return Math.min(Math.max(columns, 1), maxColumns);
+  return layout === "archive" ? gridColumns + 2 : gridColumns;
 }
 
 // Rows are loaded a page at a time; the next page is asked for while this many
@@ -31,8 +28,8 @@ function columnCount(width: number, layout: CardLayout) {
 const loadAhead = 1600;
 const warmAhead = 12;
 
-/** Virtualized masonry fills the moving frame. CSS handles cell widths;
- * React changes the column topology only at a responsive breakpoint.
+/** Virtualized masonry fills the moving frame. The column count is the user's Appearance
+ * choice and never follows the width: CSS scales the cells as the frame resizes.
  */
 export function Grid({
   ids,
@@ -45,9 +42,9 @@ export function Grid({
   pinnedOffset: boolean;
   onNearEnd: () => void;
 }) {
-  const frame = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
-  const [columns, setColumns] = useState(0);
+  const cells = useRef<HTMLDivElement>(null);
+  const columns = columnCount(Number(useAppearance().gridColumns), layout);
   const [, render] = useReducer((count: number) => count + 1, 0);
   const itemKey = useCallback((index: number) => ids[index], [ids]);
   // Sizes are cached by item id, so a list that changes anywhere keeps every measured card.
@@ -57,7 +54,7 @@ export function Grid({
     getScrollElement: () => scroller.current,
     estimateSize: () => estimatedHeight[layout],
     getItemKey: itemKey,
-    lanes: Math.max(columns, 1),
+    lanes: columns,
     // A card takes the shortest column once its real height is known, not by its estimate.
     laneAssignmentMode: "measured",
     // The first row starts below the floating search bar. A pinned search has its own row under the bar.
@@ -92,22 +89,19 @@ export function Grid({
     if (element && !viewState.get().entering) animateArrival(element, layout === "list");
   }, [measured, layout]);
 
-  useEffect(() => {
-    const element = frame.current;
+  // Written straight to the element: the width changes on every frame of the sidebar's
+  // journey, and React must not render once per pixel.
+  useLayoutEffect(() => {
+    const element = cells.current;
     if (!element) return;
-    let shown = 0;
     const observer = new ResizeObserver(([entry]) => {
-      const width = Math.round(entry.contentRect.width) - 2 * sidePadding;
-      const next = width > 0 ? columnCount(width, layout) : shown;
-      if (next === shown) return;
-      shown = next;
-      // CSS follows the moving frame. React only changes at a column boundary,
-      // before paint, never once per pixel of the sidebar's journey.
-      flushSync(() => setColumns(next));
+      const width = (entry.contentRect.width + gap) / columns - gap;
+      const zoom = Math.min(1, width / designWidth[layout]);
+      element.style.setProperty("--card-zoom", String(zoom > 0 ? zoom : 1));
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [layout]);
+  }, [columns, layout]);
 
   useEffect(() => {
     warmCards(
@@ -125,23 +119,23 @@ export function Grid({
   }, [ids, last, onNearEnd]);
 
   return (
-    <div ref={frame} {...stylex.props(styles.frame)}>
-      {columns > 0 && (
-        <div ref={scroller} data-bench="grid" {...stylex.props(styles.scroller)}>
-          <div {...stylex.props(styles.cells(virtualizer.getTotalSize()))}>
-            {items.map((item) => (
-              <div
-                key={item.key}
-                ref={virtualizer.measureElement}
-                data-index={item.index}
-                {...stylex.props(styles.cell(item.lane, columns, item.start))}
-              >
+    <div {...stylex.props(styles.frame)}>
+      <div ref={scroller} data-bench="grid" {...stylex.props(styles.scroller)}>
+        <div ref={cells} {...stylex.props(styles.cells(virtualizer.getTotalSize()))}>
+          {items.map((item) => (
+            <div
+              key={item.key}
+              ref={virtualizer.measureElement}
+              data-index={item.index}
+              {...stylex.props(styles.cell(item.lane, columns, item.start))}
+            >
+              <div {...stylex.props(styles.zoomed)}>
                 <GridCell id={ids[item.index]} index={item.index} layout={layout} />
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
       <GradualBlur edge="top" />
       <GradualBlur edge="bottom" />
     </div>
@@ -168,6 +162,7 @@ const styles = stylex.create({
     isolation: "isolate",
   },
   cells: (height: number) => ({ position: "relative", width: "100%", height: `${height}px` }),
+  zoomed: { zoom: "var(--card-zoom, 1)" },
   cell: (lane: number, columns: number, top: number) => ({
     position: "absolute",
     top: 0,

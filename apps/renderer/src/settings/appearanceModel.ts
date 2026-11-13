@@ -8,6 +8,12 @@ export const appearanceOptions = {
     { value: "pill", label: "Pill" },
     { value: "segmented", label: "Segmented" },
   ],
+  gridColumns: [
+    { value: "3", label: "3" },
+    { value: "4", label: "4" },
+    { value: "5", label: "5" },
+    { value: "6", label: "6" },
+  ],
   // Windows and Linux only: macOS keeps its traffic lights and has no caption pill.
   windowControlsAtRest: [
     { value: "hover", label: "On hover" },
@@ -38,6 +44,9 @@ export function parseAppearance(
         : stored.viewToggle === "segmented"
           ? "segmented"
           : "pill",
+    gridColumns:
+      appearanceOptions.gridColumns.find((option) => option.value === stored.gridColumns)?.value ??
+      "4",
     windowControlsAtRest: stored.windowControlsAtRest === "always" ? "always" : "hover",
   };
 }

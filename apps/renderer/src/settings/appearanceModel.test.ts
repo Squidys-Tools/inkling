@@ -8,6 +8,7 @@ test("old Appearance choices migrate, but an old sidebar style does not choose a
   expect(actual).toEqual({
     sidebar: "refined",
     viewToggle: "segmented",
+    gridColumns: "4",
     windowControlsAtRest: "hover",
   });
   expect(actual).not.toHaveProperty("sidebarStyle");
@@ -23,6 +24,7 @@ test("invalid or missing Appearance settings use known defaults", () => {
     expect(parseAppearance(raw)).toEqual({
       sidebar: "refined",
       viewToggle: "pill",
+      gridColumns: "4",
       windowControlsAtRest: "hover",
     });
 });
@@ -37,4 +39,10 @@ test("the pill stays hidden at rest unless Always is chosen", () => {
   expect(parseAppearance('{"windowControlsAtRest":"sometimes"}').windowControlsAtRest).toBe(
     "hover",
   );
+});
+
+test("the grid keeps the chosen column count, and four for anything else", () => {
+  expect(parseAppearance('{"gridColumns":"6"}').gridColumns).toBe("6");
+  for (const raw of ['{"gridColumns":"12"}', '{"gridColumns":5}'])
+    expect(parseAppearance(raw).gridColumns).toBe("4");
 });
