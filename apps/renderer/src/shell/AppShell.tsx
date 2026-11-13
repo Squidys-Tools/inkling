@@ -11,10 +11,11 @@ import { toggleSidebar, useViewState } from "../libraryView/viewState.ts";
 import { ContextMenuLayer } from "../menu/contextMenu.tsx";
 import { Toaster } from "../notifications/Toaster.tsx";
 import { useFirstRun } from "../onboarding/useFirstRun.ts";
+import { useAppearance } from "../settings/appearance.ts";
 import { handleCommand } from "./commands.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { Sidebar } from "./Sidebar.tsx";
-import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
+import { sidebarCompact, sidebarExpanded, stripAddBeside } from "./sidebarGeometry.ts";
 import { TitleBar } from "./TitleBar.tsx";
 import { useCommands } from "./useCommands.ts";
 import { useSidebarMotion } from "./useSidebarMotion.ts";
@@ -51,7 +52,8 @@ export function AppShell() {
   const narrow = useMedia("(max-width: 780px)");
   const open = useViewState((state) => state.sidebarOpen);
   const inset = narrow && open ? 0 : open ? sidebarExpanded : sidebarCompact;
-  const [stageRef, visualOpen] = useSidebarMotion(open, inset, narrow);
+  const beside = useAppearance().sidebar === "strip" ? stripAddBeside : 0;
+  const [stageRef, visualOpen] = useSidebarMotion(open, inset, narrow, beside);
 
   return (
     <div {...stylex.props(styles.shell)}>

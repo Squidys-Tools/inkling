@@ -25,10 +25,13 @@ import {
 
 export function SpacesSection({
   compact = false,
+  rail = compact,
   strip = false,
   onExpand,
 }: {
   compact?: boolean;
+  /** Laid out for the rail: while the sidebar closes, and once it is closed. */
+  rail?: boolean;
   strip?: boolean;
   onExpand?: () => void;
 }) {
@@ -55,13 +58,18 @@ export function SpacesSection({
 
   return (
     <div {...stylex.props(styles.section)}>
-      <div {...stylex.props(styles.header, compact && styles.compactHeader)}>
-        {!compact && <span data-sidebar-label>Spaces</span>}
+      <div {...stylex.props(styles.header)}>
+        {!compact && (
+          <span data-sidebar-label data-glide="spaces-label">
+            Spaces
+          </span>
+        )}
         <button
           type="button"
           aria-label="Add a Space"
           title="Add a Space"
           aria-expanded={draft.open}
+          data-glide="space-add"
           onClick={() => {
             if (compact) {
               onExpand?.();
@@ -69,12 +77,12 @@ export function SpacesSection({
             } else if (draft.open) closeSpaceDraft();
             else openSpaceDraft("");
           }}
-          {...stylex.props(styles.add)}
+          {...stylex.props(styles.add, rail && styles.railAdd)}
         >
           <HugeiconsIcon icon={PlusSignIcon} size={14} />
         </button>
       </div>
-      <div ref={list} {...stylex.props(styles.list)}>
+      <div ref={list} data-glide-hold="spaces" {...stylex.props(styles.list)}>
         {spaces.map((space, index) => {
           const selected = shownSpace === space.id;
           // A Smart Space has no stored membership: its count is read when it opens and kept after.
@@ -190,6 +198,7 @@ const enter = stylex.keyframes({
 const styles = stylex.create({
   section: { display: "flex", flexDirection: "column", gap: "2px", minHeight: 0 },
   header: {
+    position: "relative",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -203,7 +212,6 @@ const styles = stylex.create({
     letterSpacing: "0.02em",
     color: color.muted,
   },
-  compactHeader: { justifyContent: "center", paddingLeft: 0, paddingRight: 0 },
   add: {
     display: "grid",
     placeItems: "center",
@@ -218,6 +226,8 @@ const styles = stylex.create({
     cursor: "pointer",
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
   },
+  // Centered in the rail's 52px column, where the rows' covers and marks sit.
+  railAdd: { position: "absolute", left: "15px", marginRight: 0 },
   list: {
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr)",

@@ -1,5 +1,7 @@
 export const sidebarExpanded = 248;
 export const sidebarCompact = 76;
+/** Strip's Add shares its row with Archive and Settings, which take this much of it. */
+export const stripAddBeside = 92;
 
 /**
  * Labels fade out before the moving edge reaches them and fade in only once it

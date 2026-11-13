@@ -17,6 +17,7 @@ export function NavLink({
   label,
   count,
   slides = false,
+  glide,
   onClick,
   ...link
 }: RowLook & {
@@ -25,6 +26,8 @@ export function NavLink({
   count?: ReactNode;
   /** The sidebar's sliding pill draws this row's selection. */
   slides?: boolean;
+  /** Its id for the sidebar's open and close glide. */
+  glide?: string;
   onClick?: () => void;
 } & Pick<LinkProps, "to" | "params">) {
   return (
@@ -37,6 +40,7 @@ export function NavLink({
       title={compact ? label : undefined}
       aria-current={active ? "page" : undefined}
       data-sidebar-selected={slidingSelection(active && slides)}
+      data-glide={glide}
       {...stylex.props(
         styles.row,
         styles[tone],
