@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef } from "react";
 const reorder = "reorder";
 const relayout = "relayout";
 
-/** Slides a node from `dy`, `dx` px away back into its slot; the selection pill uses the same curve. */
+/** Slides a node from `dy`, `dx` px away back into its slot; the selection fill uses the same curve. */
 export function glide(node: HTMLElement, dy: number, dx = 0, duration = 200, id = reorder) {
   if ((!dx && !dy) || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   node.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], {

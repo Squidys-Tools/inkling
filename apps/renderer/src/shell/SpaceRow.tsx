@@ -12,7 +12,7 @@ import { spaceRowMarker } from "../markers.stylex.ts";
 import { CompactSpaceRow } from "./CompactSpaceRow.tsx";
 import { confirm } from "./confirm.ts";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
-import { slidingSelection } from "./NavRow.tsx";
+import { SelectionFill } from "./NavRow.tsx";
 import { dragSteps } from "./sidebarGeometry.ts";
 import { SpaceMark } from "./SpaceMark.tsx";
 import { glide } from "./useReorderGlide.ts";
@@ -152,7 +152,6 @@ export function SpaceRow({
       }}
       data-space-id={space.id}
       data-glide={`space ${space.id}`}
-      data-sidebar-selected={slidingSelection(selected && !strip)}
       {...stylex.props(
         styles.row,
         strip ? styles.stripRow : styles.coverRow,
@@ -162,6 +161,7 @@ export function SpaceRow({
         spaceRowMarker,
       )}
     >
+      {selected && !strip && <SelectionFill />}
       <button
         type="button"
         aria-label={`Change color of ${space.name}`}
@@ -292,8 +292,8 @@ const styles = stylex.create({
     transitionDuration: motion.micro,
   },
   coverRow: { height: "36px" },
-  // The sidebar's sliding pill is the fill.
   selected: {
+    isolation: "isolate",
     fontWeight: 600,
     backgroundColor: { default: "transparent", ":hover": "transparent" },
     color: { default: color.inkStrong, ":hover": color.inkStrong },

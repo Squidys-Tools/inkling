@@ -25,7 +25,7 @@ import { NavButton, NavLink } from "./NavRow.tsx";
 import { sidebarCompact, sidebarExpanded, stripAddBeside } from "./sidebarGeometry.ts";
 import { SpacesSection } from "./SpacesSection.tsx";
 import { UpdateRow } from "./UpdateRow.tsx";
-import { useSelectionPill } from "./useSelectionPill.ts";
+import { useSelectionGlide } from "./useSelectionGlide.ts";
 import { useLayoutGlide } from "./useReorderGlide.ts";
 
 // Keep the shipped nine-dot Everything glyph unchanged.
@@ -117,7 +117,7 @@ export function Sidebar({
   // The compact rail is one design; Strip is a look of the expanded sidebar.
   const strip = useAppearance().sidebar === "strip" && !rail;
   const area = useLayoutGlide<HTMLElement>(`${rail} ${strip}`, narrow ? 0 : 300);
-  const [track, pill] = useSelectionPill();
+  const track = useSelectionGlide();
   const openSettings = () =>
     void navigate({ to: ".", search: (prev) => ({ ...prev, settings: "general" }) });
   const width = visualOpen ? sidebarExpanded : sidebarCompact;
@@ -201,7 +201,6 @@ export function Sidebar({
           )}
         </div>
         <div ref={track} {...stylex.props(styles.track, strip && styles.stripTrack)}>
-          <span ref={pill} aria-hidden="true" {...stylex.props(styles.pill)} />
           <nav aria-label="Main navigation" {...stylex.props(styles.rows)}>
             {strip ? (
               <StripEverything
@@ -390,42 +389,8 @@ const styles = stylex.create({
     transitionTimingFunction: motion.enter,
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
   },
-  // Everything and the Spaces share one selection, so they share the pill's positioning box.
-  track: {
-    position: "relative",
-    zIndex: 0,
-    display: "flex",
-    flexDirection: "column",
-    gap: "14px",
-    minHeight: 0,
-  },
+  track: { display: "flex", flexDirection: "column", gap: "14px", minHeight: 0 },
   stripTrack: { gap: "10px" },
-  // Under the rows: z-index -1 inside the track's own stacking context.
-  pill: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: -1,
-    height: "32px",
-    borderRadius: radius.control,
-    backgroundColor: color.overlayActive,
-    opacity: 0,
-    pointerEvents: "none",
-    transitionProperty: "transform, opacity",
-    transitionDuration: motion.reveal,
-    transitionTimingFunction: motion.enter,
-    "::before": {
-      content: '""',
-      position: "absolute",
-      left: 0,
-      top: "calc(50% - 7px)",
-      width: "3px",
-      height: "14px",
-      borderRadius: radius.round,
-      backgroundColor: color.accent,
-    },
-  },
   rows: { display: "grid", gap: "2px", flexShrink: 0 },
   hero: {
     display: "grid",
