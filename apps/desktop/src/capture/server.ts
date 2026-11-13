@@ -1,8 +1,17 @@
 import type { CaptureReceiver } from "@inkling/contracts/desktop";
-import { once } from "node:events";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { join } from "node:path";
-import { bearerToken, corsHeaders, createRateLimiter, originAllowed, tokensEqual } from "./gate.ts";
+import { captureReceiverPorts } from "@inkling/contracts/capture";
+import {
+  bearerToken,
+  corsHeaders,
+  createRateLimiter,
+  extensionOrigin,
+  hostAllowed,
+  originAllowed,
+  tokensEqual,
+} from "./gate.ts";
+import { createPairRequests } from "./pair-requests.ts";
 import type { DeepLinkCapture } from "./deep-link.ts";
 import { validateCapturePayload } from "./payload.ts";
 import { openPairingToken } from "./pairing-token.ts";
@@ -13,6 +22,7 @@ const READ_TIMEOUT = 10_000;
 const SAVE_TIMEOUT = 45_000;
 const HEALTH_PATH = "/v1/health";
 const CAPTURES_PATH = "/v1/captures";
+const PAIR_PATH = "/v1/pair";
 
 function send(
   response: ServerResponse,
@@ -68,10 +78,24 @@ type SaveCapture = (capture: DeepLinkCapture) => Promise<{ id: string }>;
 async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
-  { token, allowRequest, save }: { token: string; allowRequest: () => boolean; save: SaveCapture },
+  {
+    token,
+    allowRequest,
+    save,
+    pairing,
+  }: {
+    token: string;
+    allowRequest: () => boolean;
+    save: SaveCapture;
+    pairing: ReturnType<typeof createPairRequests>;
+  },
 ) {
   const origin = request.headers.origin;
   const cors = corsHeaders(origin);
+  if (!hostAllowed(request.headers.host, request.socket.localPort ?? 0)) {
+    send(response, 403, {}, { error: "host-not-allowed" });
+    return;
+  }
   if (request.method === "OPTIONS") {
     send(response, 204, {
       ...cors,
@@ -85,6 +109,30 @@ async function handleRequest(
     send(response, 403, cors, { error: "origin-not-allowed" });
     return;
   }
+  const path = requestPath(request.url ?? "/");
+  // Pairing is how the extension gets the token, so it cannot ask for one. The user's
+  // approval in the app is its gate, and the request id is the secret that reads the answer.
+  if (path === PAIR_PATH || path.startsWith(`${PAIR_PATH}/`)) {
+    if (request.method === "POST" && path === PAIR_PATH) {
+      if (!extensionOrigin(origin)) {
+        send(response, 403, cors, { error: "origin-not-allowed" });
+      } else if (!allowRequest()) {
+        send(response, 429, { ...cors, "Retry-After": "60" }, { error: "rate-limited" });
+      } else {
+        const id = pairing.start();
+        if (id) send(response, 202, cors, { app: "inkling", id });
+        else send(response, 409, cors, { error: "pairing-cancelled" });
+      }
+    } else if (request.method === "GET") {
+      // Not rate-limited: the extension asks every second for as long as the user takes.
+      const status = pairing.read(path.slice(PAIR_PATH.length + 1));
+      if (!status) send(response, 404, cors, { error: "not-found" });
+      else send(response, 200, cors, status === "approved" ? { status, token } : { status });
+    } else {
+      send(response, 404, cors, { error: "not-found" });
+    }
+    return;
+  }
   const presentedToken = bearerToken(request.headers);
   if (!presentedToken || !tokensEqual(presentedToken, token)) {
     send(response, 401, cors, { error: "unauthorized" });
@@ -94,7 +142,6 @@ async function handleRequest(
     send(response, 429, { ...cors, "Retry-After": "60" }, { error: "rate-limited" });
     return;
   }
-  const path = requestPath(request.url ?? "/");
   if (request.method === "GET" && path === HEALTH_PATH) {
     send(response, 200, cors, { status: "ok" });
     return;
@@ -144,15 +191,21 @@ async function handleRequest(
 /**
  * The loopback receiver the browser extension posts captures to. It answers
  * only extension origins holding the pairing token, and saves through `save`.
+ * `approvePairing` asks the user whether an extension may be handed that token.
  */
 export async function startCaptureServer({
   libraryDirectory,
   save,
+  approvePairing,
+  ports = captureReceiverPorts,
 }: {
   libraryDirectory: string;
   save: SaveCapture;
+  approvePairing: (signal: AbortSignal) => Promise<boolean>;
+  ports?: readonly number[];
 }) {
   const pairing = await openPairingToken(join(libraryDirectory, "pairing_token"));
+  const pairRequests = createPairRequests(approvePairing);
   const allowRequest = createRateLimiter();
   const server = createServer({ maxHeaderSize: MAX_HEAD_BYTES }, (request, response) => {
     request.setTimeout(READ_TIMEOUT, () => {
@@ -165,13 +218,24 @@ export async function startCaptureServer({
       token: pairing.current(),
       allowRequest,
       save,
+      pairing: pairRequests,
     });
   });
   server.headersTimeout = READ_TIMEOUT;
   server.requestTimeout = READ_TIMEOUT;
   server.keepAliveTimeout = 1_000;
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
+  // Any free port when the known ones are taken: the app's own check still works,
+  // and the extension, which cannot find it, saves through the capture link.
+  for (const port of [...ports, 0]) {
+    const listening = Promise.withResolvers<boolean>();
+    const refused = () => listening.resolve(false);
+    server.once("error", refused);
+    server.listen(port, "127.0.0.1", () => listening.resolve(true));
+    const bound = await listening.promise;
+    server.removeListener("error", refused);
+    if (bound) break;
+    if (port === 0) throw new Error("no loopback port is free");
+  }
 
   const status = (): CaptureReceiver => {
     const address = server.address();
@@ -198,6 +262,7 @@ export async function startCaptureServer({
       }
     },
     close() {
+      pairRequests.cancel();
       if (!server.listening) return Promise.resolve();
       return new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));

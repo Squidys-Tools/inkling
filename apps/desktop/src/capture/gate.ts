@@ -4,12 +4,9 @@ import type { IncomingHttpHeaders } from "node:http";
 const RATE_LIMIT_MAX = 60;
 const RATE_LIMIT_WINDOW = 60_000;
 
-export function originAllowed(origin: string | undefined) {
-  const trimmed = origin?.trim();
-  if (!trimmed || trimmed === "null") return true;
-  if (trimmed === "app://local" || trimmed.startsWith("inkling://")) {
-    return true;
-  }
+/** A browser extension's own origin. Pairing takes nothing else: a web page can send `null`. */
+export function extensionOrigin(origin: string | undefined) {
+  const trimmed = origin?.trim() ?? "";
   for (const scheme of ["chrome-extension", "moz-extension", "safari-web-extension"]) {
     const prefix = `${scheme}://`;
     if (!trimmed.startsWith(prefix)) continue;
@@ -18,6 +15,18 @@ export function originAllowed(origin: string | undefined) {
   }
   return false;
 }
+
+export function originAllowed(origin: string | undefined) {
+  const trimmed = origin?.trim();
+  if (!trimmed || trimmed === "null") return true;
+  if (trimmed === "app://local" || trimmed.startsWith("inkling://")) {
+    return true;
+  }
+  return extensionOrigin(trimmed);
+}
+
+/** A page that rebinds its own domain to loopback still sends that domain as the Host. */
+export const hostAllowed = (host: string | undefined, port: number) => host === `127.0.0.1:${port}`;
 
 export function bearerToken(headers: IncomingHttpHeaders) {
   const value = headers.authorization;

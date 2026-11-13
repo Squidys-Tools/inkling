@@ -2,10 +2,17 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startCaptureServer } from "./server.ts";
+import { createServer, request } from "node:http";
+import { startCaptureServer as startOnKnownPorts } from "./server.ts";
 
 const roots: string[] = [];
 const servers: Array<Awaited<ReturnType<typeof startCaptureServer>>> = [];
+
+// A free port each, so a test never meets the installed app or another test.
+const startCaptureServer = (
+  options: Omit<Parameters<typeof startOnKnownPorts>[0], "approvePairing" | "ports"> &
+    Partial<Parameters<typeof startOnKnownPorts>[0]>,
+) => startOnKnownPorts({ approvePairing: async () => false, ports: [], ...options });
 
 function temporaryDirectory() {
   const directory = mkdtempSync(join(tmpdir(), "inkling-capture-server-"));
@@ -172,4 +179,99 @@ test("closing the receiver waits for an in-flight capture to finish", async () =
   expect((await responsePromise).status).toBe(201);
   await closing;
   expect(closeFinished).toBe(true);
+});
+
+test("pairing hands the token to an extension only after the user approves", async () => {
+  const asked: Array<{ signal: AbortSignal; answer: (approved: boolean) => void }> = [];
+  const server = await startCaptureServer({
+    libraryDirectory: temporaryDirectory(),
+    save: async () => ({ id: "unused" }),
+    approvePairing: (signal) => {
+      const { promise, resolve } = Promise.withResolvers<boolean>();
+      asked.push({ signal, answer: resolve });
+      return promise;
+    },
+  });
+  servers.push(server);
+  const base = `http://127.0.0.1:${server.status().port}`;
+  const ask = (origin?: string) =>
+    fetch(`${base}/v1/pair`, { method: "POST", headers: origin ? { Origin: origin } : {} });
+  const answer = async (id: string) => {
+    const response = await fetch(`${base}/v1/pair/${id}`);
+    return { status: response.status, body: await response.json() };
+  };
+
+  // A web page can send no origin, or `null` from a sandboxed frame.
+  for (const origin of [undefined, "null", "https://example.com"])
+    expect((await ask(origin)).status).toBe(403);
+  expect(asked).toHaveLength(0);
+
+  const first = await ask("chrome-extension://abcdef");
+  expect(first.status).toBe(202);
+  const { app, id } = await first.json();
+  expect(app).toBe("inkling");
+  // The extension asks every second while the user decides, past the receiver's rate limit.
+  for (let asks = 0; asks < 61; asks += 1)
+    expect(await answer(id)).toEqual({ status: 200, body: { status: "pending" } });
+
+  // A second request while the user decides cancels both.
+  expect((await ask("chrome-extension://other")).status).toBe(409);
+  expect(asked[0].signal.aborted).toBe(true);
+  expect(await answer(id)).toEqual({ status: 200, body: { status: "denied" } });
+  asked[0].answer(true);
+  expect((await answer(id)).status).toBe(404);
+
+  const second = await (await ask("chrome-extension://abcdef")).json();
+  asked[1].answer(true);
+  await Promise.resolve();
+  expect(await answer(second.id)).toEqual({
+    status: 200,
+    body: { status: "approved", token: server.getPairingToken() },
+  });
+  expect((await answer(second.id)).status).toBe(404);
+});
+
+test("a request whose Host is not the loopback address is refused", async () => {
+  const server = await startCaptureServer({
+    libraryDirectory: temporaryDirectory(),
+    save: async () => ({ id: "unused" }),
+  });
+  servers.push(server);
+  const answered = Promise.withResolvers<number | undefined>();
+  request({
+    host: "127.0.0.1",
+    port: server.status().port ?? 0,
+    path: "/v1/health",
+    headers: { Host: "rebound.example", Authorization: `Bearer ${server.getPairingToken()}` },
+  })
+    .on("response", (response) => answered.resolve(response.statusCode))
+    .on("error", answered.reject)
+    .end();
+  expect(await answered.promise).toBe(403);
+});
+
+test("the receiver takes the next port when a known one is in use", async () => {
+  const holders = [createServer(), createServer()];
+  const ports: number[] = [];
+  for (const holder of holders) {
+    const listening = Promise.withResolvers<void>();
+    holder.listen(0, "127.0.0.1", listening.resolve);
+    await listening.promise;
+    const address = holder.address();
+    if (address && typeof address !== "string") ports.push(address.port);
+  }
+  // The second port is free again; the first is still held.
+  await new Promise((resolve) => holders[1].close(resolve));
+  try {
+    const server = await startCaptureServer({
+      libraryDirectory: temporaryDirectory(),
+      save: async () => ({ id: "unused" }),
+      ports,
+    });
+    servers.push(server);
+    expect(server.status().port).toBe(ports[1]);
+    expect(await server.answersHealthCheck()).toBe(true);
+  } finally {
+    await new Promise((resolve) => holders[0].close(resolve));
+  }
 });

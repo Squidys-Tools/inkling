@@ -51,6 +51,25 @@ export function outsideCaptures({
     if (!window || window.isDestroyed()) throw new Error("No library window.");
     return window;
   };
+  // The request arrives while the user is in the browser, so the app comes forward to ask.
+  const approvePairing = async (signal: AbortSignal) => {
+    app.focus({ steal: true });
+    const options = {
+      type: "question" as const,
+      message: "Connect the browser extension?",
+      detail:
+        "A browser extension asked to save to this library. Connect it only if you just pressed Connect in the inkling extension.",
+      buttons: ["Connect", "Cancel"],
+      defaultId: 1,
+      cancelId: 1,
+      signal,
+    };
+    const parent = BrowserWindow.getAllWindows().find((window) => window.isVisible());
+    const { response } = await (parent
+      ? dialog.showMessageBox(parent, options)
+      : dialog.showMessageBox(options));
+    return response === 0;
+  };
   const runningServer = () => {
     if (!server) throw new Error("The browser extension receiver is not running.");
     return server;
@@ -75,10 +94,9 @@ export function outsideCaptures({
         channels.captureReceiver,
         () => server?.status() ?? { running: false, port: null },
       );
-      ipcMain.handle(channels.capturePairingToken, () => runningServer().getPairingToken());
-      ipcMain.handle(channels.captureRegenerateToken, () =>
-        runningServer().regeneratePairingToken(),
-      );
+      ipcMain.handle(channels.captureRegenerateToken, async () => {
+        await runningServer().regeneratePairingToken();
+      });
       ipcMain.handle(
         channels.captureTestReceiver,
         async () => (await server?.answersHealthCheck()) ?? false,
@@ -112,6 +130,7 @@ export function outsideCaptures({
         server = await startCaptureServer({
           libraryDirectory,
           save: async (capture) => saveCapture(capture, await library(), download),
+          approvePairing,
         });
       } catch (error) {
         console.error("inkling: the browser extension receiver did not start", error);

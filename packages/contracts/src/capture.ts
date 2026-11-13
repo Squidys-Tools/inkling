@@ -33,6 +33,10 @@ export interface ImageCapturePayloadV1 {
 
 export type CapturePayloadV1 = PageCapturePayloadV1 | QuoteCapturePayloadV1 | ImageCapturePayloadV1;
 
+// The app's receiver listens on the first of these that is free, and the extension
+// tries each in turn, so neither side is ever told an address.
+export const captureReceiverPorts = [17872, 27872, 37872];
+
 // Both receivers cut a capture with these, and the extension shows the same cut before it
 // sends. The library rejects a quote or attribution longer than its limit in UTF-16 units.
 export const cutCapture = {

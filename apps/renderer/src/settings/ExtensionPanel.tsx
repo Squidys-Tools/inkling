@@ -1,14 +1,12 @@
 import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
+import { captureReceiverPorts } from "@inkling/contracts/capture";
 import type { DesktopBridge } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";
-import { srOnly } from "@inkling/ui";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { desktop } from "../desktop.ts";
 import { EmptyState, Panel, PanelBody, settingsText, SquareButton, TextAction } from "./parts.tsx";
-
-const tokenKey = ["pairingToken"];
 
 export function ExtensionPanel({ onClose }: { onClose: () => void }) {
   return (
@@ -30,26 +28,10 @@ export function ExtensionPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
-// The token stays out of the page until the user reveals it, and out of the
-// query cache once it is hidden again or the panel closes.
 function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
-  const queryClient = useQueryClient();
-  const [revealed, setRevealed] = useState(false);
   const [confirmingRenew, setConfirmingRenew] = useState(false);
   const [notice, setNotice] = useState<{ text: string; failed: boolean } | null>(null);
   const receiver = useQuery({ queryKey: ["captureReceiver"], queryFn: () => capture.receiver() });
-  const tokenQuery = useQuery({
-    queryKey: tokenKey,
-    queryFn: () => capture.pairingToken(),
-    enabled: revealed,
-    staleTime: Infinity,
-    gcTime: 0,
-  });
-  const hide = () => {
-    setRevealed(false);
-    queryClient.removeQueries({ queryKey: tokenKey });
-  };
-  const token = revealed ? tokenQuery.data : undefined;
   const test = useMutation({
     mutationFn: () => capture.testReceiver().catch(() => false),
     onSuccess: (reachable) =>
@@ -59,62 +41,37 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
           : { text: "No answer from the receiver. Restart inkling and try again.", failed: true },
       ),
   });
-  const renew = useMutation({ mutationFn: () => capture.regeneratePairingToken() });
-
-  const copy = () => {
-    if (!token) return;
-    navigator.clipboard.writeText(token).then(
-      () =>
-        setNotice({ text: "Pairing token copied. Paste it into the extension.", failed: false }),
-      () => setNotice({ text: "Copy failed. Reveal the token and copy it by hand.", failed: true }),
-    );
-  };
+  const renew = useMutation({
+    mutationFn: () => capture.regeneratePairingToken(),
+    onSuccess: () =>
+      setNotice({ text: "Disconnected. Press Connect in the extension again.", failed: false }),
+    onError: () => setNotice({ text: "Could not disconnect the browsers.", failed: true }),
+  });
+  const port = receiver.data?.running ? receiver.data.port : null;
 
   return (
     <div {...stylex.props(styles.pairing)}>
       <p {...stylex.props(styles.lead)}>
-        Paste this token into the browser extension once. Saves go straight to this library over a
-        local connection; nothing leaves the machine.
+        Press Connect in the browser extension, then allow it here. Saves go straight to this
+        library over a local connection; nothing leaves the machine.
       </p>
       <div {...stylex.props(styles.row)}>
         <p role="status" {...stylex.props(settingsText.hint)}>
           {receiver.isPending
             ? "Checking receiver…"
-            : receiver.data?.running
-              ? `Listening on 127.0.0.1:${receiver.data.port}`
-              : "Receiver not running"}
+            : port === null
+              ? "Receiver not running"
+              : captureReceiverPorts.includes(port)
+                ? `Listening on 127.0.0.1:${port}`
+                : "Other programs hold the ports the extension looks for, so its saves open inkling instead."}
         </p>
-        <SquareButton
-          disabled={!receiver.data?.running || test.isPending}
-          onClick={() => test.mutate()}
-        >
+        <SquareButton disabled={port === null || test.isPending} onClick={() => test.mutate()}>
           {test.isPending ? "Testing…" : "Test connection"}
         </SquareButton>
-      </div>
-      <div {...stylex.props(styles.row)}>
-        <span {...stylex.props(srOnly)}>{token ? "Pairing token" : "Pairing token hidden"}</span>
-        <code aria-hidden={!token} {...stylex.props(styles.token)}>
-          {token ?? "••••••••••••••••••••••••"}
-        </code>
-        <SquareButton
-          onClick={() =>
-            token ? hide() : revealed ? void tokenQuery.refetch() : setRevealed(true)
-          }
-        >
-          {token ? "Hide" : "Reveal"}
-        </SquareButton>
-        <SquareButton disabled={!token} onClick={copy}>
-          Copy
-        </SquareButton>
         <SquareButton look="danger" onClick={() => setConfirmingRenew(true)}>
-          Renew
+          Disconnect browsers
         </SquareButton>
       </div>
-      {revealed && tokenQuery.isError && (
-        <p role="alert" {...stylex.props(styles.failed)}>
-          Could not load the pairing token.
-        </p>
-      )}
       {notice && (
         <p
           role={notice.failed ? "alert" : "status"}
@@ -124,9 +81,9 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
         </p>
       )}
       {confirmingRenew && (
-        <section aria-label="Renew the pairing token" {...stylex.props(styles.confirm)}>
+        <section aria-label="Disconnect every browser" {...stylex.props(styles.confirm)}>
           <p {...stylex.props(settingsText.status)}>
-            Renew the pairing token? The extension will need the new token.
+            Disconnect every browser? Each one will need to connect again.
           </p>
           <div {...stylex.props(styles.confirmActions)}>
             <TextAction onClick={() => setConfirmingRenew(false)}>Cancel</TextAction>
@@ -134,22 +91,10 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
               look="danger"
               onClick={() => {
                 setConfirmingRenew(false);
-                // Per-call callbacks skip a closed panel, so the token never lands in a cache nobody clears.
-                renew.mutate(undefined, {
-                  onSuccess: (value) => {
-                    queryClient.setQueryData(tokenKey, value);
-                    setRevealed(true);
-                    setNotice({
-                      text: "New pairing token issued. Update the extension.",
-                      failed: false,
-                    });
-                  },
-                  onError: () =>
-                    setNotice({ text: "Could not renew the pairing token.", failed: true }),
-                });
+                renew.mutate();
               }}
             >
-              Renew
+              Disconnect
             </SquareButton>
           </div>
         </section>
@@ -169,25 +114,6 @@ const styles = stylex.create({
     color: color.muted,
   },
   row: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px" },
-  token: {
-    flex: "1 1 220px",
-    minWidth: 0,
-    overflow: "hidden",
-    paddingInline: space.s3,
-    paddingBlock: "9px",
-    borderRadius: "10px",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: color.border,
-    backgroundColor: color.surface,
-    fontFamily: font.mono,
-    fontSize: text.sm,
-    lineHeight: "16px",
-    letterSpacing: "0.02em",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    color: color.inkSoft,
-  },
   failed: {
     margin: 0,
     fontFamily: font.body,

@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { bearerToken, createRateLimiter, originAllowed, tokensEqual } from "./gate.ts";
+import {
+  bearerToken,
+  createRateLimiter,
+  extensionOrigin,
+  hostAllowed,
+  originAllowed,
+  tokensEqual,
+} from "./gate.ts";
 
 describe("capture server request gate", () => {
   test("bearer tokens require the exact value", () => {
@@ -34,6 +41,18 @@ describe("capture server request gate", () => {
     ]) {
       expect(originAllowed(denied)).toBe(false);
     }
+  });
+
+  test("pairing takes an extension's origin and nothing a web page can send", () => {
+    expect(extensionOrigin("chrome-extension://abcdef")).toBe(true);
+    for (const denied of [undefined, "null", "app://local", "https://example.com"])
+      expect(extensionOrigin(denied)).toBe(false);
+  });
+
+  test("the Host must be the loopback address the receiver listens on", () => {
+    expect(hostAllowed("127.0.0.1:17872", 17872)).toBe(true);
+    for (const denied of [undefined, "localhost:17872", "rebound.example:17872", "127.0.0.1:1"])
+      expect(hostAllowed(denied, 17872)).toBe(false);
   });
 
   test("the rate limit allows 60 requests a minute", () => {

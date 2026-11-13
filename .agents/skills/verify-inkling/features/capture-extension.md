@@ -9,7 +9,7 @@ The loopback receiver the browser extension posts to. `POST /v1/captures` with t
 
 ## How to get to it (user POV)
 
-- No UI. The app starts the receiver with itself, on a random `127.0.0.1` port, and keeps its bearer token in `pairing_token` in the library directory.
+- No UI. The app starts the receiver with itself, on the first free `127.0.0.1` port of `captureReceiverPorts` (`packages/contracts/src/capture.ts`) or any free port when all are taken, and keeps its bearer token in `pairing_token` in the library directory.
 
 ## Driving it with instance.ts
 
@@ -20,5 +20,7 @@ The loopback receiver the browser extension posts to. `POST /v1/captures` with t
 ## Gotchas
 
 - The helper sends no `Origin` header, which the receiver allows — as do `Origin: null` (what real `file://` pages send), `app://local`, `inkling://` and the `chrome-extension://`/`moz-extension://`/`safari-web-extension://` schemes (the bearer token is the real gate). Any other origin string gets 403 — and a foreign origin with a bad token gets 403, not 401, since the Origin check runs first; OPTIONS preflights always get a bare 204. `source_url` is normalized on save (a `#fragment` is dropped). The receiver rate-limits to 60 requests a minute (429 with `Retry-After: 60`), so never loop `$I capture` in a script.
-- The port changes on every launch; the helper finds it each time, so never record it in evidence or source.
+- The port depends on what else is running (another inkling takes the first one); the helper finds it each time, so never record it in evidence.
+- Every request needs `Host: 127.0.0.1:<port>`, or it gets 403 before anything else.
+- Pairing: `POST /v1/pair` from an extension origin (anything else 403) opens a native **Connect the browser extension?** question and answers `202 {app,id}`; `GET /v1/pair/<id>` answers `pending`, then once `approved` with the token or `denied`. A second `POST` while the question is open closes it and denies both.
 - The token is the scratch library's, and the rule is the same as the app's: keep it out of `PROOF.md` and screenshots.
