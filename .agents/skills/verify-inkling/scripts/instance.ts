@@ -85,7 +85,7 @@ const ourWindows = (run: RunState): Window[] => {
   }
 };
 
-// The main window is recorded at launch: a native dialog (e.g. delete confirmation) adds a second window with the same pid.
+// The main window is recorded at launch: a native dialog (e.g. the screenshot screen picker) adds a second window with the same pid.
 const findWindowId = (run: RunState) => {
   const windows = ourWindows(run);
   if (run.windowId && windows.some((w) => w.id === run.windowId)) return run.windowId;

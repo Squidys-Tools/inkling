@@ -1,6 +1,6 @@
 # Spaces
 
-Spaces are named collections in the sidebar: Smart (a saved search) or Regular (hand-filed). Status: **driven** on 2026-11-12 (create Smart and Regular, rename, change color, move, file an item, delete populated). Not driven: dragging a row to reorder it and right-clicking a row (both need `--headed`), and a Smart Space's remembered count after a restart (`launch` reseeds). The card right-click menu is driven on the Linux instabox box; on Windows `right-click` needs `--headed`.
+Spaces are named collections in the sidebar: Smart (a saved search) or Regular (hand-filed). Status: **driven** on 2026-11-13 (create Smart and Regular, rename, change color, move, file an item, card-menu remove/allow-in, delete populated, Shelf style). Not driven: dragging a row to reorder it and right-clicking a row (both need `--headed`), and a Smart Space's remembered count after a restart (`launch` reseeds). The card right-click menu is driven on the Linux instabox box; on Windows `right-click` needs `--headed`.
 
 ## Sub-features
 
@@ -8,13 +8,13 @@ Spaces are named collections in the sidebar: Smart (a saved search) or Regular (
 - `space-create-regular` creates a Regular Space (keyboard-selected, see below).
 - `space-rename` renames a Space.
 - `space-file` files an item into a Regular Space through the **Keep in a Space** menu (an in-app DOM menu that still surfaces through `--surface menu`).
-- `space-delete` deletes a Space (populated Regular Spaces confirm in a native window) and keeps the items.
+- `space-delete` deletes a Space (populated Regular Spaces ask in an in-app dialog) and keeps the items.
 - `space-color` cycles a row's color through `Change color of <name>` or the row menu's `Change color`.
 - `space-move` reorders rows through the row menu's `Move up`/`Move down`.
 
 ## How to get to it (user POV)
 
-- Sidebar **Add a Space** (the `+` beside the Spaces heading); each row has a `Change color of <name>` button (its blot: an outline for a Smart Space, filled for a Regular one) and a menubutton `Actions for <name>` whose menu holds `Rename`, `Change color`, `Move up`, `Move down`, `Delete Space`. Shift+F10 on the row's link opens the same menu.
+- Sidebar **Add a Space** (the `+` beside the Spaces heading); each row has a `Change color of <name>` button (its blot: an outline for a Smart Space, filled for a Regular one) and a menubutton `Actions for <name>` whose menu holds `Rename`, `Change color`, `Move up`, `Move down`, `Delete Space`. Shift+F10 on the row's link opens the same menu. Settings > Appearance > **Sidebar style** switches the list between `Rows` (the default: `<name>` links, count as a separate statictext) and `Shelf`, where each link's name carries the count or kind — an empty Smart Space reads `<name> Smart`, a Regular one `<name> N items`, and a populated Smart one `<name> Smart · N items`.
 - Search > Save as Space (see search.md).
 - Item view > **Keep in a Space** (card right-click wraps the same Space actions in a `Keep in a Space` submenu of a bigger menu — plus an `Allow in <smart>` entry for each Smart Space the item is currently excluded from, and a top-level `Remove from <current>` inside a Space; driven on the Linux box, not on Windows).
 
@@ -29,7 +29,8 @@ Preconditions: seeded library (Spaces `Design references`, `Read later`, `Weeken
 - **Change color.** `$I ad click "$($I ref button 'Change color of Verify Regular')"` cycles the row's blot through the palette; `db "SELECT name,color FROM spaces WHERE name='Verify Regular'"` shows the new `color` value.
 - **Rename.** Open the row's menu and click menuitem `Rename`; a focused textfield `Rename Verify Regular` appears. `$I ad set-value "$($I ref textfield 'Rename Verify Regular')" 'Verify Renamed'` then `$I ad press return --window-id '{window}'`. `db` → name `Verify Renamed`; the sidebar link and its `Actions for …` menubutton carry the new name.
 - **File an item.** Go to Everything (`$I ad click "$($I ref link Everything --contains)"`), open `Note: Books to reread this fall` (after earlier captures it has scrolled out of the tree: `set-value` `reread` into `Search your mind`, wait about 3 s, then click its group), `$I ad click "$($I ref button 'Keep in a Space')"`, then `$I tree --surface menu`: the menu is `Item actions`, an in-app popup listing only Regular Spaces — menuitems `Add to Weekend reading`, `Add to Verify Renamed` (a member Space shows `Remove from …`; Smart Spaces never appear). `$I ad click '<ref of Add to Verify Renamed from that tree>'`. `db "SELECT s.name, si.item_id FROM space_items si JOIN spaces s ON s.id=si.space_id WHERE s.name='Verify Renamed'"` → item `12`; sidebar link `Verify Renamed 1`.
-- **Delete populated Space.** Open the row's menu and click menuitem `Delete Space`. A second window of ours opens (a native confirm): `D=$($I windows | grep other | awk '{print $1}')`. `$I tree --window $D` lists buttons `Delete Space` and `Cancel`; `$I ad click "$($I ref button 'Delete Space' --window $D)"`. On the Linux box the native confirm does not appear in the window tree; use the remote driver's `dialog` helper (`ad dialog …`, Tab moves focus between the buttons, Return confirms). `db` → no `spaces` row named `Verify Renamed`, `items` row `12` still present.
+- **Delete populated Space.** Open the row's menu and click menuitem `Delete Space`. An in-app confirm `Delete the Space “Verify Renamed”?` opens in the main tree — `alertdialog` on Windows, role `alert` on Linux — with a detail line `Its 1 item stays in your library.` (pluralizes with the member count) and buttons `Cancel` (focused) and `Delete Space`; `$I ad click "$($I ref button 'Delete Space')"`. Cancel or Escape keeps the Space. `db` → no `spaces` row named `Verify Renamed`, `items` row `12` still present.
+- **Card-menu remove and allow-in** (Linux box): inside a Space, `$I ad right-click` a card → `Item actions` menu holds a top-level `Remove from <current>`; clicking it writes a `space_exclusions` row and the card leaves the Space (no toast). On the same card in Everything, `Item actions` > `Keep in a Space` submenu then lists `Allow in <smart>` for each Smart Space it is excluded from; clicking deletes the exclusion row and the Space's count rises back. `db "SELECT space_id, item_id FROM space_exclusions"` proves both directions.
 - **Evidence.** `$I shot` after create, after file (sidebar count), and after delete; plus the `db` rows above.
 
 ## Gotchas
@@ -38,6 +39,6 @@ Preconditions: seeded library (Spaces `Design references`, `Read later`, `Weeken
 - `press` goes to our window by `--window-id` without taking focus; its result is `delivered_unverified`, so verify the effect with `tree`.
 - Empty `Space name` keeps `Create Space` disabled.
 - While the item view is open the grid cards leave the tree; return to Everything first. The window's close button is `Close window`, the item view's is `Close` — the names differ, but don't confuse them anyway.
-- `ref` and `tree` always use the main window; after any native dialog opens, `$I windows` tells you the dialog's id; pass it as `--window <id>` to `tree` or `ref`. Resolve the dialog before continuing.
+- While a confirm is open, shortcuts and menu commands are ignored. Resolve it before continuing.
 - Only a populated Regular Space asks before delete; an empty Regular Space and every Smart Space delete immediately. Rename commits on blur as well as Return.
 - The filing menu closes if the window loses it; read `tree --surface menu` immediately after opening.

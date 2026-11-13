@@ -1,6 +1,6 @@
 # Capture by deep link
 
-The app's `inkling://capture?url=...` intake saves the URL as a card at once, then enriches it in the background, like Add > Link. Status: **driven** on 2026-11-11 (run `mwbuepiu-b6fb`), as a launch argument. Not driven: the OS-level handler (a browser or the shell opening `inkling://`), which only a packaged build registers.
+The app's `inkling://capture?url=...` intake saves the URL as a card at once, then enriches it in the background, like Add > Link. Status: **driven** on 2026-11-13 (run `mwep52rn-095b`), as a launch argument. Not driven: the OS-level handler (a browser or the shell opening `inkling://`), which only a packaged build registers.
 
 ## Sub-features
 

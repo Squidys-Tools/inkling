@@ -1,11 +1,11 @@
 # Tags
 
-The item view's Info panel lists the Regular Spaces an item is filed in as chips, then its tags as plain text with a remove button each. A field adds more. Status: **driven** on 2026-11-12.
+The item view's Info panel lists the Regular Spaces an item is filed in as chips, then its tags as plain text with a remove button each. A field adds more. Status: **driven** on 2026-11-13.
 
 ## Sub-features
 
 - `tag-add` adds a tag from the field; Enter keeps the field open for the next one.
-- `tag-cancel` Escape closes the field, not the item view, and returns focus to `Add tag`.
+- `tag-cancel` Escape closes the field, not the item view, and returns focus to `Add tag`; Enter on an empty field closes it the same way.
 - `tag-remove` removes a tag from its chip.
 
 ## How to get to it (user POV)
@@ -24,6 +24,6 @@ Preconditions: seeded library, Everything shown. Item `5` (`Post: The first post
 
 ## Gotchas
 
-- The stored tag is lowercased with its leading `#` stripped, so the remove button's name is `Remove tag launch`, not `#Launch`.
-- The row is `list "Spaces and tags"`; on Windows `tree` prints its entries as `option`s (so `option "Add tag"` sits beside `button "Add tag"`), and each tag's `Remove tag <name>` button sits in its own entry. `ref button 'Add tag'` is still unique.
+- The stored tag is trimmed, lowercased and stripped of a leading `#`, so `  MiXeD Case  ` saves as `mixed case` and the remove button's name is `Remove tag launch`, not `#Launch`. A tag the item already has is silently ignored — Enter commits nothing and the field stays open.
+- The row is `list "Spaces and tags"`; `tree` prints its entries as `option`s (so `option "Add tag"` sits beside `button "Add tag"`), and each tag's `Remove tag <name>` button sits in its own entry. `ref button 'Add tag'` is still unique.
 - In bash, escape the `$` in `'$.tags'` when the query sits in double quotes.

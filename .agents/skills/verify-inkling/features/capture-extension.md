@@ -1,11 +1,12 @@
 # Capture by the extension receiver
 
-The loopback receiver the browser extension posts to. `POST /v1/captures` with the pairing token saves a capture through the same intake the extension uses. Status: **driven** on 2026-11-11 with `instance.ts capture`. Not driven: the Chrome extension itself (it runs in a real browser).
+The loopback receiver the browser extension posts to. `POST /v1/captures` with the pairing token saves a capture through the same intake the extension uses. Status: **driven** on 2026-11-13 with `instance.ts capture`, raw HTTP to the discovered port, and the pairing flow. Not driven: the Chrome extension itself (it runs in a real browser), and the auth-gated body checks (415/413/422) that sit behind a valid token.
 
 ## Sub-features
 
 - `receiver-url` a page URL posted to the receiver saves as a card and enriches like a link.
-- Not driven: a request with a wrong or missing token (expected 401), and a request from a foreign browser origin (expected 403).
+- `receiver-gates` wrong/missing token 401s, a foreign browser origin or a non-loopback Host 403s (Origin is checked before auth, so foreign+bad gets 403), and OPTIONS preflights answer 204.
+- `receiver-pair` `POST /v1/pair` from an extension origin asks the user, and `GET /v1/pair/<id>` polls the answer.
 
 ## How to get to it (user POV)
 
@@ -19,8 +20,8 @@ The loopback receiver the browser extension posts to. `POST /v1/captures` with t
 
 ## Gotchas
 
-- The helper sends no `Origin` header, which the receiver allows — as do `Origin: null` (what real `file://` pages send), `app://local`, `inkling://` and the `chrome-extension://`/`moz-extension://`/`safari-web-extension://` schemes (the bearer token is the real gate). Any other origin string gets 403 — and a foreign origin with a bad token gets 403, not 401, since the Origin check runs first; OPTIONS preflights always get a bare 204. `source_url` is normalized on save (a `#fragment` is dropped). The receiver rate-limits to 60 requests a minute (429 with `Retry-After: 60`), so never loop `$I capture` in a script.
+- The helper sends no `Origin` header, which the receiver allows — as do `Origin: null` (what real `file://` pages send), `app://local`, `inkling://` and the `chrome-extension://`/`moz-extension://`/`safari-web-extension://` schemes (the bearer token is the real gate). Any other origin string gets 403 — and a foreign origin with a bad token gets 403, not 401, since the Origin check runs first; OPTIONS preflights answer 204 and carry CORS headers (`Access-Control-Allow-Origin` echoing an allowed origin, `Access-Control-Allow-Methods`, `Access-Control-Max-Age: 600`), so they are not bare. `source_url` is normalized on save (a `#fragment` is dropped). The receiver rate-limits to 60 requests a minute (429 with `Retry-After: 60`), so never loop `$I capture` in a script.
 - The port depends on what else is running (another inkling takes the first one); the helper finds it each time, so never record it in evidence.
 - Every request needs `Host: 127.0.0.1:<port>`, or it gets 403 before anything else.
-- Pairing: `POST /v1/pair` from an extension origin (anything else 403) opens a native **Connect the browser extension?** question and answers `202 {app,id}`; `GET /v1/pair/<id>` answers `pending`, then once `approved` with the token or `denied`. A second `POST` while the question is open closes it and denies both.
+- Pairing: `POST /v1/pair` from an extension origin (a web origin like `https://…` gets 403) opens a **Connect the browser extension?** question — GTK-native on Linux, so `dialog check`/`dialog press` sees it — and answers `202 {"id":…}`; `GET /v1/pair/<id>` answers `pending`, then once `approved` (with the token) or `denied`. A second `POST` while a request is still pending cancels that request: it returns `409 pairing-cancelled`, the first request's next `GET` reads `denied`, and after any final status the id is gone — every `GET` then 404s. The question's default focus is Cancel, so a bare Enter denies; approve by navigating to Connect.
 - The token is the scratch library's, and the rule is the same as the app's: keep it out of `PROOF.md` and screenshots.
