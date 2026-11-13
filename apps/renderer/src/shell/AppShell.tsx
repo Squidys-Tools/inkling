@@ -60,12 +60,7 @@ export function AppShell() {
         <Sidebar open={open} visualOpen={visualOpen} narrow={narrow} />
         <main
           ref={stageRef}
-          {...stylex.props(
-            styles.stage,
-            styles.inset(inset),
-            !covered && styles.library,
-            narrow && styles.narrow,
-          )}
+          {...stylex.props(styles.stage, styles.inset(inset), narrow && styles.narrow)}
         >
           <div {...stylex.props(styles.content)}>
             <LibraryHost covered={covered} painting={painting} sidebarCollapsed={false} />
@@ -114,16 +109,16 @@ const styles = stylex.create({
   welcome: { position: "fixed", inset: 0, zIndex: 35, backgroundColor: color.window },
   stage: {
     position: "absolute",
-    top: 0,
-    bottom: 0,
-    right: 0,
+    top: "8px",
+    bottom: "8px",
+    right: "8px",
     zIndex: 1,
     boxSizing: "border-box",
     minWidth: 0,
     backgroundColor: color.surface,
     borderWidth: 0,
-    borderTopLeftRadius: radius.frame,
-    borderBottomLeftRadius: radius.frame,
+    borderRadius: radius.frame,
+    boxShadow: `0 0 0 1px ${color.border}, -10px 0 28px -12px ${color.shadow}`,
     overflow: "hidden",
     contain: "strict",
     transformOrigin: "left top",
@@ -132,9 +127,6 @@ const styles = stylex.create({
     transitionDuration: motion.layout,
   },
   inset: (left: number) => ({ left }),
-  // The library already has its own gutters; a full-height rule here reads as a stray line.
-  // Covered pages keep the reviewed frame edge. The inset pseudo-edge inherits this color.
-  library: { borderLeftColor: "transparent" },
   narrow: { transitionDuration: "0s" },
   content: { position: "absolute", inset: 0 },
   page: {

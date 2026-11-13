@@ -5,7 +5,7 @@ import { libraryQuery } from "../queryClient.ts";
 import { assetUrl } from "./assets.ts";
 
 const storageKey = "space-thumbs";
-const stackSize = 3;
+const stripSize = 4;
 
 const isPaths = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry: unknown) => typeof entry === "string");
@@ -17,7 +17,7 @@ export function parseSpaceThumbs(stored: string | null): Record<string, readonly
     if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
     return Object.fromEntries(
       Object.entries(value).flatMap(([id, paths]) =>
-        isPaths(paths) ? [[id, paths.slice(0, stackSize)]] : [],
+        isPaths(paths) ? [[id, paths.slice(0, stripSize)]] : [],
       ),
     );
   } catch {
@@ -46,9 +46,9 @@ function store(next: Record<string, readonly string[]>) {
 export const thumbPaths = (cards: readonly Pick<LibraryCard, "thumbnailPath">[], limit: number) =>
   cards.flatMap((card) => card.thumbnailPath ?? []).slice(0, limit);
 
-/** A Smart Space runs its search only when opened, so its stack keeps what it last showed. */
+/** A Smart Space runs its search only when opened, so its pictures keep what it last showed. */
 export function rememberSpaceThumbs(spaceId: string, paths: readonly string[]) {
-  const kept = paths.slice(0, stackSize);
+  const kept = paths.slice(0, stripSize);
   if (thumbs.get()[spaceId]?.join("\n") !== kept.join("\n"))
     store({ ...thumbs.get(), [spaceId]: kept });
 }
@@ -58,7 +58,7 @@ export function forgetSpaceThumbs(spaceId: string) {
   if (gone !== undefined) store(rest);
 }
 
-/** Up to three image URLs for a Space's stack, newest first. */
+/** Up to four image URLs for a Space's cover and strip, newest first. */
 export function useSpaceThumbs(space: Space) {
   const remembered = useSelector(thumbs, (state) => state[space.id]);
   // A Regular Space's membership is stored, so reading its newest cards runs no search.
@@ -74,7 +74,7 @@ export function useSpaceThumbs(space: Space) {
               limit: 12,
             })
           ).cards,
-          stackSize,
+          stripSize,
         ),
       (change) => change._tag === "SpacesChanged" || change._tag === "ItemsRemoved",
     ),

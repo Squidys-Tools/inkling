@@ -22,7 +22,7 @@ export function AppearancePanel({ onClose }: { onClose: () => void }) {
         <Row
           icon={SidebarLeftIcon}
           title="Sidebar"
-          description="Plain rows, or Shelf, which shows each Space by its newest items."
+          description="Cover shows each Space by its newest item, Strip by its four newest."
           action={
             <SegmentedControl
               name="appearance-sidebar"

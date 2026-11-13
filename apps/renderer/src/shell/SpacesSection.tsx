@@ -13,6 +13,7 @@ import { rememberSpaceThumbs } from "../library/spaceThumbs.ts";
 import { createSpace, dismissSpaceError, useSpaceError, useSpaces } from "../library/spaces.ts";
 import { useSelector } from "@tanstack/react-store";
 import { SpaceRow } from "./SpaceRow.tsx";
+import { useReorderGlide } from "./useReorderGlide.ts";
 import {
   closeSpaceDraft,
   createDraftedSpace,
@@ -24,11 +25,11 @@ import {
 
 export function SpacesSection({
   compact = false,
-  shelf = false,
+  strip = false,
   onExpand,
 }: {
   compact?: boolean;
-  shelf?: boolean;
+  strip?: boolean;
   onExpand?: () => void;
 }) {
   const spaces = useSpaces();
@@ -44,8 +45,9 @@ export function SpacesSection({
     if (shownSpace !== null && shownSmart && shownTotal !== undefined)
       rememberSpaceCount(shownSpace, shownTotal);
   }, [shownSpace, shownSmart, shownTotal]);
-  const shownThumbs = useScopeThumbs(shown, 3);
+  const shownThumbs = useScopeThumbs(shown, 4);
   const shownReady = shownState?.status === "ready";
+  const list = useReorderGlide(spaces.map((space) => space.id).join(" "));
   useEffect(() => {
     if (shownSpace !== null && shownReady)
       rememberSpaceThumbs(shownSpace, shownThumbs ? shownThumbs.split("\n") : []);
@@ -72,7 +74,7 @@ export function SpacesSection({
           <HugeiconsIcon icon={PlusSignIcon} size={14} />
         </button>
       </div>
-      <div {...stylex.props(styles.list)}>
+      <div ref={list} {...stylex.props(styles.list)}>
         {spaces.map((space, index) => {
           const selected = shownSpace === space.id;
           // A Smart Space has no stored membership: its count is read when it opens and kept after.
@@ -85,7 +87,7 @@ export function SpacesSection({
               selected={selected}
               count={count}
               compact={compact}
-              shelf={shelf}
+              strip={strip}
               index={index}
               lastIndex={spaces.length - 1}
             />
