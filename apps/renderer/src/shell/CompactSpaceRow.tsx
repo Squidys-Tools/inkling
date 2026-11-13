@@ -7,15 +7,19 @@ import { slidingSelection } from "./NavRow.tsx";
 import { SpaceMark } from "./SpaceMark.tsx";
 import { opensMenu, openSpaceMenu, type SpaceActions } from "./spaceMenu.ts";
 
-/** The compact rail keeps each Space's colored blot and the full row's actions. */
+/** The compact rail keeps each Space's cover, colored blot and the full row's actions. */
 export function CompactSpaceRow({
   space,
   selected,
+  cover,
+  onBrokenCover,
   can,
   actions,
 }: {
   space: Space;
   selected: boolean;
+  cover: string | undefined;
+  onBrokenCover: (url: string) => void;
   can: { up: boolean; down: boolean };
   actions: SpaceActions;
 }) {
@@ -25,6 +29,7 @@ export function CompactSpaceRow({
       params={{ id: space.id }}
       draggable={false}
       data-space-id={space.id}
+      data-glide={`space ${space.id}`}
       aria-label={space.name}
       title={space.name}
       aria-current={selected ? "page" : undefined}
@@ -36,18 +41,30 @@ export function CompactSpaceRow({
       }}
       {...stylex.props(styles.row, selected && styles.selected)}
     >
-      <SpaceMark color={space.color} hollow={space.kind === "smart"} />
+      {cover && (
+        <img
+          src={cover}
+          alt=""
+          draggable={false}
+          onError={() => onBrokenCover(cover)}
+          {...stylex.props(styles.cover)}
+        />
+      )}
+      <span {...stylex.props(cover !== undefined && styles.badge)}>
+        <SpaceMark small={Boolean(cover)} color={space.color} hollow={space.kind === "smart"} />
+      </span>
     </Link>
   );
 }
 
 const styles = stylex.create({
   row: {
+    position: "relative",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    height: "32px",
+    height: "36px",
     borderRadius: radius.control,
     textDecoration: "none",
     backgroundColor: { default: "transparent", ":hover": color.overlayHover },
@@ -57,6 +74,29 @@ const styles = stylex.create({
     transitionDuration: motion.micro,
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "-2px",
+  },
+  // The open row's height, cover and badge spots, so closing the sidebar only crops each row.
+  cover: {
+    position: "absolute",
+    left: "14px",
+    top: "6px",
+    width: "24px",
+    height: "24px",
+    borderRadius: "6px",
+    objectFit: "cover",
+    boxShadow: `0 0 0 1px ${color.border}`,
+  },
+  badge: {
+    position: "absolute",
+    zIndex: 1,
+    left: "27px",
+    top: "17px",
+    display: "grid",
+    placeItems: "center",
+    width: "17px",
+    height: "17px",
+    borderRadius: radius.round,
+    backgroundColor: color.window,
   },
   // The sidebar's sliding pill is the fill.
   selected: { backgroundColor: { default: "transparent", ":hover": "transparent" } },
