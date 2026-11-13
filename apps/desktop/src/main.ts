@@ -1,4 +1,4 @@
-import type { ConfirmOptions, ContextMenuItem, Platform } from "@inkling/contracts/desktop";
+import type { ContextMenuItem, Platform } from "@inkling/contracts/desktop";
 import { isWebUrl } from "@inkling/ingestion/url";
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from "electron";
 import { dirname, join, resolve } from "node:path";
@@ -136,20 +136,6 @@ function registerIpc() {
         });
       }),
   );
-  ipcMain.handle(channels.confirm, async (event, options: ConfirmOptions) => {
-    const window = windowOf(event);
-    if (!window) return false;
-    const { response } = await dialog.showMessageBox(window, {
-      type: options.destructive ? "warning" : "question",
-      message: options.message,
-      detail: options.detail,
-      buttons: [options.confirmLabel, "Cancel"],
-      defaultId: options.destructive ? 1 : 0,
-      cancelId: 1,
-      noLink: true,
-    });
-    return response === 0;
-  });
   ipcMain.handle(channels.showLibraryFolder, async () => {
     const error = await shell.openPath(libraryDirectory);
     if (error) throw new Error(error);

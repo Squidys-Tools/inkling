@@ -101,7 +101,6 @@ export function registerNativeHandlers({
 
   const updates = appUpdates({
     libraryDirectory,
-    getWindow: mainWindow,
     onChange: (state) => {
       for (const window of BrowserWindow.getAllWindows())
         window.webContents.send(channels.updateChanged, state);
@@ -110,7 +109,10 @@ export function registerNativeHandlers({
   ipcMain.handle(channels.updateState, () => updates.state());
   ipcMain.handle(channels.updateCheck, () => updates.check());
   ipcMain.handle(channels.updateDownload, () => updates.download());
-  ipcMain.handle(channels.updateInstall, () => updates.install());
+  ipcMain.handle(channels.updateInstall, (_event, version: unknown) => {
+    if (typeof version !== "string") throw new Error("Unknown update version.");
+    return updates.install(version);
+  });
   ipcMain.handle(channels.updateCancel, () => updates.cancel());
   ipcMain.handle(channels.updateSetChannel, (_event, channel: unknown) =>
     updates.setChannel(updateChannel(channel)),

@@ -14,7 +14,7 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 - Quote refs in PowerShell (`'@s…:e1'`).
 - The grid is virtualized: counting visible card groups is not counting items. Use the sidebar link `Everything <n>` and `db` for counts.
 - Text goes in with `set-value` (accessibility ValuePattern); it is not keystroke typing. Keys go through `$I ad press <combo> --window-id '{window}'`: they reach our window without taking focus and report `delivered_unverified`, so confirm the effect with `tree` or `db`.
-- Native menus and confirm dialogs are reachable: a menu through `$I tree --surface menu`, a dialog as a second window listed by `$I windows`.
+- Menus are reachable through `$I tree --surface menu`. Confirmations are an in-app `alertdialog` in the main window's tree.
 - Cards are only in the tree on Everything with no item open. If `ref group '<Kind>: <title>'` finds nothing, you are on an item view (`#/item/<id>`), a form (`#/add/…`) or a Space: go to Everything with `$I ad click "$($I ref link Everything --contains)"`.
 - A ref found with `--in <ref>` still can't be clicked when sibling elements share the accessible name (`AMBIGUOUS_TARGET`): open the item and use a uniquely named control instead.
 - After every mutation read the stored row with `$I db "<SELECT>"` and take `$I shot <name>`.
@@ -36,7 +36,7 @@ Every feature was executed end to end with agent-desktop on 2026-11-12 unless it
 - [Capture by deep link](./capture-deep-link.md): `inkling://capture?url=...` as a launch argument, no GUI.
 - [Capture by the extension receiver](./capture-extension.md): POST to the loopback receiver, no GUI.
 - [Search](./search.md): `Search your mind`, Ctrl+K, empty state, Clear search, Save as Space.
-- [Spaces](./spaces.md): create Smart and Regular, rename, file an item (native menu), delete (native confirm).
+- [Spaces](./spaces.md): create Smart and Regular, rename, file an item (in-app menu), delete (in-app confirm).
 - [Archive and restore](./archive-restore.md): item Archive, Archive view, Restore.
 - [Tags](./tags.md): item view > Add tag, Enter, Escape, Remove tag.
 - [Similar items](./item-similar.md): item view > Similar, empty state on the seeded library.

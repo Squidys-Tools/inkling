@@ -73,11 +73,11 @@ describe("update store", () => {
 
   test("installs only a downloaded update, and offers the install again after it fails", async () => {
     const { store, calls, push, settle } = await started(available);
-    await store.install();
+    await store.install("1.1.0");
     expect(calls).toEqual([]);
 
     push(downloaded);
-    const install = store.install();
+    const install = store.install("1.1.0");
     settle().reject(new Error("authorization refused"));
     await install;
 

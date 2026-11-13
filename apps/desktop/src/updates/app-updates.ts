@@ -1,5 +1,5 @@
 import type { UpdateChannel, UpdateState } from "@inkling/contracts/desktop";
-import { app, type BrowserWindow, dialog } from "electron";
+import { app } from "electron";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createUpdateController, createUpdatePreferences } from "./controller.ts";
@@ -12,11 +12,9 @@ import { installDebianUpdate, updateDisabledReason } from "./install.ts";
  */
 export function appUpdates({
   libraryDirectory,
-  getWindow,
   onChange,
 }: {
   libraryDirectory: string;
-  getWindow: () => BrowserWindow | undefined;
   onChange: (state: UpdateState) => void;
 }) {
   let controller: Promise<ReturnType<typeof createUpdateController>> | undefined;
@@ -40,19 +38,6 @@ export function appUpdates({
       preferences: createUpdatePreferences(join(libraryDirectory, "updates.json")),
       onChange,
       install: async (file, version, sha512) => {
-        const window = getWindow();
-        if (!window || window.isDestroyed()) throw new Error("No active app window.");
-        const { response } = await dialog.showMessageBox(window, {
-          type: "question",
-          title: "Install inkling update",
-          message: `Install inkling ${version}?`,
-          detail:
-            "inkling will restart after installation. Debian may ask for system authorization. Your library stays on this computer.",
-          buttons: ["Cancel", "Install and restart"],
-          defaultId: 0,
-          cancelId: 0,
-        });
-        if (response !== 1) throw new Error("Update installation canceled.");
         if (process.platform === "linux" && packageType === "deb") {
           await installDebianUpdate(file, version, sha512);
           app.relaunch();
@@ -73,20 +58,15 @@ export function appUpdates({
       await current.checkForUpdates();
       return current.getState();
     },
-    // Download and install act on the version the window was shown; the
-    // controller refuses if the feed moved on since.
+    // Download acts on the version the window was shown, and install on the one the user
+    // confirmed; the controller refuses either if the feed moved on since.
     download: async () => {
       const current = await updates();
       const { availableVersion } = await current.getState();
       if (!availableVersion) throw new Error("Check for updates before downloading one.");
       return current.downloadUpdate(availableVersion);
     },
-    install: async () => {
-      const current = await updates();
-      const { downloadedVersion } = await current.getState();
-      if (!downloadedVersion) throw new Error("Download this update before installing it.");
-      return current.installUpdate(downloadedVersion);
-    },
+    install: async (version: string) => (await updates()).installUpdate(version),
     cancel: async () => (await updates()).cancelDownload(),
     setChannel: async (channel: UpdateChannel) => (await updates()).setChannel(channel),
   };

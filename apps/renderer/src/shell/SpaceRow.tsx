@@ -5,11 +5,11 @@ import * as stylex from "@stylexjs/stylex";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { type PointerEvent, useRef, useState } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
-import { desktop } from "../desktop.ts";
 import { search } from "../library/search.ts";
 import { deleteSpace, moveSpace, recolorSpace, renameSpace } from "../library/spaces.ts";
 import { spaceRowMarker } from "../markers.stylex.ts";
 import { CompactSpaceRow } from "./CompactSpaceRow.tsx";
+import { confirm } from "./confirm.ts";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { slidingSelection } from "./NavRow.tsx";
 import { dragSteps } from "./sidebarGeometry.ts";
@@ -20,15 +20,12 @@ import { opensMenu, openSpaceMenu } from "./spaceMenu.ts";
 async function confirmDelete(space: Space) {
   // A Regular Space's filing is the user's own work, so emptying it asks first.
   if (space.kind !== "regular" || !space.itemCount) return true;
-  const options = {
+  return confirm({
     message: `Delete the Space “${space.name}”?`,
     detail: `Its ${space.itemCount} ${space.itemCount === 1 ? "item stays" : "items stay"} in your library.`,
     confirmLabel: "Delete Space",
     destructive: true,
-  };
-  return desktop
-    ? desktop.confirm(options)
-    : window.confirm(`${options.message}\n\n${options.detail}`);
+  });
 }
 
 export function SpaceRow({

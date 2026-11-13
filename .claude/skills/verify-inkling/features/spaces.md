@@ -8,7 +8,7 @@ Spaces are named collections in the sidebar: Smart (a saved search) or Regular (
 - `space-create-regular` creates a Regular Space (keyboard-selected, see below).
 - `space-rename` renames a Space.
 - `space-file` files an item into a Regular Space through the **Keep in a Space** menu (an in-app DOM menu that still surfaces through `--surface menu`).
-- `space-delete` deletes a Space (populated Regular Spaces confirm in a native window) and keeps the items.
+- `space-delete` deletes a Space (populated Regular Spaces ask in an in-app dialog) and keeps the items.
 - `space-color` cycles a row's color through `Change color of <name>` or the row menu's `Change color`.
 - `space-move` reorders rows through the row menu's `Move up`/`Move down`.
 
@@ -29,7 +29,7 @@ Preconditions: seeded library (Spaces `Design references`, `Read later`, `Weeken
 - **Change color.** `$I ad click "$($I ref button 'Change color of Verify Regular')"` cycles the row's blot through the palette; `db "SELECT name,color FROM spaces WHERE name='Verify Regular'"` shows the new `color` value.
 - **Rename.** Open the row's menu and click menuitem `Rename`; a focused textfield `Rename Verify Regular` appears. `$I ad set-value "$($I ref textfield 'Rename Verify Regular')" 'Verify Renamed'` then `$I ad press return --window-id '{window}'`. `db` → name `Verify Renamed`; the sidebar link and its `Actions for …` menubutton carry the new name.
 - **File an item.** Go to Everything (`$I ad click "$($I ref link Everything --contains)"`), open `Note: Books to reread this fall` (after earlier captures it has scrolled out of the tree: `set-value` `reread` into `Search your mind`, wait about 3 s, then click its group), `$I ad click "$($I ref button 'Keep in a Space')"`, then `$I tree --surface menu`: the menu is `Item actions`, an in-app popup listing only Regular Spaces — menuitems `Add to Weekend reading`, `Add to Verify Renamed` (a member Space shows `Remove from …`; Smart Spaces never appear). `$I ad click '<ref of Add to Verify Renamed from that tree>'`. `db "SELECT s.name, si.item_id FROM space_items si JOIN spaces s ON s.id=si.space_id WHERE s.name='Verify Renamed'"` → item `12`; sidebar link `Verify Renamed 1`.
-- **Delete populated Space.** Open the row's menu and click menuitem `Delete Space`. A second window of ours opens (a native confirm): `D=$($I windows | grep other | awk '{print $1}')`. `$I tree --window $D` lists buttons `Delete Space` and `Cancel`; `$I ad click "$($I ref button 'Delete Space' --window $D)"`. On the Linux box the native confirm does not appear in the window tree; use the remote driver's `dialog` helper (`ad dialog …`, Tab moves focus between the buttons, Return confirms). `db` → no `spaces` row named `Verify Renamed`, `items` row `12` still present.
+- **Delete populated Space.** Open the row's menu and click menuitem `Delete Space`. An in-app `alertdialog` `Delete the Space “Verify Renamed”?` opens in the main tree with buttons `Cancel` (focused) and `Delete Space`; `$I ad click "$($I ref button 'Delete Space')"`. Cancel or Escape keeps the Space. `db` → no `spaces` row named `Verify Renamed`, `items` row `12` still present.
 - **Evidence.** `$I shot` after create, after file (sidebar count), and after delete; plus the `db` rows above.
 
 ## Gotchas
@@ -38,6 +38,6 @@ Preconditions: seeded library (Spaces `Design references`, `Read later`, `Weeken
 - `press` goes to our window by `--window-id` without taking focus; its result is `delivered_unverified`, so verify the effect with `tree`.
 - Empty `Space name` keeps `Create Space` disabled.
 - While the item view is open the grid cards leave the tree; return to Everything first. The window's close button is `Close window`, the item view's is `Close` — the names differ, but don't confuse them anyway.
-- `ref` and `tree` always use the main window; after any native dialog opens, `$I windows` tells you the dialog's id; pass it as `--window <id>` to `tree` or `ref`. Resolve the dialog before continuing.
+- While a confirm is open, shortcuts and menu commands are ignored. Resolve it before continuing.
 - Only a populated Regular Space asks before delete; an empty Regular Space and every Smart Space delete immediately. Rename commits on blur as well as Return.
 - The filing menu closes if the window loses it; read `tree --surface menu` immediately after opening.

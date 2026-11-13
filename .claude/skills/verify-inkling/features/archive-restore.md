@@ -25,4 +25,4 @@ Preconditions: seeded library. The seed already holds 3 archived copies (`archiv
 - Titles repeat (seed copies and the item you archived): use `ref group` only with a unique title like the Post above, and identify rows by `id` in `db`. `Archived Note: Books to reread this fall` has two tiles and `ref` will say so.
 - The item-view footer `Archive` is a *button*; the sidebar `Archive` is a *link*. The role disambiguates.
 - A tile's `Restore`/`Delete <title>` controls are visually hidden until the tile is hovered or focused; the accessibility tree exposes them, but every tile carries the same `Restore`, so even a scoped `ref` result refuses a click on name twins. The tile's own item view has the uniquely named `Restore to library`/`Delete permanently` — drive restore from there.
-- Permanent delete (`Delete <title>`) opens a native confirm and is irreversible: not part of this journey.
+- Permanent delete (`Delete <title>`) asks in an in-app confirm (`Delete`) and is irreversible: not part of this journey.
