@@ -4,7 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, srOnly } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useId } from "react";
+import { useEffect, useId, useLayoutEffect } from "react";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { shownScope, useScope, useScopeThumbs } from "../library/cards.ts";
 import { search } from "../library/search.ts";
@@ -22,6 +22,13 @@ import {
   updateSpaceDraft,
   useSpaceDraft,
 } from "./spaceDraft.ts";
+
+/** Each end of the list fades only while rows hide past it, reaching full depth 24px in. */
+function fadeEdges(node: HTMLElement) {
+  const below = node.scrollHeight - node.clientHeight - node.scrollTop;
+  node.style.setProperty("--fade-top", `${Math.min(Math.max(node.scrollTop, 0), 24)}px`);
+  node.style.setProperty("--fade-bottom", `${Math.min(Math.max(below, 0), 24)}px`);
+}
 
 export function SpacesSection({
   compact = false,
@@ -51,6 +58,17 @@ export function SpacesSection({
   const shownThumbs = useScopeThumbs(shown, 4);
   const shownReady = shownState?.status === "ready";
   const list = useReorderGlide(spaces.map((space) => space.id).join(" "));
+  // Rows added, removed or restyled change what is hidden without a scroll or a resize.
+  useLayoutEffect(() => {
+    if (list.current) fadeEdges(list.current);
+  });
+  useEffect(() => {
+    const node = list.current;
+    if (!node) return;
+    const observer = new ResizeObserver(() => fadeEdges(node));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [list]);
   useEffect(() => {
     if (shownSpace !== null && shownReady)
       rememberSpaceThumbs(shownSpace, shownThumbs ? shownThumbs.split("\n") : []);
@@ -85,10 +103,7 @@ export function SpacesSection({
       <div
         ref={list}
         data-glide-hold="spaces"
-        onScroll={(event) => {
-          const node = event.currentTarget;
-          node.style.setProperty("--spaces-fade", `${Math.min(node.scrollTop, 12)}px`);
-        }}
+        onScroll={(event) => fadeEdges(event.currentTarget)}
         {...stylex.props(styles.list)}
       >
         {spaces.map((space, index) => {
@@ -243,8 +258,8 @@ const styles = stylex.create({
     minHeight: 0,
     overflowY: "auto",
     scrollbarWidth: "none",
-    // Rows scrolled under the header fade out; the fade grows with the first 12px of scroll.
-    maskImage: "linear-gradient(to bottom, transparent, black var(--spaces-fade, 0px))",
+    maskImage:
+      "linear-gradient(to bottom, transparent, black var(--fade-top, 0px), black calc(100% - var(--fade-bottom, 0px)), transparent)",
   },
   form: {
     display: "grid",
