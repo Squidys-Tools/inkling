@@ -56,7 +56,7 @@ export function AddMenu({
   return (
     <div
       data-sidebar-add
-      data-sidebar-add-beside={beside || undefined}
+      data-glide="add"
       {...stylex.props(styles.anchor, beside > 0 && styles.inRow(beside))}
     >
       <input

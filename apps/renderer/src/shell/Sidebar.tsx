@@ -22,10 +22,11 @@ import { useAppearance } from "../settings/appearance.ts";
 import { AddMenu } from "./AddMenu.tsx";
 import { IndexingRing } from "./IndexingRing.tsx";
 import { NavButton, NavLink } from "./NavRow.tsx";
-import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
+import { sidebarCompact, sidebarExpanded, stripAddBeside } from "./sidebarGeometry.ts";
 import { SpacesSection } from "./SpacesSection.tsx";
 import { UpdateRow } from "./UpdateRow.tsx";
 import { useSelectionPill } from "./useSelectionPill.ts";
+import { useLayoutGlide } from "./useReorderGlide.ts";
 
 // Keep the shipped nine-dot Everything glyph unchanged.
 function DotGrid() {
@@ -70,7 +71,7 @@ function StripEverything({ active, count }: { active: boolean; count: ReactNode 
       {...stylex.props(styles.hero, active && styles.heroActive)}
     >
       {urls.length > 0 && (
-        <span aria-hidden="true" {...stylex.props(styles.strip)}>
+        <span aria-hidden="true" data-sidebar-label {...stylex.props(styles.strip)}>
           {urls.map((url) => (
             <img
               key={url}
@@ -111,8 +112,11 @@ export function Sidebar({
   });
 
   const compact = !visualOpen;
+  // Closing lays rows and the footer out for the rail at once, so they travel with the edge.
+  const rail = compact || !open;
   // The compact rail is one design; Strip is a look of the expanded sidebar.
-  const strip = useAppearance().sidebar === "strip" && !compact;
+  const strip = useAppearance().sidebar === "strip" && !rail;
+  const area = useLayoutGlide<HTMLElement>(`${rail} ${strip}`, narrow ? 0 : 300);
   const [track, pill] = useSelectionPill();
   const openSettings = () =>
     void navigate({ to: ".", search: (prev) => ({ ...prev, settings: "general" }) });
@@ -142,6 +146,7 @@ export function Sidebar({
         />
       )}
       <aside
+        ref={area}
         id="library-navigation"
         aria-label="Library"
         data-collapsed={compact}
@@ -216,17 +221,23 @@ export function Sidebar({
               />
             )}
           </nav>
-          <SpacesSection compact={compact} strip={strip} onExpand={() => setSidebarOpen(true)} />
+          <SpacesSection
+            compact={compact}
+            rail={rail}
+            strip={strip}
+            onExpand={() => setSidebarOpen(true)}
+          />
         </div>
         {strip ? (
           <div {...stylex.props(styles.footer, styles.stripFooter)}>
             <UpdateRow compact={false} />
             <div {...stylex.props(styles.stripRow)}>
-              <AddMenu compact={false} beside={92} />
+              <AddMenu compact={false} beside={stripAddBeside} />
               <Link
                 to="/archive"
                 draggable={false}
                 data-sidebar-label
+                data-glide="archive"
                 aria-label="Archive"
                 title="Archive"
                 aria-current={shown === "Archived" ? "page" : undefined}
@@ -238,6 +249,7 @@ export function Sidebar({
               <button
                 type="button"
                 data-sidebar-label
+                data-glide="settings"
                 aria-label="Settings"
                 title="Settings"
                 aria-expanded={settingsOpen}
@@ -253,21 +265,19 @@ export function Sidebar({
           <div {...stylex.props(styles.footer)}>
             <AddMenu compact={compact} />
             <UpdateRow compact={compact} />
-            <div {...stylex.props(styles.lastRow, compact && styles.lastRowCompact)}>
+            <div {...stylex.props(styles.lastRow, rail && styles.lastRowCompact)}>
               <NavLink
                 to="/archive"
                 tone="footer"
+                glide="archive"
                 compact={compact}
                 active={shown === "Archived"}
                 icon={<HugeiconsIcon icon={Archive01Icon} size={15} />}
                 label="Archive"
                 onClick={() => search.clear()}
               />
-              {/* Expanded, Settings is the gear ending the Archive row, and fades with the labels. */}
-              <div
-                data-sidebar-label={compact ? undefined : ""}
-                {...stylex.props(!compact && styles.gear)}
-              >
+              {/* Expanded, Settings ends the Archive row; closing, it glides to its rail spot below. */}
+              <div data-glide="settings" {...stylex.props(styles.gear, rail && styles.railGear)}>
                 <NavButton
                   tone="footer"
                   active={settingsOpen}
@@ -507,4 +517,6 @@ const styles = stylex.create({
   lastRowCompact: { flexDirection: "column", alignItems: "stretch" },
   // 36px wide, so the gear centers under the Spaces header's plus and each row's menu button.
   gear: { width: "36px", flexShrink: 0 },
+  // Centered in the rail's 52px row; the same width keeps the glide from resizing it.
+  railGear: { marginLeft: "8px" },
 });

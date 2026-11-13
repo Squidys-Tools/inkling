@@ -79,7 +79,16 @@ export function SpaceRow({
     delete: () => void remove(),
   };
   if (compact && renaming === null)
-    return <CompactSpaceRow space={space} selected={selected} can={can} actions={actions} />;
+    return (
+      <CompactSpaceRow
+        space={space}
+        selected={selected}
+        cover={cover}
+        onBrokenCover={setBrokenCover}
+        can={can}
+        actions={actions}
+      />
+    );
 
   const startDrag = (event: PointerEvent<HTMLDivElement>) => {
     dragged.current = false;
@@ -142,6 +151,7 @@ export function SpaceRow({
         if (renaming === null) void openSpaceMenu(event, space.name, can, actions);
       }}
       data-space-id={space.id}
+      data-glide={`space ${space.id}`}
       data-sidebar-selected={slidingSelection(selected && !strip)}
       {...stylex.props(
         styles.row,
