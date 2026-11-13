@@ -5,7 +5,7 @@ import { bindingsFor } from "@inkling/contracts/shortcuts";
 import { color, font } from "@inkling/ui/tokens.stylex";
 import { useEffect, useState, type ReactNode } from "react";
 import { platform } from "../desktop.ts";
-import { KeptFloating } from "./KeptFloating.tsx";
+import { KeptAdrift } from "./KeptAdrift.tsx";
 import { MemoryMatch } from "./MemoryMatch.tsx";
 import { ReadsPictures } from "./ReadsPictures.tsx";
 import { SplitText } from "./SplitText.tsx";
@@ -175,7 +175,7 @@ export function Screen({
     case 1:
       return (
         <>
-          <KeptFloating reducedMotion={reducedMotion} />
+          <KeptAdrift reducedMotion={reducedMotion} />
           <SplitText
             text="Kept as it came."
             delay={headlineDelay}

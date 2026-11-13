@@ -2,11 +2,11 @@ import * as stylex from "@stylexjs/stylex";
 import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { color, font, onboardingColor } from "@inkling/ui/tokens.stylex";
-import { type ReactNode, useLayoutEffect, useRef } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
+import { playInkWisps } from "./inkWisps.ts";
 import { onboardingPhotos } from "./media.ts";
 import { QuoteArtwork, TypedArtwork } from "./MiniArtwork.tsx";
 
-type Layer = "far" | "mid" | "near";
 /** Mini versions of inkling's own card kinds, so the backdrop reads as a library. */
 type Content =
   | { kind: "photo"; src: string }
@@ -15,13 +15,12 @@ type Content =
   | { kind: "note"; title: string; words: string }
   | { kind: "pdf"; title: string; pages: string }
   | { kind: "quote"; text: string; by: string };
-type FloatCard = {
+type AdriftCard = {
   content: Content;
-  layer: Layer;
-  /** Where on the lap the card starts, in degrees clockwise from the right (y points down). */
-  angle: number;
-  /** How far out it rides: 1 is the stage-sized lap, larger is further out. */
-  ring: number;
+  /** 1 is the focal plane; below is nearer and soft, above is further, soft and fogged. */
+  depth: number;
+  x: number;
+  y: number;
   w: number;
   h: number;
 };
@@ -29,42 +28,13 @@ type FloatCard = {
 const p = onboardingPhotos;
 const photo = (src: string): Content => ({ kind: "photo", src });
 
-// One of each kind around the copy. Angles, rings and sizes were searched so
-// that, all moving together, no card crosses the copy or a card at its own
-// depth anywhere on the lap at 16:9; far cards may tuck under nearer ones.
-const CARDS: FloatCard[] = [
-  { content: photo(p.sprig), layer: "far", angle: 36, ring: 1.08, w: 100, h: 150 },
-  { content: photo(p.deskPlant), layer: "far", angle: 218, ring: 1.1, w: 122, h: 122 },
-  {
-    content: {
-      kind: "quote",
-      text: "How we spend our days is how we spend our lives.",
-      by: "Annie Dillard",
-    },
-    layer: "mid",
-    angle: 3,
-    ring: 1.02,
-    w: 168,
-    h: 200,
-  },
-  {
-    content: { kind: "note", title: "Call the framer", words: "9 WORDS" },
-    layer: "mid",
-    angle: 106,
-    ring: 1.06,
-    w: 172,
-    h: 166,
-  },
-  { content: photo(p.delphinium), layer: "mid", angle: 290, ring: 1.02, w: 112, h: 196 },
-  {
-    content: { kind: "video", src: p.sea, duration: "12:04" },
-    layer: "near",
-    angle: 326,
-    ring: 1.07,
-    w: 231,
-    h: 154,
-  },
-  { content: photo(p.vases), layer: "near", angle: 69, ring: 1.01, w: 156, h: 204 },
+// Far to near, so nearer cards paint on top. Each box grown by its full drift
+// (depth-scaled bob + current + parallax, plus 2deg of tilt) stays clear of the
+// copy and buttons (x 170..790, y 125..415), and focal boxes clear each other.
+const CARDS: AdriftCard[] = [
+  { content: photo(p.sprig), depth: 1.8, x: 330, y: 8, w: 64, h: 92 },
+  { content: photo(p.deskPlant), depth: 1.7, x: 600, y: 446, w: 76, h: 76 },
+  { content: photo(p.delphinium), depth: 1.9, x: 40, y: 452, w: 64, h: 108 },
   {
     content: {
       kind: "article",
@@ -72,47 +42,76 @@ const CARDS: FloatCard[] = [
       title: "The slow return of paper",
       domain: "paperjournal.co",
     },
-    layer: "near",
-    angle: 249,
-    ring: 1.01,
-    w: 172,
-    h: 204,
+    depth: 1,
+    x: -4,
+    y: 214,
+    w: 140,
+    h: 200,
+  },
+  {
+    content: {
+      kind: "quote",
+      text: "How we spend our days is how we spend our lives.",
+      by: "Annie Dillard",
+    },
+    depth: 1,
+    x: 824,
+    y: 178,
+    w: 150,
+    h: 196,
+  },
+  { content: photo(p.vases), depth: 1, x: 548, y: -56, w: 128, h: 150 },
+  {
+    content: { kind: "video", src: p.sea, duration: "12:04" },
+    depth: 1,
+    x: 290,
+    y: 446,
+    w: 156,
+    h: 104,
   },
   {
     content: { kind: "pdf", title: "Studio lease", pages: "8 PAGES" },
-    layer: "near",
-    angle: 189,
-    ring: 1.02,
-    w: 155,
-    h: 200,
+    depth: 0.72,
+    x: -56,
+    y: -64,
+    w: 172,
+    h: 214,
   },
-  { content: photo(p.monstera), layer: "near", angle: 145, ring: 1, w: 146, h: 212 },
+  { content: photo(p.monstera), depth: 0.75, x: 846, y: -100, w: 160, h: 220 },
+  {
+    content: { kind: "note", title: "Call the framer", words: "9 WORDS" },
+    depth: 0.68,
+    x: 836,
+    y: 412,
+    w: 180,
+    h: 212,
+  },
 ];
 
-/** How strongly each layer follows the pointer and drifts; near moves most. */
-const DEPTH: Record<Layer, number> = { far: 0.3, mid: 0.6, near: 1 };
-const PARALLAX_PX = 40;
-const DRIFT_PX = 4;
-/** Every card makes one calm lap around the copy in this long, all together. */
-const LAP_SECONDS = 150;
-const CENTER = { x: 480, y: 270 };
-// The lap is a superellipse the stage's shape, not a circle, so cards ride out
-// into the corners instead of cutting across the copy on the diagonals.
-const HALF_W = 480;
-const HALF_H = 270;
-const SQUARENESS = 4;
+// Every offset below is divided by depth, so nearer cards move further.
+const BOB_PX = 5;
+const CURRENT_PX = 6;
+const PARALLAX_PX = 11;
+const TILT_DEG = 2;
+/** One slow swell of the shared current, in seconds. */
+const CURRENT_SECONDS = 90;
+const MAX_BLUR_PX = 3;
+const BLUR_PER_DEFOCUS = 5.5;
 
-/** Where a card sits after `turn` radians of lap, in stage pixels (top left). */
-function orbitPosition(card: FloatCard, turn: number) {
-  const angle = (card.angle * Math.PI) / 180 + turn;
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const radius =
-    card.ring / (Math.abs(cos) ** SQUARENESS + Math.abs(sin) ** SQUARENESS) ** (1 / SQUARENESS);
-  return {
-    x: CENTER.x + HALF_W * radius * cos - card.w / 2,
-    y: CENTER.y + HALF_H * radius * sin - card.h / 2,
-  };
+const blurFor = (depth: number) =>
+  Math.min(MAX_BLUR_PX, BLUR_PER_DEFOCUS * Math.abs(1 - 1 / depth));
+const opacityFor = (depth: number) => (depth > 1 ? 1 - 0.45 * (depth - 1) : 1);
+
+/** The card's transform `seconds` into the drift, with the eased pointer in -1..1. */
+function transformAt(card: AdriftCard, index: number, seconds: number, px: number, py: number) {
+  const reach = 1 / card.depth;
+  const current = (seconds / CURRENT_SECONDS) * Math.PI * 2;
+  const bobX = BOB_PX * Math.sin(seconds * (0.19 + (index % 3) * 0.04) + index * 2.1);
+  const bobY = BOB_PX * Math.cos(seconds * (0.23 + (index % 4) * 0.03) + index * 1.3);
+  const x = card.x + reach * (bobX + CURRENT_PX * Math.sin(current) - px * PARALLAX_PX);
+  const y = card.y + reach * (bobY + CURRENT_PX * 0.5 * Math.cos(current * 0.8) - py * PARALLAX_PX);
+  const tilt = TILT_DEG * Math.sin(seconds * (0.11 + (index % 5) * 0.02) + index * 0.9);
+  return `translate3d(${x}px, ${y}px, 0) rotate(${tilt}deg)`;
 }
 
 function CardBody({ content }: { content: Content }): ReactNode {
@@ -151,12 +150,19 @@ function CardBody({ content }: { content: Content }): ReactNode {
 }
 
 /**
- * Screen two's backdrop. One frame loop writes transforms straight to the
- * cards, so React renders this once; it lives only while the screen is shown.
- * Reduced motion keeps the starting layout.
+ * Screen two's backdrop: the library as still water, each card held at its own
+ * depth. One frame loop writes transforms straight to the cards, so React
+ * renders this once; it lives only while the screen is shown.
  */
-export function KeptFloating({ reducedMotion }: { reducedMotion: boolean }) {
+export function KeptAdrift({ reducedMotion }: { reducedMotion: boolean }) {
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const inkRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = inkRef.current;
+    if (!canvas) return;
+    return playInkWisps(canvas, { still: reducedMotion });
+  }, [reducedMotion]);
 
   useLayoutEffect(() => {
     if (reducedMotion) return;
@@ -166,39 +172,45 @@ export function KeptFloating({ reducedMotion }: { reducedMotion: boolean }) {
       pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
       pointer.y = (event.clientY / window.innerHeight) * 2 - 1;
     };
-    window.addEventListener("pointermove", onPointerMove);
 
-    const loop = { frame: 0, start: 0 };
+    const loop = { frame: 0, last: 0, seconds: 0 };
     const tick = (ms: number) => {
       loop.frame = requestAnimationFrame(tick);
-      if (!loop.start) loop.start = ms;
-      const seconds = (ms - loop.start) / 1000;
-      eased.x += (pointer.x - eased.x) * 0.06;
-      eased.y += (pointer.y - eased.y) * 0.06;
-      CARDS.forEach((card, index) => {
+      // Clamped so a long pause resumes where it stopped instead of jumping.
+      if (loop.last) loop.seconds += Math.min(ms - loop.last, 100) / 1000;
+      loop.last = ms;
+      eased.x += (pointer.x - eased.x) * 0.05;
+      eased.y += (pointer.y - eased.y) * 0.05;
+      for (let index = 0; index < CARDS.length; index++) {
         const el = cardRefs.current[index];
-        if (!el) return;
-        const depth = DEPTH[card.layer];
-        const driftX = Math.sin(seconds * 0.23 + index * 2.1) * DRIFT_PX * depth;
-        const driftY = Math.cos(seconds * 0.31 + index * 1.3) * DRIFT_PX * depth;
-        // Negative turns run counter-clockwise on screen (y points down).
-        const lap = orbitPosition(card, (-seconds / LAP_SECONDS) * Math.PI * 2);
-        const x = lap.x + driftX - eased.x * PARALLAX_PX * depth;
-        const y = lap.y + driftY - eased.y * PARALLAX_PX * depth;
-        el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-      });
+        const card = CARDS[index];
+        if (el && card)
+          el.style.transform = transformAt(card, index, loop.seconds, eased.x, eased.y);
+      }
     };
-    loop.frame = requestAnimationFrame(tick);
+    const start = () => {
+      loop.last = 0;
+      loop.frame = requestAnimationFrame(tick);
+    };
+    const onVisibility = () => {
+      cancelAnimationFrame(loop.frame);
+      if (!document.hidden) start();
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("visibilitychange", onVisibility);
+    if (!document.hidden) start();
     return () => {
       cancelAnimationFrame(loop.frame);
       window.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [reducedMotion]);
 
   return (
-    <div {...stylex.props(styles.floating)} aria-hidden="true">
+    <div {...stylex.props(styles.adrift)} aria-hidden="true">
+      <canvas ref={inkRef} aria-hidden="true" {...stylex.props(styles.ink)} />
       {CARDS.map((card, index) => {
-        const start = orbitPosition(card, 0);
         const bare = card.content.kind === "photo" || card.content.kind === "video";
         return (
           <div
@@ -209,9 +221,10 @@ export function KeptFloating({ reducedMotion }: { reducedMotion: boolean }) {
             }}
             {...stylex.props(
               styles.card,
-              styles[card.layer],
+              card.depth === 1 && styles.focal,
               bare && styles.bare,
-              styles.placed(card.w, card.h, start.x, start.y, 120 + index * 60),
+              styles.placed(card.w, card.h, transformAt(card, index, 0, 0, 0), 120 + index * 60),
+              styles.depth(card.depth > 1 ? 9 : 12, blurFor(card.depth), opacityFor(card.depth)),
             )}
           >
             <CardBody content={card.content} />
@@ -226,7 +239,15 @@ export function KeptFloating({ reducedMotion }: { reducedMotion: boolean }) {
 const cardIn = stylex.keyframes({ from: { opacity: 0, scale: "0.88" } });
 
 const styles = stylex.create({
-  floating: { position: "absolute", zIndex: 0, inset: 0 },
+  adrift: { position: "absolute", zIndex: 0, inset: 0 },
+  ink: {
+    position: "absolute",
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    color: color.ink,
+    pointerEvents: "none",
+  },
   card: {
     position: "absolute",
     left: 0,
@@ -244,15 +265,19 @@ const styles = stylex.create({
     animationTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
     animationFillMode: "both",
   },
-  far: { borderRadius: 9, opacity: 0.6, filter: "blur(1.5px)" },
-  mid: { borderRadius: 10, opacity: 0.85 },
-  near: { boxShadow: `0 18px 40px ${color.shadow}` },
+  focal: { boxShadow: `0 14px 32px ${color.shadow}` },
   bare: { borderWidth: 0 },
-  placed: (w: number, h: number, x: number, y: number, delay: number) => ({
+  placed: (w: number, h: number, transform: string, delay: number) => ({
     width: w,
     height: h,
-    transform: `translate3d(${x}px, ${y}px, 0)`,
+    transform,
     animationDelay: `${delay}ms`,
+  }),
+  // Blur is fixed per card and never animated: a moving filter repaints every frame.
+  depth: (radius: number, blur: number, opacity: number) => ({
+    borderRadius: radius,
+    filter: blur > 0.2 ? `blur(${blur.toFixed(2)}px)` : "none",
+    opacity,
   }),
   fill: {
     position: "absolute",
