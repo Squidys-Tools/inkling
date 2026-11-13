@@ -82,7 +82,15 @@ export function SpacesSection({
           <HugeiconsIcon icon={PlusSignIcon} size={14} />
         </button>
       </div>
-      <div ref={list} data-glide-hold="spaces" {...stylex.props(styles.list)}>
+      <div
+        ref={list}
+        data-glide-hold="spaces"
+        onScroll={(event) => {
+          const node = event.currentTarget;
+          node.style.setProperty("--spaces-fade", `${Math.min(node.scrollTop, 12)}px`);
+        }}
+        {...stylex.props(styles.list)}
+      >
         {spaces.map((space, index) => {
           const selected = shownSpace === space.id;
           // A Smart Space has no stored membership: its count is read when it opens and kept after.
@@ -235,6 +243,8 @@ const styles = stylex.create({
     minHeight: 0,
     overflowY: "auto",
     scrollbarWidth: "none",
+    // Rows scrolled under the header fade out; the fade grows with the first 12px of scroll.
+    maskImage: "linear-gradient(to bottom, transparent, black var(--spaces-fade, 0px))",
   },
   form: {
     display: "grid",
