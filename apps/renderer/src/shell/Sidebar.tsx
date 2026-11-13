@@ -57,8 +57,8 @@ function SidebarMascot() {
   return <Mascot mood={mood} size={44} visible />;
 }
 
-/** Shelf's Everything: the library's newest pictures over its name and count. */
-function ShelfEverything({ active, count }: { active: boolean; count: ReactNode }) {
+/** Strip's Everything: the library's newest pictures over its name and count. */
+function StripEverything({ active, count }: { active: boolean; count: ReactNode }) {
   const thumbs = useScopeThumbs(activeScope, 4);
   const urls = thumbs ? thumbs.split("\n").flatMap((path) => assetUrl(path) ?? []) : [];
   return (
@@ -111,8 +111,8 @@ export function Sidebar({
   });
 
   const compact = !visualOpen;
-  // The compact rail is one design; Shelf is a look of the expanded sidebar.
-  const shelf = useAppearance().sidebar === "shelf" && !compact;
+  // The compact rail is one design; Strip is a look of the expanded sidebar.
+  const strip = useAppearance().sidebar === "strip" && !compact;
   const [track, pill] = useSelectionPill();
   const openSettings = () =>
     void navigate({ to: ".", search: (prev) => ({ ...prev, settings: "general" }) });
@@ -195,11 +195,11 @@ export function Sidebar({
             </>
           )}
         </div>
-        <div ref={track} {...stylex.props(styles.track, shelf && styles.shelfTrack)}>
+        <div ref={track} {...stylex.props(styles.track, strip && styles.stripTrack)}>
           <span ref={pill} aria-hidden="true" {...stylex.props(styles.pill)} />
           <nav aria-label="Main navigation" {...stylex.props(styles.rows)}>
-            {shelf ? (
-              <ShelfEverything
+            {strip ? (
+              <StripEverything
                 active={shown === "Active"}
                 count={indexing ? indexingRing : total}
               />
@@ -216,12 +216,12 @@ export function Sidebar({
               />
             )}
           </nav>
-          <SpacesSection compact={compact} shelf={shelf} onExpand={() => setSidebarOpen(true)} />
+          <SpacesSection compact={compact} strip={strip} onExpand={() => setSidebarOpen(true)} />
         </div>
-        {shelf ? (
-          <div {...stylex.props(styles.footer, styles.shelfFooter)}>
+        {strip ? (
+          <div {...stylex.props(styles.footer, styles.stripFooter)}>
             <UpdateRow compact={false} />
-            <div {...stylex.props(styles.shelfRow)}>
+            <div {...stylex.props(styles.stripRow)}>
               <AddMenu compact={false} beside={92} />
               <Link
                 to="/archive"
@@ -300,7 +300,6 @@ const styles = stylex.create({
     gap: "14px",
     minHeight: 0,
     paddingTop: "32px",
-    backgroundColor: color.surface,
     paddingInline: "8px",
     paddingBottom: "10px",
     borderTopRightRadius: radius.panel,
@@ -390,7 +389,7 @@ const styles = stylex.create({
     gap: "14px",
     minHeight: 0,
   },
-  shelfTrack: { gap: "10px" },
+  stripTrack: { gap: "10px" },
   // Under the rows: z-index -1 inside the track's own stacking context.
   pill: {
     position: "absolute",
@@ -479,8 +478,8 @@ const styles = stylex.create({
     borderTopStyle: "solid",
     borderTopColor: color.border,
   },
-  shelfFooter: { gap: "8px", paddingTop: "6px", borderTopWidth: 0 },
-  shelfRow: { display: "flex", alignItems: "center", gap: "6px", minWidth: 0 },
+  stripFooter: { gap: "8px", paddingTop: "6px", borderTopWidth: 0 },
+  stripRow: { display: "flex", alignItems: "center", gap: "6px", minWidth: 0 },
   square: {
     display: "grid",
     placeItems: "center",

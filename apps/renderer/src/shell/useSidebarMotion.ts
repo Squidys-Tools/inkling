@@ -44,7 +44,7 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
     const addLabel = add?.querySelector<HTMLElement>("[data-sidebar-add-label]");
     // A reversal starts the Add button from its painted size, not its old endpoint.
     const addMoving = addFlights.current.length > 0;
-    // Expanded, Shelf's Add shares its row; the compact rail's never does.
+    // Expanded, Strip's Add shares its row; the compact rail's never does.
     const beside = Number(add?.dataset.sidebarAddBeside ?? 0);
     const fromAdd =
       addMoving && add
