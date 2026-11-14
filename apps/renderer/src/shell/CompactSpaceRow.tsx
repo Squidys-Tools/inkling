@@ -28,6 +28,7 @@ export function CompactSpaceRow({
       draggable={false}
       data-space-id={space.id}
       data-glide={`space ${space.id}`}
+      data-sidebar-nav
       aria-label={space.name}
       title={space.name}
       aria-current={selected ? "page" : undefined}
@@ -54,13 +55,16 @@ const styles = stylex.create({
     height: "36px",
     borderRadius: radius.control,
     textDecoration: "none",
-    backgroundColor: { default: "transparent", ":hover": color.overlayHover },
+    backgroundColor: {
+      default: "transparent",
+      ":hover": color.overlayHover,
+      ":focus-visible": color.overlayHover,
+    },
     cursor: "pointer",
     transform: { default: "none", ":active": "scale(0.94)" },
     transitionProperty: "background-color, transform",
     transitionDuration: motion.micro,
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-    outlineOffset: "-2px",
+    outline: "none",
   },
   // The open row's height and cover spot, so closing the sidebar only crops each row.
   cover: { position: "absolute", left: "14px", top: "6px" },

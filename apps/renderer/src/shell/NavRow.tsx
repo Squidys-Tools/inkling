@@ -42,6 +42,7 @@ export function NavLink({
       title={compact ? label : undefined}
       aria-current={active ? "page" : undefined}
       data-glide={glide}
+      data-sidebar-nav
       {...stylex.props(
         styles.row,
         styles[tone],
@@ -125,7 +126,12 @@ const styles = stylex.create({
     paddingLeft: "18px",
     paddingRight: "10px",
     borderRadius: radius.control,
-    backgroundColor: { default: "transparent", ":hover": color.overlayHover },
+    // Keyboard focus lights the row like a hover; a ring would sit on the selected row too.
+    backgroundColor: {
+      default: "transparent",
+      ":hover": color.overlayHover,
+      ":focus-visible": color.overlayHover,
+    },
     lineHeight: "18px",
     textDecoration: "none",
     cursor: "pointer",
@@ -133,8 +139,7 @@ const styles = stylex.create({
     transitionProperty: "color, background-color, transform",
     transitionDuration: motion.micro,
     transitionTimingFunction: motion.enter,
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-    outlineOffset: "-2px",
+    outline: "none",
   },
   compact: { justifyContent: "center", paddingLeft: 0, paddingRight: 0 },
   button: { width: "100%", borderWidth: 0, fontFamily: font.body, textAlign: "left" },
