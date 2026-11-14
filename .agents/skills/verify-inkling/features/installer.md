@@ -4,8 +4,8 @@
 
 ## Sub-features
 
-- `setup-welcome` the window opens on Install; only the visible screen's buttons are in the accessibility tree.
-- `setup-progress` the bar tracks the install's real duration (`$I progress`).
+- `setup-welcome` the window opens on Install; each screen's own buttons appear only while it shows, but the capsule `Minimize`/`Close` are in the tree on every screen (Close only disappears while installing).
+- `setup-progress` the bar tracks the install's real work — phase-weighted (read/check/stage/copy), not elapsed time; `$I progress` resamples it at tenths of the run (`$I progress`).
 - `setup-ready` success shows "You're all set" and the countdown sends `open`.
 - `setup-failed` an install that leaves no `inkling.exe` shows "Setup didn't finish" with the reason.
 - `setup-close` the page's Close button closes the window on every screen except installing, where it is gone.
@@ -23,7 +23,7 @@ Preconditions: `.artifacts/electron/win-unpacked` from `bun run dist` (any recen
 - `$I progress` reads the stub's samples: the bar at each tenth of the real duration. An even pace climbs about 10 points a row; a 13 s install ends at 99% with no row more than ~20 points off.
 - Wait for `ref button "Open now"`, then `$I shot`: the countdown fires `open` 3 s later. Under the harness the stub logs `open` to `progress.log` and starts nothing, then closes.
 - Proof of install: `<run>/install/inkling.exe` exists, and `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\bbf65adc-c826-4291-bfd0-9e266345089d` names `inkling setup verify`.
-- `$I launch --installer --fail` puts a file where the install folder goes. `build/installer.nsh` finds no `inkling.exe`, deletes the keys NSIS just wrote and exits 3; the window shows "Setup didn't finish" / "Setup couldn't write inkling's files to <dir>". Proof: both `reg query` keys under the guid (Uninstall and `HKCU\Software\<guid>`) are missing while that screen shows.
+- `$I launch --installer --fail` puts a file where the install folder goes. `build/installer.nsh` finds no `inkling.exe`, deletes the keys NSIS just wrote and exits 3; the window shows "Setup didn't finish" / "Setup couldn't write inkling's files to <dir>". Proof: both `reg query` keys under the guid (Uninstall and `HKCU\Software\<guid>`) are missing while that screen shows. `Try again` re-runs the same install — under `--fail` the blocking file is still there, so it lands back on the failed screen, not on ready.
 - Close: `$I ad click "$($I ref button Close --in "$($I ref group 'Chrome Legacy Window')")"`. The hidden native title bar also has Minimize and Close, so unscoped `ref button Close` finds several.
 
 ## Isolation

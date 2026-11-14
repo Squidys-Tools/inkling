@@ -10,7 +10,7 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 
 ## Driving conventions
 
-- Look up controls by exact accessible name: `$I ref <role> "<name>"` prints a fresh ref; act with `$I ad click|set-value|expand '<ref>'`. Re-resolve after every UI change; refs die with their snapshot.
+- Look up controls by exact accessible name: `$I ref <role> "<name>"` prints a fresh ref; act with `$I ad click|set-value|expand '<ref>'`. Re-resolve after every UI change; refs die with their snapshot. Right after launch the `Add` menu mounts lazily — `ref menubutton Add` can match 0 while its chunk loads; retry once.
 - Quote refs in PowerShell (`'@s…:e1'`).
 - The grid is virtualized: counting visible card groups is not counting items. Use the sidebar link `Everything <n>` and `db` for counts.
 - Text goes in with `set-value` (accessibility ValuePattern); it is not keystroke typing. Keys go through `$I ad press <combo> --window-id '{window}'`: they reach our window without taking focus and report `delivered_unverified`, so confirm the effect with `tree` or `db`.

@@ -24,6 +24,6 @@ Preconditions: seeded library, Everything shown. Item `5` (`Post: The first post
 
 ## Gotchas
 
-- The stored tag is trimmed, lowercased and stripped of a leading `#`, so `  MiXeD Case  ` saves as `mixed case` and the remove button's name is `Remove tag launch`, not `#Launch`. A tag the item already has is silently ignored — Enter commits nothing and the field stays open.
+- The stored tag is trimmed, lowercased and stripped of leading `#`s (`##x` saves as `x`), so `  MiXeD Case  ` saves as `mixed case` and the remove button's name is `Remove tag launch`, not `#Launch`. A tag the item already has is silently ignored — Enter commits nothing and the field stays open. Blurring the field with a non-empty draft commits the tag and closes it without returning focus to `Add tag` — a driver that clicks away mid-edit ends up with an extra tag.
 - The row is `list "Spaces and tags"`; `tree` prints its entries as `option`s (so `option "Add tag"` sits beside `button "Add tag"`), and each tag's `Remove tag <name>` button sits in its own entry. `ref button 'Add tag'` is still unique.
 - In bash, escape the `$` in `'$.tags'` when the query sits in double quotes.
