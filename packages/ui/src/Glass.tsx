@@ -17,12 +17,13 @@ export function Glass({
 
 const styles = stylex.create({
   glass: {
-    backgroundColor: color.glass,
-    backdropFilter: "blur(20px) saturate(1.4)",
+    backgroundColor: color.glassThin,
+    backgroundImage: `radial-gradient(90% 180% at 22% 0%, ${color.glassSheen}, transparent 70%)`,
+    backdropFilter: "blur(32px) saturate(1.3)",
     borderWidth: 1,
     borderStyle: "solid",
-    borderColor: color.glassEdge,
+    borderColor: color.glassRim,
     borderRadius: radius.panel,
-    boxShadow: `0 12px 32px ${color.shadow}`,
+    boxShadow: `inset 0 1px 0 ${color.glassSheen}, 0 10px 30px ${color.shadow}`,
   },
 });
