@@ -1,15 +1,28 @@
-# inkling
+<p align="center">
+  <a href="https://getinkling.dev">
+    <img src="build/icon.png" width="96" height="96" alt="inkling">
+  </a>
+</p>
 
-### Save anything worth remembering. Find it later without organizing.
+<h1 align="center">inkling</h1>
 
-inkling is a private visual library for your desktop. Save articles, images, screenshots, PDFs, notes, quotes and video links in a couple of seconds, then find them again by describing them. There are no folders to keep and no tags to maintain. Search is the organizer.
+<p align="center">Save anything worth remembering. Find it later without organizing.</p>
 
-<picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/mascots/inkling-splash-still.svg">
-  <img src="docs/assets/mascots/inkling-splash-loop.svg" alt="inkling mascot, a small ink blot that drifts, blinks and changes expression" width="160">
-</picture>
+<p align="center">
+  <a href="https://getinkling.dev/download"><strong>Download</strong></a> ·
+  <a href="https://getinkling.dev">Website</a> ·
+  <a href="docs/README.md">Docs</a> ·
+  <a href="docs/roadmap.md">Roadmap</a> ·
+  <a href="https://github.com/Squidys-Tools/inkling/issues/new/choose">Report a bug</a>
+</p>
 
-![Your inkling library — a visual grid of saved articles, images, quotes, and videos](docs/assets/screenshots/library.png)
+<p align="center">
+  <a href="https://getinkling.dev">
+    <img src="docs/assets/screenshots/library.png" width="100%" alt="An inkling library: a grid of saved images, notes, quotes, posts and PDFs">
+  </a>
+</p>
+
+inkling is a private visual library for your desktop. Save articles, images, screenshots, PDFs, notes, quotes and video links, then find them again by describing them. There are no folders to keep and no tags to maintain. Search is the organizer.
 
 ## What it does
 
