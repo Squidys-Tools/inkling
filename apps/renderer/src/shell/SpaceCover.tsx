@@ -20,19 +20,37 @@ export function SpaceCover({
     return (
       <span aria-hidden="true" {...stylex.props(styles.slot, tints[space.color], style)}>
         {thumbs[0] && (
-          <img src={thumbs[0]} alt="" {...thumbProps} {...stylex.props(styles.inner)} />
+          <img
+            key={thumbs[0]}
+            src={thumbs[0]}
+            alt=""
+            {...thumbProps}
+            {...stylex.props(styles.inner)}
+          />
         )}
       </span>
     );
   return (
     <span aria-hidden="true" {...stylex.props(styles.split, tints[space.color], style)}>
       {thumbs[0] && (
-        <img src={thumbs[0]} alt="" {...thumbProps} {...stylex.props(styles.half, styles.upper)} />
+        <img
+          key={thumbs[0]}
+          src={thumbs[0]}
+          alt=""
+          {...thumbProps}
+          {...stylex.props(styles.half, styles.upper)}
+        />
       )}
       {thumbs[1] && (
-        <img src={thumbs[1]} alt="" {...thumbProps} {...stylex.props(styles.half, styles.lower)} />
+        <img
+          key={thumbs[1]}
+          src={thumbs[1]}
+          alt=""
+          {...thumbProps}
+          {...stylex.props(styles.half, styles.lower)}
+        />
       )}
-      {/* Dashed until the Space has been opened and shown what it matches. */}
+      {/* Dashed while it has no picture to show, as before a Smart Space is first opened. */}
       <span {...stylex.props(styles.seam, thumbs.length === 0 && styles.seamDashed)} />
     </span>
   );
