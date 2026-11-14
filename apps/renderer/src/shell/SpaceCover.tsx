@@ -32,7 +32,8 @@ export function SpaceCover({
       {thumbs[1] && (
         <img src={thumbs[1]} alt="" {...thumbProps} {...stylex.props(styles.half, styles.lower)} />
       )}
-      <span {...stylex.props(styles.seam)} />
+      {/* Dashed until the Space has been opened and shown what it matches. */}
+      <span {...stylex.props(styles.seam, thumbs.length === 0 && styles.seamDashed)} />
     </span>
   );
 }
@@ -83,11 +84,12 @@ const styles = stylex.create({
     borderRadius: "7px",
     pointerEvents: "none",
   },
+  // Fills the outline, a 1px gap short of its dashes so they stay readable over any picture.
   inner: {
     display: "block",
-    width: "17px",
-    height: "17px",
-    borderRadius: "3.5px",
+    width: "19px",
+    height: "19px",
+    borderRadius: "4.5px",
     objectFit: "cover",
   },
   split: {
@@ -121,6 +123,10 @@ const styles = stylex.create({
     height: "2px",
     backgroundColor: "currentColor",
     transform: "translate(-50%, -50%) rotate(-45deg)",
+  },
+  seamDashed: {
+    backgroundColor: "transparent",
+    backgroundImage: "repeating-linear-gradient(to right, currentColor 0 3px, transparent 3px 5px)",
   },
   swatch: {
     position: "relative",
