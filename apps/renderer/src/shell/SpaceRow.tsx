@@ -219,6 +219,7 @@ export function SpaceRow({
             if (opensMenu(event)) void openSpaceMenu(event, space.name, can, actions);
           }}
           aria-current={selected ? "page" : undefined}
+          data-sidebar-nav
           {...stylex.props(styles.name, strip && styles.stripName)}
         >
           <span data-sidebar-label {...stylex.props(styles.nameText)}>
@@ -242,7 +243,7 @@ export function SpaceRow({
           title="Rename, color, move, delete"
           aria-haspopup="menu"
           onClick={(event) => void openSpaceMenu(event, space.name, can, actions)}
-          {...stylex.props(styles.more)}
+          {...stylex.props(styles.more, strip && styles.stripMore)}
         >
           <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
         </button>
@@ -313,13 +314,13 @@ const styles = stylex.create({
     flexGrow: 1,
     minWidth: 0,
     height: "100%",
-    // The link is the whole row, so a click anywhere opens the Space and focus rings the row.
+    // The link is the whole row, so a click anywhere opens the Space and focus lights the row.
     paddingLeft: "44px",
     paddingRight: "10px",
     color: "inherit",
     textDecoration: "none",
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-    outlineOffset: "-2px",
+    backgroundColor: { default: "transparent", ":focus-visible": color.overlayHover },
+    outline: "none",
     borderRadius: radius.control,
   },
   nameText: {
@@ -369,6 +370,8 @@ const styles = stylex.create({
     transitionProperty: "opacity",
     transitionDuration: motion.micro,
   },
+  // Centered on the name's line, which sits at the top of a Strip row.
+  stripMore: { top: "4px" },
   renaming: {
     backgroundColor: { default: color.overlayHover, ":hover": color.overlayHover },
     boxShadow: `inset 0 0 0 1px ${color.borderStrong}`,

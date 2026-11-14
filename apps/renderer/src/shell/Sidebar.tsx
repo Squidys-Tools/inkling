@@ -4,7 +4,7 @@ import SidebarLeftIcon from "@hugeicons/core-free-icons/SidebarLeftIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch as useRouteSearch } from "@tanstack/react-router";
-import { type ReactNode, useLayoutEffect, useRef } from "react";
+import { type KeyboardEvent, type ReactNode, useLayoutEffect, useRef } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { useCaptureState } from "../capture/capture.ts";
@@ -68,6 +68,7 @@ function StripEverything({ active, count }: { active: boolean; count: ReactNode 
       draggable={false}
       onClick={() => search.clear()}
       aria-current={active ? "page" : undefined}
+      data-sidebar-nav
       {...stylex.props(styles.hero, active && styles.heroActive)}
     >
       {urls.length > 0 && (
@@ -130,9 +131,24 @@ export function Sidebar({
   useLayoutEffect(() => {
     if (!returnToggleFocus.current || visualOpen !== open) return;
     returnToggleFocus.current = false;
-    if (reopenButton.current?.getAttribute("aria-expanded") === String(open))
-      reopenButton.current.focus({ preventScroll: true });
-  }, [open, visualOpen]);
+    // The rail's mascot is no keyboard stop, so closing hands focus to the open row instead.
+    const rows = area.current?.querySelectorAll<HTMLElement>("[data-sidebar-nav]") ?? [];
+    const target = open
+      ? reopenButton.current
+      : ([...rows].find((row) => row.getAttribute("aria-current") === "page") ?? rows[0]);
+    target?.focus({ preventScroll: true });
+  }, [open, visualOpen, area]);
+  // Up and Down step through the destinations; Tab still visits each row's own buttons.
+  const stepFocus = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (!(event.target instanceof HTMLElement) || !event.target.matches("[data-sidebar-nav]"))
+      return;
+    const rows = [...event.currentTarget.querySelectorAll<HTMLElement>("[data-sidebar-nav]")];
+    const next = rows[rows.indexOf(event.target) + (event.key === "ArrowDown" ? 1 : -1)];
+    event.preventDefault();
+    next?.focus();
+  };
   const indexing = useSearchIndexing();
   const indexingRing = <IndexingRing label="Updating search for this version" />;
   return (
@@ -150,6 +166,7 @@ export function Sidebar({
         id="library-navigation"
         aria-label="Library"
         data-collapsed={compact}
+        onKeyDown={stepFocus}
         {...stylex.props(
           styles.sidebar,
           styles.width(width),
@@ -163,6 +180,8 @@ export function Sidebar({
             <button
               type="button"
               ref={reopenButton}
+              // The mascot is a pointer shortcut; the keyboard reopens with the sidebar shortcut.
+              tabIndex={-1}
               aria-label="Open sidebar"
               title="Open sidebar"
               data-bench="sidebar-toggle"
@@ -237,6 +256,7 @@ export function Sidebar({
                 draggable={false}
                 data-sidebar-label
                 data-glide="archive"
+                data-sidebar-nav
                 aria-label="Archive"
                 title="Archive"
                 aria-current={shown === "Archived" ? "page" : undefined}
@@ -356,8 +376,7 @@ const styles = stylex.create({
     borderRadius: radius.control,
     backgroundColor: "transparent",
     cursor: "pointer",
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-    outlineOffset: "-2px",
+    outline: "none",
   },
   wordmark: {
     marginLeft: "-4px",
@@ -398,7 +417,11 @@ const styles = stylex.create({
     padding: "6px",
     paddingBottom: "8px",
     borderRadius: radius.panel,
-    backgroundColor: { default: color.raised, ":hover": color.hover },
+    backgroundColor: {
+      default: color.raised,
+      ":hover": color.hover,
+      ":focus-visible": color.hover,
+    },
     color: color.inkSoft,
     fontSize: "14px",
     lineHeight: "18px",
@@ -408,7 +431,7 @@ const styles = stylex.create({
     transitionProperty: "background-color, transform",
     transitionDuration: motion.micro,
     transitionTimingFunction: motion.enter,
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
+    outline: "none",
   },
   heroActive: {
     fontWeight: 600,
@@ -464,14 +487,18 @@ const styles = stylex.create({
     padding: 0,
     borderWidth: 0,
     borderRadius: radius.tile,
-    backgroundColor: { default: color.raised, ":hover": color.hover },
-    color: { default: color.muted, ":hover": color.ink },
+    backgroundColor: {
+      default: color.raised,
+      ":hover": color.hover,
+      ":focus-visible": color.hover,
+    },
+    color: { default: color.muted, ":hover": color.ink, ":focus-visible": color.ink },
     cursor: "pointer",
     transform: { default: "none", ":active": "scale(0.94)" },
     transitionProperty: "color, background-color, transform",
     transitionDuration: motion.micro,
     transitionTimingFunction: motion.enter,
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
+    outline: "none",
   },
   squareActive: {
     backgroundColor: { default: color.hover, ":hover": color.hover },
