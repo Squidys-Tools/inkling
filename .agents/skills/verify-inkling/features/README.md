@@ -10,11 +10,11 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 
 ## Driving conventions
 
-- Look up controls by exact accessible name: `$I ref <role> "<name>"` prints a fresh ref; act with `$I ad click|set-value|expand '<ref>'`. Re-resolve after every UI change; refs die with their snapshot.
+- Look up controls by exact accessible name: `$I ref <role> "<name>"` prints a fresh ref; act with `$I ad click|set-value|expand '<ref>'`. Re-resolve after every UI change; refs die with their snapshot. Right after launch the `Add` menu mounts lazily — `ref menubutton Add` can match 0 while its chunk loads; retry once.
 - Quote refs in PowerShell (`'@s…:e1'`).
 - The grid is virtualized: counting visible card groups is not counting items. Use the sidebar link `Everything <n>` and `db` for counts.
 - Text goes in with `set-value` (accessibility ValuePattern); it is not keystroke typing. Keys go through `$I ad press <combo> --window-id '{window}'`: they reach our window without taking focus and report `delivered_unverified`, so confirm the effect with `tree` or `db`.
-- Menus are reachable through `$I tree --surface menu`. Confirmations are an in-app dialog in the main window's tree (`alertdialog` on Windows, `alert` on Linux).
+- Menus are reachable through `$I tree --surface menu`. Confirmations are an in-app dialog in the main window's tree (`alertdialog` on Windows, `alert` on Linux) — on Windows an open `alertdialog` wedges `ref`/`tree`, so drive it with `press` keys (see spaces.md).
 - Cards are only in the tree on Everything with no item open. If `ref group '<Kind>: <title>'` finds nothing, you are on an item view (`#/item/<id>`), a form (`#/add/…`) or a Space: go to Everything with `$I ad click "$($I ref link Everything --contains)"`.
 - A ref found with `--in <ref>` still can't be clicked when sibling elements share the accessible name (`AMBIGUOUS_TARGET`): open the item and use a uniquely named control instead.
 - After every mutation read the stored row with `$I db "<SELECT>"` and take `$I shot <name>`.
@@ -40,6 +40,7 @@ Every feature was executed end to end with agent-desktop on 2026-11-13 unless it
 - [Archive and restore](./archive-restore.md): item Archive, Archive view, Restore.
 - [Tags](./tags.md): item view > Add tag, Enter, Escape, Remove tag.
 - [Similar items](./item-similar.md): item view > Similar, empty state and populated tiles.
+- [Welcome tour](./welcome.md): first launch on an unfinished library, `launch --empty`. Driven 2026-11-14.
 - [Windows setup window](./installer.md): `launch --installer`, Install, progress pacing, ready, failed. Driven 2026-11-13.
 
 ## Not covered, with the reason

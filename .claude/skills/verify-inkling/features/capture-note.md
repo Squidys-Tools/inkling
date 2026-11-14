@@ -5,13 +5,13 @@ Capture a note saves typed text as a note card in Everything immediately, with a
 ## Sub-features
 
 - `note-open` opens the note editor from the Add menu.
-- `note-save` saves the text and returns to Everything with a new card.
+- `note-save` saves the text and steps back to the view under the editor (usually Everything) with a new card.
 - `note-store` persists the body in the library.
 
 ## How to get to it (user POV)
 
 - Choose **Add** in the sidebar, then **Note**. The `n` / Ctrl+N shortcut opens the same editor. Ctrl+Enter also saves.
-- Paste, drag and drop, and the extension create other kinds; not this feature — except text: pasted or dropped plain text creates a `note` row straight to the library with no editor (`captureSource` `clipboard` / `drag and drop`; a URL alone becomes a `url` item instead).
+- Paste, drag and drop, and the extension create other kinds; not this feature — except text: pasted or dropped plain text while the library grid is shown creates a `note` row straight to the library with no editor (`captureSource` `clipboard` / `drag and drop`; a URL alone becomes a `url` item instead).
 
 ## Driving it with agent-desktop
 
