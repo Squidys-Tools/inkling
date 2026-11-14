@@ -83,20 +83,11 @@ export function SpaceStrip({
     );
   return (
     <span {...stylex.props(styles.strip, styles.stripSplit, tints[space.color])}>
-      {[0, 1, 2, 3].map((slot) => {
-        const url = thumbs[slot];
-        return url ? (
-          <img
-            key={`${slot} ${url}`}
-            src={url}
-            alt=""
-            {...thumbProps}
-            {...stylex.props(styles.stripImage)}
-          />
-        ) : (
-          <span key={`empty-${slot}`} {...stylex.props(styles.stripImage)} />
-        );
-      })}
+      {thumbs.slice(0, 4).map((url, slot) => (
+        <span key={url} {...stylex.props(styles.pane, styles.paneAt(slot))}>
+          <img src={url} alt="" {...thumbProps} {...stylex.props(styles.paneImage)} />
+        </span>
+      ))}
       {[1, 2, 3].map((slot) => (
         <span
           key={slot}
@@ -212,6 +203,30 @@ const styles = stylex.create({
   stripSplit: { overflow: "hidden", borderRadius: "7px", backgroundColor: color.raised },
   stripImage: { display: "block", flexGrow: 1, flexBasis: 0, minWidth: 0, objectFit: "cover" },
   stripSlotImage: { borderRadius: "4px" },
+  // Each picture is cut to the same slant as the seams, so they meet on the seam, not under it.
+  // The end panes run past the strip's edges, which its rounded overflow trims straight.
+  pane: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    overflow: "hidden",
+    transform: "skewX(-16deg)",
+  },
+  paneAt: (slot: number) => ({
+    left: slot === 0 ? "-10px" : `${slot * 25}%`,
+    right: slot === 3 ? "-10px" : `${(3 - slot) * 25}%`,
+  }),
+  // Skewed back so the picture is upright; the overhang covers the slant up to a 70px strip.
+  paneImage: {
+    position: "absolute",
+    top: 0,
+    left: "-10px",
+    display: "block",
+    width: "calc(100% + 20px)",
+    height: "100%",
+    objectFit: "cover",
+    transform: "skewX(16deg)",
+  },
   // Taller than the strip, so the slant runs off both edges.
   cut: {
     position: "absolute",
