@@ -52,6 +52,9 @@ export function SpaceRow({
   const [lift, setLift] = useState<number | null>(null);
   const dragged = useRef(false);
   const refocus = useRef(false);
+  // The field fires blur as it unmounts, so only the first of Enter, Escape or blur settles it.
+  const editing = useRef(false);
+  const caretAtEnd = useRef(false);
   const thumbs = useSpaceThumbs(space);
   // A remembered cover may belong to an item deleted since; then the plain mark returns.
   const [brokenCover, setBrokenCover] = useState<string>();
@@ -60,7 +63,21 @@ export function SpaceRow({
   const commit = async (draft: string) => {
     setRenaming(null);
     // A failed rename reopens the field with what was typed, so nothing is lost.
-    if (!(await renameSpace(space, draft))) setRenaming(draft);
+    if (await renameSpace(space, draft)) return;
+    editing.current = true;
+    setRenaming(draft);
+  };
+  const startRename = (atEnd: boolean) => {
+    if (compact) setSidebarOpen(true);
+    editing.current = true;
+    caretAtEnd.current = atEnd;
+    setRenaming(space.name);
+  };
+  const finishRename = (save: boolean) => {
+    if (!editing.current || renaming === null) return;
+    editing.current = false;
+    if (save) void commit(renaming);
+    else setRenaming(null);
   };
 
   const remove = async () => {
@@ -72,10 +89,7 @@ export function SpaceRow({
     up: () => void moveSpace(space, -1),
     down: () => void moveSpace(space, 1),
     color: () => void recolorSpace(space),
-    rename: () => {
-      if (compact) setSidebarOpen(true);
-      setRenaming(space.name);
-    },
+    rename: () => startRename(false),
     delete: () => void remove(),
   };
   if (compact && renaming === null)
@@ -156,6 +170,7 @@ export function SpaceRow({
         styles.row,
         strip ? styles.stripRow : styles.coverRow,
         selected && (strip ? styles.stripSelected : styles.selected),
+        renaming !== null && styles.renaming,
         lift !== null && styles.lifted,
         lift !== null && styles.lift(lift),
         spaceRowMarker,
@@ -194,17 +209,21 @@ export function SpaceRow({
           aria-label={`Rename ${space.name}`}
           maxLength={80}
           onChange={(event) => setRenaming(event.target.value)}
-          onFocus={(event) => event.currentTarget.select()}
+          onFocus={(event) => {
+            const field = event.currentTarget;
+            // A double-click edits where the name is; Rename from the menu replaces it.
+            if (caretAtEnd.current) field.setSelectionRange(field.value.length, field.value.length);
+            else field.select();
+          }}
           onKeyDown={(event) => {
             event.stopPropagation();
             if (event.key !== "Enter" && event.key !== "Escape") return;
             // The field goes away under the keyboard, so focus returns to the row it renamed.
             refocus.current = true;
-            if (event.key === "Enter") void commit(renaming);
-            else setRenaming(null);
+            finishRename(event.key === "Enter");
           }}
           // Blur keeps what was typed, like renaming in a file manager.
-          onBlur={() => void commit(renaming)}
+          onBlur={() => finishRename(true)}
           {...stylex.props(styles.rename, strip && styles.stripRename)}
         />
       ) : (
@@ -219,6 +238,10 @@ export function SpaceRow({
           // A native link drag would cancel the pointer events that reorder the row.
           draggable={false}
           onClick={() => search.clear()}
+          onDoubleClick={(event) => {
+            event.preventDefault();
+            startRename(true);
+          }}
           onKeyDown={(event) => {
             if (opensMenu(event)) void openSpaceMenu(event, space.name, can, actions);
           }}
@@ -308,7 +331,7 @@ const styles = stylex.create({
   stripMark: { top: "7px" },
   // The link still covers the whole row, pictures included, so any click opens the Space.
   stripName: { alignItems: "flex-start", paddingTop: "7px", borderRadius: radius.tile },
-  stripRename: { alignSelf: "flex-start", marginTop: "4px" },
+  stripRename: { alignSelf: "flex-start", marginTop: "7px" },
   strip: {
     position: "absolute",
     left: "8px",
@@ -431,21 +454,25 @@ const styles = stylex.create({
     transitionProperty: "opacity",
     transitionDuration: motion.micro,
   },
+  renaming: {
+    backgroundColor: { default: color.overlayHover, ":hover": color.overlayHover },
+    boxShadow: `inset 0 0 0 1px ${color.borderStrong}`,
+  },
+  // The name's own spot, font and weight, so editing it moves nothing.
   rename: {
     flexGrow: 1,
     minWidth: 0,
-    minHeight: "26px",
     marginLeft: "44px",
     marginRight: "10px",
-    paddingInline: "8px",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: color.accent,
-    borderRadius: "8px",
-    backgroundColor: color.surface,
-    color: color.ink,
-    fontFamily: font.body,
-    fontSize: "13px",
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    color: color.inkStrong,
+    caretColor: color.accent,
+    fontFamily: "inherit",
+    fontSize: "inherit",
+    fontWeight: "inherit",
+    lineHeight: "normal",
     outline: "none",
   },
 });
