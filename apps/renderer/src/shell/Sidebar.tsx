@@ -58,6 +58,13 @@ function SidebarMascot() {
   return <Mascot mood={mood} size={44} visible />;
 }
 
+function steppedRow(event: KeyboardEvent<HTMLElement>) {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return undefined;
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return undefined;
+  const row = event.target;
+  return row instanceof HTMLElement && row.matches("[data-sidebar-nav]") ? row : undefined;
+}
+
 /** Strip's Everything: the library's newest pictures over its name and count. */
 function StripEverything({ active, count }: { active: boolean; count: ReactNode }) {
   const thumbs = useScopeThumbs(activeScope, 4);
@@ -140,14 +147,17 @@ export function Sidebar({
   }, [open, visualOpen, area]);
   // Up and Down step through the destinations; Tab still visits each row's own buttons.
   const stepFocus = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    if (!(event.target instanceof HTMLElement) || !event.target.matches("[data-sidebar-nav]"))
-      return;
+    const row = steppedRow(event);
+    if (!row) return;
     const rows = [...event.currentTarget.querySelectorAll<HTMLElement>("[data-sidebar-nav]")];
-    const next = rows[rows.indexOf(event.target) + (event.key === "ArrowDown" ? 1 : -1)];
+    const next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)];
     event.preventDefault();
     next?.focus();
+  };
+  // A held arrow only moves focus and the row opens on release, so a Smart Space runs its search once.
+  const openStepped = (event: KeyboardEvent<HTMLElement>) => {
+    const row = steppedRow(event);
+    if (row && !row.hasAttribute("aria-current")) row.click();
   };
   const indexing = useSearchIndexing();
   const indexingRing = <IndexingRing label="Updating search for this version" />;
@@ -167,6 +177,7 @@ export function Sidebar({
         aria-label="Library"
         data-collapsed={compact}
         onKeyDown={stepFocus}
+        onKeyUp={openStepped}
         {...stylex.props(
           styles.sidebar,
           styles.width(width),
