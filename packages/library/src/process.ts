@@ -189,6 +189,8 @@ const handlers = LibraryRpcs.toLayer(
         ),
       deleteSpace: ({ id }) =>
         answer(library.deleteSpace(id)).pipe(Effect.tap(() => publish({ _tag: "SpacesChanged" }))),
+      restoreSpace: ({ id }) =>
+        answer(library.restoreSpace(id)).pipe(Effect.tap(() => publish({ _tag: "SpacesChanged" }))),
       swapSpaces: ({ firstId, secondId }) =>
         answer(library.swapSpacePositions(firstId, secondId)).pipe(
           Effect.tap(() => publish({ _tag: "SpacesChanged" })),
