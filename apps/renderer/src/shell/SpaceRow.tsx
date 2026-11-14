@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { type ImgHTMLAttributes, type PointerEvent, useRef, useState } from "react";
+import { type PointerEvent, useRef, useState } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { search } from "../library/search.ts";
 import { useSpaceThumbs } from "../library/spaceThumbs.ts";
@@ -14,7 +14,7 @@ import { confirm } from "./confirm.ts";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { SelectionFill } from "./NavRow.tsx";
 import { dragSteps } from "./sidebarGeometry.ts";
-import { SpaceCover, SpaceSwatch } from "./SpaceCover.tsx";
+import { SpaceCover, SpaceStrip } from "./SpaceCover.tsx";
 import { glide } from "./useReorderGlide.ts";
 import { opensMenu, openSpaceMenu } from "./spaceMenu.ts";
 
@@ -173,13 +173,7 @@ export function SpaceRow({
       )}
     >
       {selected && !strip && <SelectionFill />}
-      {strip ? (
-        <span {...stylex.props(styles.swatch)}>
-          <SpaceSwatch space={space} />
-        </span>
-      ) : (
-        <SpaceCover space={space} thumbs={thumbs} style={styles.cover} />
-      )}
+      {!strip && <SpaceCover space={space} thumbs={thumbs} style={styles.cover} />}
       {renaming !== null ? (
         <input
           // oxlint-disable-next-line jsx-a11y/no-autofocus -- The field appears because the user asked to rename; typing goes straight into it.
@@ -238,20 +232,7 @@ export function SpaceRow({
       {strip && (
         // Outside the link, so renaming keeps the row's height and pictures.
         <span aria-hidden="true" data-sidebar-label {...stylex.props(styles.strip)}>
-          {Array.from({ length: 4 }, (_, slot) => {
-            const url = thumbs[slot];
-            return url ? (
-              <img
-                key={`${slot} ${url}`}
-                src={url}
-                alt=""
-                {...thumbProps}
-                {...stylex.props(styles.stripImage)}
-              />
-            ) : (
-              <span key={`empty-${slot}`} {...stylex.props(styles.stripImage, styles.emptySlot)} />
-            );
-          })}
+          <SpaceStrip space={space} thumbs={thumbs} />
         </span>
       )}
       {renaming === null && (
@@ -269,14 +250,6 @@ export function SpaceRow({
     </div>
   );
 }
-
-const thumbProps = {
-  draggable: false,
-  loading: "lazy",
-  decoding: "async",
-  // A remembered thumbnail may belong to an item deleted since.
-  onError: (event) => (event.currentTarget.style.visibility = "hidden"),
-} satisfies ImgHTMLAttributes<HTMLImageElement>;
 
 const styles = stylex.create({
   row: {
@@ -308,32 +281,24 @@ const styles = stylex.create({
     color: { default: color.inkStrong, ":hover": color.inkStrong },
   },
   // The link still covers the whole row, pictures included, so any click opens the Space.
-  stripName: { alignItems: "flex-start", paddingTop: "7px", borderRadius: radius.tile },
-  stripRename: { alignSelf: "flex-start", marginTop: "7px" },
+  // The strip carries the Space's mark, so the name starts at the strip's edge.
+  stripName: {
+    alignItems: "flex-start",
+    paddingTop: "7px",
+    paddingLeft: "12px",
+    borderRadius: radius.tile,
+  },
+  stripRename: { alignSelf: "flex-start", marginTop: "7px", marginLeft: "12px" },
   strip: {
     position: "absolute",
     left: "8px",
     right: "8px",
     bottom: "8px",
-    display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-    gap: "3px",
     height: "32px",
-    borderRadius: "7px",
-    overflow: "hidden",
     pointerEvents: "none",
   },
-  stripImage: { display: "block", width: "100%", height: "32px", objectFit: "cover" },
-  emptySlot: { backgroundColor: color.raised },
   // Under the link, which covers the whole row, so a click on the picture opens the Space.
   cover: { position: "absolute", left: "14px", top: "6px" },
-  swatch: {
-    position: "absolute",
-    left: "20px",
-    top: "7px",
-    display: "flex",
-    pointerEvents: "none",
-  },
   lifted: {
     zIndex: 1,
     backgroundColor: { default: color.hover, ":hover": color.hover },

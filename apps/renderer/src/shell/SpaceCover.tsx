@@ -38,6 +38,57 @@ export function SpaceCover({
   );
 }
 
+/**
+ * The Strip look's four newest pictures, marked the same way: a Regular Space's share a dashed
+ * outline; a Smart Space keeps four slots cut by slanted seams, dashed past its last known match.
+ */
+export function SpaceStrip({
+  space,
+  thumbs,
+}: {
+  space: Pick<Space, "kind" | "color">;
+  thumbs: readonly string[];
+}) {
+  if (space.kind === "regular")
+    return (
+      <span {...stylex.props(styles.strip, styles.stripSlot, tints[space.color])}>
+        {thumbs.slice(0, 4).map((url) => (
+          <img
+            key={url}
+            src={url}
+            alt=""
+            {...thumbProps}
+            {...stylex.props(styles.stripImage, styles.stripSlotImage)}
+          />
+        ))}
+      </span>
+    );
+  return (
+    <span {...stylex.props(styles.strip, styles.stripSplit, tints[space.color])}>
+      {[0, 1, 2, 3].map((slot) => {
+        const url = thumbs[slot];
+        return url ? (
+          <img
+            key={`${slot} ${url}`}
+            src={url}
+            alt=""
+            {...thumbProps}
+            {...stylex.props(styles.stripImage)}
+          />
+        ) : (
+          <span key={`empty-${slot}`} {...stylex.props(styles.stripImage)} />
+        );
+      })}
+      {[1, 2, 3].map((slot) => (
+        <span
+          key={slot}
+          {...stylex.props(styles.cut, styles.cutAt(slot), !thumbs[slot - 1] && styles.cutDashed)}
+        />
+      ))}
+    </span>
+  );
+}
+
 /** The same mark without pictures, for a line of text: a dashed square or a split one. */
 export function SpaceSwatch({ space }: { space: Pick<Space, "kind" | "color"> }) {
   return (
@@ -72,7 +123,9 @@ const tints = stylex.create({
 });
 
 const styles = stylex.create({
+  // Border-box: the dashes sit inside the same 24px as a Smart cover.
   slot: {
+    boxSizing: "border-box",
     display: "grid",
     placeItems: "center",
     width: "24px",
@@ -127,6 +180,35 @@ const styles = stylex.create({
   seamDashed: {
     backgroundColor: "transparent",
     backgroundImage: "repeating-linear-gradient(to right, currentColor 0 3px, transparent 3px 5px)",
+  },
+  strip: { position: "relative", display: "flex", width: "100%", height: "100%" },
+  stripSlot: {
+    boxSizing: "border-box",
+    gap: "2px",
+    padding: "2px",
+    borderWidth: "1.5px",
+    borderStyle: "dashed",
+    borderColor: "currentColor",
+    borderRadius: "9px",
+  },
+  stripSplit: { overflow: "hidden", borderRadius: "7px", backgroundColor: color.raised },
+  stripImage: { display: "block", flexGrow: 1, flexBasis: 0, minWidth: 0, objectFit: "cover" },
+  stripSlotImage: { borderRadius: "4px" },
+  // Taller than the strip, so the slant runs off both edges.
+  cut: {
+    position: "absolute",
+    top: "-6px",
+    bottom: "-6px",
+    width: "3px",
+    backgroundColor: "currentColor",
+    transform: "skewX(-16deg)",
+  },
+  cutAt: (slot: number) => ({ left: `calc(${slot * 25}% - 1.5px)` }),
+  cutDashed: {
+    width: "2px",
+    backgroundColor: "transparent",
+    backgroundImage:
+      "repeating-linear-gradient(to bottom, currentColor 0 3px, transparent 3px 5px)",
   },
   swatch: {
     position: "relative",
