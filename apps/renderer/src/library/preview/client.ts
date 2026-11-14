@@ -388,7 +388,11 @@ export function createPreviewClient(): LibraryClient {
       const saved = deletedSpaces.get(id);
       if (!saved) throw new Error("That Space no longer exists.");
       deletedSpaces.delete(id);
-      spaces = [...spaces, saved.space];
+      const taken = spaces.some((space) => space.position === saved.space.position);
+      const position = taken
+        ? Math.max(...spaces.map((space) => space.position)) + 1
+        : saved.space.position;
+      spaces = [...spaces, { ...saved.space, position }];
       if (saved.members) membership.set(id, saved.members);
       if (saved.excluded) exclusions.set(id, saved.excluded);
       return touchSpaces(withCounts());

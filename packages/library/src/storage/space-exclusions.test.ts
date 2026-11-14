@@ -64,7 +64,9 @@ test("photo subject matches honor local removal, and regular Spaces never archiv
   await library.deleteSpace(regular.id);
   await library.archiveItem(gone.id);
   await library.deleteItem(gone.id);
+  await library.createSpace({ name: "Made after the delete", kind: "regular" });
   const restored = await library.restoreSpace(regular.id);
+  expect(new Set(restored.map((s) => s.position)).size).toBe(restored.length);
   expect(restored.find((s) => s.id === regular.id)?.itemCount).toBe(1);
   expect(ids(await library.listSpaceItems(regular.id))).toEqual([note.id]);
   await expect(library.restoreSpace(regular.id)).rejects.toThrow();
