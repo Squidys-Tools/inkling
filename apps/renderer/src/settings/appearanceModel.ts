@@ -1,8 +1,8 @@
 export const appearanceOptions = {
-  // The compact rail is the same in both: Shelf is a look of the expanded sidebar.
+  // The compact rail is the same in both: Cover and Strip are looks of the expanded sidebar.
   sidebar: [
-    { value: "refined", label: "Rows" },
-    { value: "shelf", label: "Shelf" },
+    { value: "cover", label: "Cover" },
+    { value: "strip", label: "Strip" },
   ],
   viewToggle: [
     { value: "pill", label: "Pill" },
@@ -37,7 +37,8 @@ export function parseAppearance(
       stored = parsed as Record<string, unknown>;
   } catch {}
   return {
-    sidebar: stored.sidebar === "shelf" ? "shelf" : "refined",
+    // Strip replaced Shelf, so a stored Shelf choice keeps the picture-led sidebar.
+    sidebar: stored.sidebar === "strip" || stored.sidebar === "shelf" ? "strip" : "cover",
     viewToggle:
       viewToggleStyle === "pill" || viewToggleStyle === "segmented"
         ? viewToggleStyle

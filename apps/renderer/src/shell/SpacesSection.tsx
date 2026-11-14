@@ -4,7 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, srOnly } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useId } from "react";
+import { useEffect, useId, useLayoutEffect } from "react";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { shownScope, useScope, useScopeThumbs } from "../library/cards.ts";
 import { search } from "../library/search.ts";
@@ -13,6 +13,7 @@ import { rememberSpaceThumbs } from "../library/spaceThumbs.ts";
 import { createSpace, dismissSpaceError, useSpaceError, useSpaces } from "../library/spaces.ts";
 import { useSelector } from "@tanstack/react-store";
 import { SpaceRow } from "./SpaceRow.tsx";
+import { useReorderGlide } from "./useReorderGlide.ts";
 import {
   closeSpaceDraft,
   createDraftedSpace,
@@ -22,13 +23,23 @@ import {
   useSpaceDraft,
 } from "./spaceDraft.ts";
 
+/** Each end of the list fades only while rows hide past it, reaching full depth 24px in. */
+function fadeEdges(node: HTMLElement) {
+  const below = node.scrollHeight - node.clientHeight - node.scrollTop;
+  node.style.setProperty("--fade-top", `${Math.min(Math.max(node.scrollTop, 0), 24)}px`);
+  node.style.setProperty("--fade-bottom", `${Math.min(Math.max(below, 0), 24)}px`);
+}
+
 export function SpacesSection({
   compact = false,
-  shelf = false,
+  rail = compact,
+  strip = false,
   onExpand,
 }: {
   compact?: boolean;
-  shelf?: boolean;
+  /** Laid out for the rail: while the sidebar closes, and once it is closed. */
+  rail?: boolean;
+  strip?: boolean;
   onExpand?: () => void;
 }) {
   const spaces = useSpaces();
@@ -44,8 +55,20 @@ export function SpacesSection({
     if (shownSpace !== null && shownSmart && shownTotal !== undefined)
       rememberSpaceCount(shownSpace, shownTotal);
   }, [shownSpace, shownSmart, shownTotal]);
-  const shownThumbs = useScopeThumbs(shown, 3);
+  const shownThumbs = useScopeThumbs(shown, 4);
   const shownReady = shownState?.status === "ready";
+  const list = useReorderGlide(spaces.map((space) => space.id).join(" "));
+  // Rows added, removed or restyled change what is hidden without a scroll or a resize.
+  useLayoutEffect(() => {
+    if (list.current) fadeEdges(list.current);
+  });
+  useEffect(() => {
+    const node = list.current;
+    if (!node) return;
+    const observer = new ResizeObserver(() => fadeEdges(node));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [list]);
   useEffect(() => {
     if (shownSpace !== null && shownReady)
       rememberSpaceThumbs(shownSpace, shownThumbs ? shownThumbs.split("\n") : []);
@@ -53,13 +76,18 @@ export function SpacesSection({
 
   return (
     <div {...stylex.props(styles.section)}>
-      <div {...stylex.props(styles.header, compact && styles.compactHeader)}>
-        {!compact && <span data-sidebar-label>Spaces</span>}
+      <div {...stylex.props(styles.header)}>
+        {!compact && (
+          <span data-sidebar-label data-glide="spaces-label">
+            Spaces
+          </span>
+        )}
         <button
           type="button"
           aria-label="Add a Space"
           title="Add a Space"
           aria-expanded={draft.open}
+          data-glide="space-add"
           onClick={() => {
             if (compact) {
               onExpand?.();
@@ -67,12 +95,17 @@ export function SpacesSection({
             } else if (draft.open) closeSpaceDraft();
             else openSpaceDraft("");
           }}
-          {...stylex.props(styles.add)}
+          {...stylex.props(styles.add, rail && styles.railAdd)}
         >
           <HugeiconsIcon icon={PlusSignIcon} size={14} />
         </button>
       </div>
-      <div {...stylex.props(styles.list)}>
+      <div
+        ref={list}
+        data-glide-hold="spaces"
+        onScroll={(event) => fadeEdges(event.currentTarget)}
+        {...stylex.props(styles.list)}
+      >
         {spaces.map((space, index) => {
           const selected = shownSpace === space.id;
           // A Smart Space has no stored membership: its count is read when it opens and kept after.
@@ -85,7 +118,7 @@ export function SpacesSection({
               selected={selected}
               count={count}
               compact={compact}
-              shelf={shelf}
+              strip={strip}
               index={index}
               lastIndex={spaces.length - 1}
             />
@@ -188,6 +221,7 @@ const enter = stylex.keyframes({
 const styles = stylex.create({
   section: { display: "flex", flexDirection: "column", gap: "2px", minHeight: 0 },
   header: {
+    position: "relative",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -201,7 +235,6 @@ const styles = stylex.create({
     letterSpacing: "0.02em",
     color: color.muted,
   },
-  compactHeader: { justifyContent: "center", paddingLeft: 0, paddingRight: 0 },
   add: {
     display: "grid",
     placeItems: "center",
@@ -216,6 +249,8 @@ const styles = stylex.create({
     cursor: "pointer",
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
   },
+  // Centered in the rail's 52px column, where the rows' covers and marks sit.
+  railAdd: { position: "absolute", left: "15px", marginRight: 0 },
   list: {
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr)",
@@ -223,6 +258,8 @@ const styles = stylex.create({
     minHeight: 0,
     overflowY: "auto",
     scrollbarWidth: "none",
+    maskImage:
+      "linear-gradient(to bottom, transparent, black var(--fade-top, 0px), black calc(100% - var(--fade-bottom, 0px)), transparent)",
   },
   form: {
     display: "grid",

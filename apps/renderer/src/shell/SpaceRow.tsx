@@ -6,15 +6,16 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { type PointerEvent, useRef, useState } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { search } from "../library/search.ts";
+import { useSpaceThumbs } from "../library/spaceThumbs.ts";
 import { deleteSpace, moveSpace, recolorSpace, renameSpace } from "../library/spaces.ts";
 import { spaceRowMarker } from "../markers.stylex.ts";
 import { CompactSpaceRow } from "./CompactSpaceRow.tsx";
 import { confirm } from "./confirm.ts";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
-import { slidingSelection } from "./NavRow.tsx";
+import { SelectionFill } from "./NavRow.tsx";
 import { dragSteps } from "./sidebarGeometry.ts";
-import { SpaceMark } from "./SpaceMark.tsx";
-import { SpaceStack } from "./SpaceStack.tsx";
+import { SpaceCover, SpaceStrip } from "./SpaceCover.tsx";
+import { glide } from "./useReorderGlide.ts";
 import { opensMenu, openSpaceMenu } from "./spaceMenu.ts";
 
 async function confirmDelete(space: Space) {
@@ -33,7 +34,7 @@ export function SpaceRow({
   selected,
   count,
   compact,
-  shelf,
+  strip,
   index,
   lastIndex,
 }: {
@@ -41,8 +42,8 @@ export function SpaceRow({
   selected: boolean;
   count: number | undefined;
   compact: boolean;
-  /** The Shelf look: a taller row led by a stack of the Space's newest items. */
-  shelf: boolean;
+  /** The Strip look: the name over the four newest pictures. Otherwise the newest is the cover. */
+  strip: boolean;
   index: number;
   lastIndex: number;
 }) {
@@ -51,11 +52,29 @@ export function SpaceRow({
   const [lift, setLift] = useState<number | null>(null);
   const dragged = useRef(false);
   const refocus = useRef(false);
+  // The field fires blur as it unmounts, so only the first of Enter, Escape or blur settles it.
+  const editing = useRef(false);
+  const caretAtEnd = useRef(false);
+  const thumbs = useSpaceThumbs(space);
 
   const commit = async (draft: string) => {
     setRenaming(null);
     // A failed rename reopens the field with what was typed, so nothing is lost.
-    if (!(await renameSpace(space, draft))) setRenaming(draft);
+    if (await renameSpace(space, draft)) return;
+    editing.current = true;
+    setRenaming(draft);
+  };
+  const startRename = (atEnd: boolean) => {
+    if (compact) setSidebarOpen(true);
+    editing.current = true;
+    caretAtEnd.current = atEnd;
+    setRenaming(space.name);
+  };
+  const finishRename = (save: boolean) => {
+    if (!editing.current || renaming === null) return;
+    editing.current = false;
+    if (save) void commit(renaming);
+    else setRenaming(null);
   };
 
   const remove = async () => {
@@ -67,14 +86,19 @@ export function SpaceRow({
     up: () => void moveSpace(space, -1),
     down: () => void moveSpace(space, 1),
     color: () => void recolorSpace(space),
-    rename: () => {
-      if (compact) setSidebarOpen(true);
-      setRenaming(space.name);
-    },
+    rename: () => startRename(false),
     delete: () => void remove(),
   };
   if (compact && renaming === null)
-    return <CompactSpaceRow space={space} selected={selected} can={can} actions={actions} />;
+    return (
+      <CompactSpaceRow
+        space={space}
+        selected={selected}
+        thumbs={thumbs}
+        can={can}
+        actions={actions}
+      />
+    );
 
   const startDrag = (event: PointerEvent<HTMLDivElement>) => {
     dragged.current = false;
@@ -85,12 +109,16 @@ export function SpaceRow({
     const pitch = row.offsetHeight + (gap || 0);
     const startY = event.clientY;
     let steps = 0;
+    let held = 0;
     // Listen on the window: reordering moves this row's node, which would drop a pointer capture.
     const listening = new AbortController();
     const signal = listening.signal;
     const end = () => {
       listening.abort();
       setLift(null);
+      delete row.dataset.lifted;
+      // The dropped row settles into its slot instead of jumping there.
+      if (dragged.current) glide(row, held);
       // After this release's click: one that lands outside the row would leave the flag set.
       setTimeout(() => (dragged.current = false));
     };
@@ -100,12 +128,16 @@ export function SpaceRow({
         const offset = move.clientY - startY;
         if (!dragged.current && Math.abs(offset) < 5) return;
         dragged.current = true;
+        // On the node, not in state: a swap's store update renders before setLift does,
+        // and that render's reorder glide must already skip the row under the pointer.
+        row.dataset.lifted = "";
         const wanted = dragSteps(offset, pitch, index, lastIndex);
         // Each crossed row is one swap, shown at once, so the list reorders under the pointer.
         for (; steps < wanted; steps++) void moveSpace(space, 1);
         for (; steps > wanted; steps--) void moveSpace(space, -1);
-        const held = Math.max(-index * pitch, Math.min((lastIndex - index) * pitch, offset));
-        setLift(held - steps * pitch);
+        held =
+          Math.max(-index * pitch, Math.min((lastIndex - index) * pitch, offset)) - steps * pitch;
+        setLift(held);
       },
       { signal },
     );
@@ -128,28 +160,20 @@ export function SpaceRow({
       onContextMenu={(event) => {
         if (renaming === null) void openSpaceMenu(event, space.name, can, actions);
       }}
-      data-sidebar-selected={slidingSelection(selected && !shelf)}
+      data-space-id={space.id}
+      data-glide={`space ${space.id}`}
       {...stylex.props(
         styles.row,
-        shelf && styles.shelfRow,
-        selected && (shelf ? styles.shelfSelected : styles.selected),
+        strip ? styles.stripRow : styles.coverRow,
+        selected && (strip ? styles.stripSelected : styles.selected),
+        renaming !== null && styles.renaming,
         lift !== null && styles.lifted,
         lift !== null && styles.lift(lift),
         spaceRowMarker,
       )}
     >
-      <button
-        type="button"
-        aria-label={`Change color of ${space.name}`}
-        title={`Change color (now ${space.color})`}
-        // One tab stop per row, like every other sidebar row; the row's menu changes color by keyboard.
-        tabIndex={-1}
-        onClick={() => void recolorSpace(space)}
-        {...stylex.props(styles.mark, shelf && styles.shelfMark)}
-      >
-        <SpaceMark small={shelf} color={space.color} hollow={space.kind === "smart"} />
-      </button>
-      {shelf && <SpaceStack space={space} />}
+      {selected && !strip && <SelectionFill />}
+      {!strip && <SpaceCover space={space} thumbs={thumbs} style={styles.cover} />}
       {renaming !== null ? (
         <input
           // oxlint-disable-next-line jsx-a11y/no-autofocus -- The field appears because the user asked to rename; typing goes straight into it.
@@ -158,18 +182,22 @@ export function SpaceRow({
           aria-label={`Rename ${space.name}`}
           maxLength={80}
           onChange={(event) => setRenaming(event.target.value)}
-          onFocus={(event) => event.currentTarget.select()}
+          onFocus={(event) => {
+            const field = event.currentTarget;
+            // A double-click edits where the name is; Rename from the menu replaces it.
+            if (caretAtEnd.current) field.setSelectionRange(field.value.length, field.value.length);
+            else field.select();
+          }}
           onKeyDown={(event) => {
             event.stopPropagation();
             if (event.key !== "Enter" && event.key !== "Escape") return;
             // The field goes away under the keyboard, so focus returns to the row it renamed.
             refocus.current = true;
-            if (event.key === "Enter") void commit(renaming);
-            else setRenaming(null);
+            finishRename(event.key === "Enter");
           }}
           // Blur keeps what was typed, like renaming in a file manager.
-          onBlur={() => void commit(renaming)}
-          {...stylex.props(styles.rename, shelf && styles.shelfRename)}
+          onBlur={() => finishRename(true)}
+          {...stylex.props(styles.rename, strip && styles.stripRename)}
         />
       ) : (
         <Link
@@ -183,31 +211,29 @@ export function SpaceRow({
           // A native link drag would cancel the pointer events that reorder the row.
           draggable={false}
           onClick={() => search.clear()}
+          onDoubleClick={(event) => {
+            event.preventDefault();
+            startRename(true);
+          }}
           onKeyDown={(event) => {
             if (opensMenu(event)) void openSpaceMenu(event, space.name, can, actions);
           }}
           aria-current={selected ? "page" : undefined}
-          {...stylex.props(styles.name, shelf && styles.shelfName)}
+          {...stylex.props(styles.name, strip && styles.stripName)}
         >
-          <span data-sidebar-label {...stylex.props(styles.nameText, shelf && styles.shelfText)}>
+          <span data-sidebar-label {...stylex.props(styles.nameText)}>
             {space.name}
           </span>
-          {shelf ? (
-            <span data-sidebar-label {...stylex.props(styles.sub)}>
-              {[
-                space.kind === "smart" && "Smart",
-                count !== undefined &&
-                  `${count.toLocaleString()} ${count === 1 ? "item" : "items"}`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          ) : (
-            <span data-sidebar-label {...stylex.props(styles.count)}>
-              {count?.toLocaleString()}
-            </span>
-          )}
+          <span data-sidebar-label {...stylex.props(styles.count)}>
+            {count?.toLocaleString()}
+          </span>
         </Link>
+      )}
+      {strip && (
+        // Outside the link, so renaming keeps the row's height and pictures.
+        <span aria-hidden="true" data-sidebar-label {...stylex.props(styles.strip)}>
+          <SpaceStrip space={space} thumbs={thumbs} />
+        </span>
       )}
       {renaming === null && (
         <button
@@ -216,7 +242,7 @@ export function SpaceRow({
           title="Rename, color, move, delete"
           aria-haspopup="menu"
           onClick={(event) => void openSpaceMenu(event, space.name, can, actions)}
-          {...stylex.props(styles.more, shelf && styles.shelfMore)}
+          {...stylex.props(styles.more)}
         >
           <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
         </button>
@@ -237,47 +263,42 @@ const styles = stylex.create({
     fontSize: "14px",
     color: { default: color.inkSoft, ":hover": color.ink },
     userSelect: "none",
-    transitionProperty: "color, background-color",
+    transitionProperty: "color, background-color, box-shadow",
     transitionDuration: motion.micro,
   },
-  // The sidebar's sliding pill is the fill.
+  coverRow: { height: "36px" },
   selected: {
+    isolation: "isolate",
     fontWeight: 600,
     backgroundColor: { default: "transparent", ":hover": "transparent" },
     color: { default: color.inkStrong, ":hover": color.inkStrong },
   },
-  shelfRow: { height: "56px", borderRadius: radius.tile },
-  shelfSelected: {
+  stripRow: { height: "70px", borderRadius: radius.tile },
+  stripSelected: {
     fontWeight: 600,
     backgroundColor: { default: color.hover, ":hover": color.hover },
     boxShadow: `inset 0 0 0 1px ${color.borderStrong}`,
     color: { default: color.inkStrong, ":hover": color.inkStrong },
   },
-  // Beside the count line, under the name.
-  shelfMark: { left: "64px", top: "30px" },
-  shelfName: {
-    flexDirection: "column",
-    alignItems: "stretch",
-    justifyContent: "center",
-    gap: "3px",
-    paddingLeft: "66px",
-    paddingRight: "34px",
+  // The link still covers the whole row, pictures included, so any click opens the Space.
+  // The strip carries the Space's mark, so the name starts at the strip's edge.
+  stripName: {
+    alignItems: "flex-start",
+    paddingTop: "7px",
+    paddingLeft: "12px",
     borderRadius: radius.tile,
   },
-  sub: {
-    minHeight: "14px",
-    paddingLeft: "19px",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    fontSize: "12px",
-    lineHeight: "14px",
-    fontWeight: 400,
-    color: color.muted,
+  stripRename: { alignSelf: "flex-start", marginTop: "7px", marginLeft: "12px" },
+  strip: {
+    position: "absolute",
+    left: "8px",
+    right: "8px",
+    bottom: "8px",
+    height: "32px",
+    pointerEvents: "none",
   },
-  shelfText: { flexGrow: 0, lineHeight: "18px" },
-  shelfMore: { top: "17px" },
-  shelfRename: { marginLeft: "62px" },
+  // Under the link, which covers the whole row, so a click on the picture opens the Space.
+  cover: { position: "absolute", left: "14px", top: "6px" },
   lifted: {
     zIndex: 1,
     backgroundColor: { default: color.hover, ":hover": color.hover },
@@ -285,23 +306,6 @@ const styles = stylex.create({
     cursor: "grabbing",
   },
   lift: (offset: number) => ({ transform: `translateY(${offset}px)` }),
-  // Over the link, on the same line as the mascot and every other sidebar icon.
-  mark: {
-    position: "absolute",
-    left: "18px",
-    top: "8px",
-    display: "grid",
-    placeItems: "center",
-    width: "16px",
-    height: "16px",
-    padding: 0,
-    borderWidth: 0,
-    backgroundColor: "transparent",
-    cursor: "pointer",
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-    outlineOffset: "2px",
-    borderRadius: radius.round,
-  },
   name: {
     display: "flex",
     alignItems: "center",
@@ -345,7 +349,7 @@ const styles = stylex.create({
   more: {
     position: "absolute",
     right: "7px",
-    top: "5px",
+    top: "7px",
     display: "grid",
     placeItems: "center",
     width: "22px",
@@ -365,21 +369,25 @@ const styles = stylex.create({
     transitionProperty: "opacity",
     transitionDuration: motion.micro,
   },
+  renaming: {
+    backgroundColor: { default: color.overlayHover, ":hover": color.overlayHover },
+    boxShadow: `inset 0 0 0 1px ${color.borderStrong}`,
+  },
+  // The name's own spot, font and weight, so editing it moves nothing.
   rename: {
     flexGrow: 1,
     minWidth: 0,
-    minHeight: "26px",
     marginLeft: "44px",
     marginRight: "10px",
-    paddingInline: "8px",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: color.accent,
-    borderRadius: "8px",
-    backgroundColor: color.surface,
-    color: color.ink,
-    fontFamily: font.body,
-    fontSize: "13px",
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    color: color.inkStrong,
+    caretColor: color.accent,
+    fontFamily: "inherit",
+    fontSize: "inherit",
+    fontWeight: "inherit",
+    lineHeight: "normal",
     outline: "none",
   },
 });

@@ -1,17 +1,17 @@
 import { expect, test } from "bun:test";
 import { parseSpaceThumbs, thumbPaths } from "./spaceThumbs.ts";
 
-test("stored Space thumbnails keep only lists of paths, three at most", () => {
+test("stored Space thumbnails keep only lists of paths, four at most", () => {
   expect(
     parseSpaceThumbs(
       JSON.stringify({
         kept: ["assets/items/a/thumb.webp"],
-        long: ["a", "b", "c", "d"],
+        long: ["a", "b", "c", "d", "e"],
         mixed: ["a", 1],
         text: "assets/items/a/thumb.webp",
       }),
     ),
-  ).toEqual({ kept: ["assets/items/a/thumb.webp"], long: ["a", "b", "c"] });
+  ).toEqual({ kept: ["assets/items/a/thumb.webp"], long: ["a", "b", "c", "d"] });
   for (const raw of [null, "not json", "null", "[]", '"text"'])
     expect(parseSpaceThumbs(raw)).toEqual({});
 });

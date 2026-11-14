@@ -5,8 +5,10 @@ import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 
 type RowLook = { active?: boolean; tone?: "nav" | "footer"; compact: boolean };
 
-/** How a selected row is filled: by the sidebar's sliding pill, or by itself. */
-export const slidingSelection = (selected: boolean) => (selected ? "" : undefined);
+/** A selected sidebar row's fill, drawn inside the row so it scrolls and drags with it. */
+export function SelectionFill() {
+  return <span data-selection-fill aria-hidden="true" {...stylex.props(styles.fill)} />;
+}
 
 /** A sidebar destination keeps its name when only its icon is visible. */
 export function NavLink({
@@ -17,14 +19,17 @@ export function NavLink({
   label,
   count,
   slides = false,
+  glide,
   onClick,
   ...link
 }: RowLook & {
   icon: ReactNode;
   label: string;
   count?: ReactNode;
-  /** The sidebar's sliding pill draws this row's selection. */
+  /** Its selection glides from the sidebar's last selected row. */
   slides?: boolean;
+  /** Its id for the sidebar's open and close glide. */
+  glide?: string;
   onClick?: () => void;
 } & Pick<LinkProps, "to" | "params">) {
   return (
@@ -36,7 +41,7 @@ export function NavLink({
       aria-label={compact ? label : undefined}
       title={compact ? label : undefined}
       aria-current={active ? "page" : undefined}
-      data-sidebar-selected={slidingSelection(active && slides)}
+      data-glide={glide}
       {...stylex.props(
         styles.row,
         styles[tone],
@@ -45,6 +50,7 @@ export function NavLink({
         active && slides && styles.slid,
       )}
     >
+      {active && slides && <SelectionFill />}
       <span {...stylex.props(styles.icon, active && styles.activeIcon)}>{icon}</span>
       {!compact && (
         <span data-sidebar-label {...stylex.props(styles.label)}>
@@ -139,7 +145,20 @@ const styles = stylex.create({
     backgroundColor: { default: color.overlayActive, ":hover": color.overlayActive },
     color: { default: color.inkStrong, ":hover": color.inkStrong },
   },
-  slid: { backgroundColor: { default: "transparent", ":hover": "transparent" } },
+  slid: {
+    position: "relative",
+    isolation: "isolate",
+    backgroundColor: { default: "transparent", ":hover": "transparent" },
+  },
+  // Under the row's content: z-index -1 inside the row's own stacking context.
+  fill: {
+    position: "absolute",
+    inset: 0,
+    zIndex: -1,
+    borderRadius: "inherit",
+    backgroundColor: color.overlayActive,
+    pointerEvents: "none",
+  },
   icon: { display: "grid", placeItems: "center", width: "16px", flexShrink: 0, color: color.muted },
   activeIcon: { color: color.accent },
   label: {

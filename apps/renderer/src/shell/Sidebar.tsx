@@ -22,10 +22,11 @@ import { useAppearance } from "../settings/appearance.ts";
 import { AddMenu } from "./AddMenu.tsx";
 import { IndexingRing } from "./IndexingRing.tsx";
 import { NavButton, NavLink } from "./NavRow.tsx";
-import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
+import { sidebarCompact, sidebarExpanded, stripAddBeside } from "./sidebarGeometry.ts";
 import { SpacesSection } from "./SpacesSection.tsx";
 import { UpdateRow } from "./UpdateRow.tsx";
-import { useSelectionPill } from "./useSelectionPill.ts";
+import { useSelectionGlide } from "./useSelectionGlide.ts";
+import { useLayoutGlide } from "./useReorderGlide.ts";
 
 // Keep the shipped nine-dot Everything glyph unchanged.
 function DotGrid() {
@@ -57,8 +58,8 @@ function SidebarMascot() {
   return <Mascot mood={mood} size={44} visible />;
 }
 
-/** Shelf's Everything: the library's newest pictures over its name and count. */
-function ShelfEverything({ active, count }: { active: boolean; count: ReactNode }) {
+/** Strip's Everything: the library's newest pictures over its name and count. */
+function StripEverything({ active, count }: { active: boolean; count: ReactNode }) {
   const thumbs = useScopeThumbs(activeScope, 4);
   const urls = thumbs ? thumbs.split("\n").flatMap((path) => assetUrl(path) ?? []) : [];
   return (
@@ -70,7 +71,7 @@ function ShelfEverything({ active, count }: { active: boolean; count: ReactNode 
       {...stylex.props(styles.hero, active && styles.heroActive)}
     >
       {urls.length > 0 && (
-        <span aria-hidden="true" {...stylex.props(styles.strip)}>
+        <span aria-hidden="true" data-sidebar-label {...stylex.props(styles.strip)}>
           {urls.map((url) => (
             <img
               key={url}
@@ -111,9 +112,12 @@ export function Sidebar({
   });
 
   const compact = !visualOpen;
-  // The compact rail is one design; Shelf is a look of the expanded sidebar.
-  const shelf = useAppearance().sidebar === "shelf" && !compact;
-  const [track, pill] = useSelectionPill();
+  // Closing lays rows and the footer out for the rail at once, so they travel with the edge.
+  const rail = compact || !open;
+  // The compact rail is one design; Strip is a look of the expanded sidebar.
+  const strip = useAppearance().sidebar === "strip" && !rail;
+  const area = useLayoutGlide<HTMLElement>(`${rail} ${strip}`, narrow ? 0 : 300);
+  const track = useSelectionGlide();
   const openSettings = () =>
     void navigate({ to: ".", search: (prev) => ({ ...prev, settings: "general" }) });
   const width = visualOpen ? sidebarExpanded : sidebarCompact;
@@ -142,6 +146,7 @@ export function Sidebar({
         />
       )}
       <aside
+        ref={area}
         id="library-navigation"
         aria-label="Library"
         data-collapsed={compact}
@@ -195,11 +200,10 @@ export function Sidebar({
             </>
           )}
         </div>
-        <div ref={track} {...stylex.props(styles.track, shelf && styles.shelfTrack)}>
-          <span ref={pill} aria-hidden="true" {...stylex.props(styles.pill)} />
+        <div ref={track} {...stylex.props(styles.track, strip && styles.stripTrack)}>
           <nav aria-label="Main navigation" {...stylex.props(styles.rows)}>
-            {shelf ? (
-              <ShelfEverything
+            {strip ? (
+              <StripEverything
                 active={shown === "Active"}
                 count={indexing ? indexingRing : total}
               />
@@ -216,17 +220,23 @@ export function Sidebar({
               />
             )}
           </nav>
-          <SpacesSection compact={compact} shelf={shelf} onExpand={() => setSidebarOpen(true)} />
+          <SpacesSection
+            compact={compact}
+            rail={rail}
+            strip={strip}
+            onExpand={() => setSidebarOpen(true)}
+          />
         </div>
-        {shelf ? (
-          <div {...stylex.props(styles.footer, styles.shelfFooter)}>
+        {strip ? (
+          <div {...stylex.props(styles.footer, styles.stripFooter)}>
             <UpdateRow compact={false} />
-            <div {...stylex.props(styles.shelfRow)}>
-              <AddMenu compact={false} beside={92} />
+            <div {...stylex.props(styles.stripRow)}>
+              <AddMenu compact={false} beside={stripAddBeside} />
               <Link
                 to="/archive"
                 draggable={false}
                 data-sidebar-label
+                data-glide="archive"
                 aria-label="Archive"
                 title="Archive"
                 aria-current={shown === "Archived" ? "page" : undefined}
@@ -238,6 +248,7 @@ export function Sidebar({
               <button
                 type="button"
                 data-sidebar-label
+                data-glide="settings"
                 aria-label="Settings"
                 title="Settings"
                 aria-expanded={settingsOpen}
@@ -253,21 +264,19 @@ export function Sidebar({
           <div {...stylex.props(styles.footer)}>
             <AddMenu compact={compact} />
             <UpdateRow compact={compact} />
-            <div {...stylex.props(styles.lastRow, compact && styles.lastRowCompact)}>
+            <div {...stylex.props(styles.lastRow, rail && styles.lastRowCompact)}>
               <NavLink
                 to="/archive"
                 tone="footer"
+                glide="archive"
                 compact={compact}
                 active={shown === "Archived"}
                 icon={<HugeiconsIcon icon={Archive01Icon} size={15} />}
                 label="Archive"
                 onClick={() => search.clear()}
               />
-              {/* Expanded, Settings is the gear ending the Archive row, and fades with the labels. */}
-              <div
-                data-sidebar-label={compact ? undefined : ""}
-                {...stylex.props(!compact && styles.gear)}
-              >
+              {/* Expanded, Settings ends the Archive row; closing, it glides to its rail spot below. */}
+              <div data-glide="settings" {...stylex.props(styles.gear, rail && styles.railGear)}>
                 <NavButton
                   tone="footer"
                   active={settingsOpen}
@@ -300,7 +309,6 @@ const styles = stylex.create({
     gap: "14px",
     minHeight: 0,
     paddingTop: "32px",
-    backgroundColor: color.surface,
     paddingInline: "8px",
     paddingBottom: "10px",
     borderTopRightRadius: radius.panel,
@@ -381,42 +389,8 @@ const styles = stylex.create({
     transitionTimingFunction: motion.enter,
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
   },
-  // Everything and the Spaces share one selection, so they share the pill's positioning box.
-  track: {
-    position: "relative",
-    zIndex: 0,
-    display: "flex",
-    flexDirection: "column",
-    gap: "14px",
-    minHeight: 0,
-  },
-  shelfTrack: { gap: "10px" },
-  // Under the rows: z-index -1 inside the track's own stacking context.
-  pill: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: -1,
-    height: "32px",
-    borderRadius: radius.control,
-    backgroundColor: color.overlayActive,
-    opacity: 0,
-    pointerEvents: "none",
-    transitionProperty: "transform, opacity",
-    transitionDuration: motion.reveal,
-    transitionTimingFunction: motion.enter,
-    "::before": {
-      content: '""',
-      position: "absolute",
-      left: 0,
-      top: "calc(50% - 7px)",
-      width: "3px",
-      height: "14px",
-      borderRadius: radius.round,
-      backgroundColor: color.accent,
-    },
-  },
+  track: { display: "flex", flexDirection: "column", gap: "14px", minHeight: 0 },
+  stripTrack: { gap: "10px" },
   rows: { display: "grid", gap: "2px", flexShrink: 0 },
   hero: {
     display: "grid",
@@ -479,8 +453,8 @@ const styles = stylex.create({
     borderTopStyle: "solid",
     borderTopColor: color.border,
   },
-  shelfFooter: { gap: "8px", paddingTop: "6px", borderTopWidth: 0 },
-  shelfRow: { display: "flex", alignItems: "center", gap: "6px", minWidth: 0 },
+  stripFooter: { gap: "8px", paddingTop: "6px", borderTopWidth: 0 },
+  stripRow: { display: "flex", alignItems: "center", gap: "6px", minWidth: 0 },
   square: {
     display: "grid",
     placeItems: "center",
@@ -508,4 +482,6 @@ const styles = stylex.create({
   lastRowCompact: { flexDirection: "column", alignItems: "stretch" },
   // 36px wide, so the gear centers under the Spaces header's plus and each row's menu button.
   gear: { width: "36px", flexShrink: 0 },
+  // Centered in the rail's 52px row; the same width keeps the glide from resizing it.
+  railGear: { marginLeft: "8px" },
 });
