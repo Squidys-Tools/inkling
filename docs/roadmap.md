@@ -25,7 +25,7 @@ Local library with capture, extraction, and text search.
 Vertical slice from capture through semantic understanding and search.
 
 - [x] Benchmark corpus (48 items, articles/images/screenshots/PDFs/notes/videos)
-- [x] Multi-engine OCR scoring (Windows OCR + tesseract.js)
+- [x] Multi-engine OCR scoring in the benchmark harness (Windows OCR + tesseract.js; the app ships Tesseract only)
 - [x] Background image OCR processing
 - [x] PDF text extraction and scanned-page OCR
 - [x] CI, release, and security automation
