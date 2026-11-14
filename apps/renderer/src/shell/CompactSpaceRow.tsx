@@ -4,22 +4,20 @@ import { Link } from "@tanstack/react-router";
 import { color, motion, radius } from "@inkling/ui/tokens.stylex";
 import { search } from "../library/search.ts";
 import { SelectionFill } from "./NavRow.tsx";
-import { SpaceMark } from "./SpaceMark.tsx";
+import { SpaceCover } from "./SpaceCover.tsx";
 import { opensMenu, openSpaceMenu, type SpaceActions } from "./spaceMenu.ts";
 
-/** The compact rail keeps each Space's cover, colored blot and the full row's actions. */
+/** The compact rail keeps each Space's cover and the full row's actions. */
 export function CompactSpaceRow({
   space,
   selected,
-  cover,
-  onBrokenCover,
+  thumbs,
   can,
   actions,
 }: {
   space: Space;
   selected: boolean;
-  cover: string | undefined;
-  onBrokenCover: (url: string) => void;
+  thumbs: readonly string[];
   can: { up: boolean; down: boolean };
   actions: SpaceActions;
 }) {
@@ -41,18 +39,7 @@ export function CompactSpaceRow({
       {...stylex.props(styles.row, selected && styles.selected)}
     >
       {selected && <SelectionFill />}
-      {cover && (
-        <img
-          src={cover}
-          alt=""
-          draggable={false}
-          onError={() => onBrokenCover(cover)}
-          {...stylex.props(styles.cover)}
-        />
-      )}
-      <span {...stylex.props(cover !== undefined && styles.badge)}>
-        <SpaceMark small={Boolean(cover)} color={space.color} hollow={space.kind === "smart"} />
-      </span>
+      <SpaceCover space={space} thumbs={thumbs} style={styles.cover} />
     </Link>
   );
 }
@@ -75,29 +62,8 @@ const styles = stylex.create({
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "-2px",
   },
-  // The open row's height, cover and badge spots, so closing the sidebar only crops each row.
-  cover: {
-    position: "absolute",
-    left: "14px",
-    top: "6px",
-    width: "24px",
-    height: "24px",
-    borderRadius: "6px",
-    objectFit: "cover",
-    boxShadow: `0 0 0 1px ${color.border}`,
-  },
-  badge: {
-    position: "absolute",
-    zIndex: 1,
-    left: "27px",
-    top: "17px",
-    display: "grid",
-    placeItems: "center",
-    width: "17px",
-    height: "17px",
-    borderRadius: radius.round,
-    backgroundColor: color.window,
-  },
+  // The open row's height and cover spot, so closing the sidebar only crops each row.
+  cover: { position: "absolute", left: "14px", top: "6px" },
   selected: {
     isolation: "isolate",
     backgroundColor: { default: "transparent", ":hover": "transparent" },

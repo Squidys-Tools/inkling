@@ -51,5 +51,5 @@ Every feature was executed end to end with agent-desktop on 2026-11-13 unless it
 - Permanent delete from Archive, Settings, Reader: not driven. Unmapped is unverified, not passing.
 - Item-view media wheel zoom and pan (`ZoomableMedia`): needs `--headed` wheel input.
 - The sidebar update row (`apps/renderer/src/shell/UpdateRow.tsx`): only an installed release build with an `app-update.yml` feed can update, so an unpackaged run never shows it.
-- The compact sidebar rail (collapsed sidebar): Space rows become blots whose context menu is the expanded rows' `Actions for <name>` menu. It opens only by right-click or Shift+F10, so the rail's menu is not driven.
+- The compact sidebar rail (collapsed sidebar): Space rows become their covers, whose context menu is the expanded rows' `Actions for <name>` menu. It opens only by right-click or Shift+F10, so the rail's menu is not driven.
 - Custom window controls (`Minimize`, `Maximize window`, `Close window` buttons) and toast notifications (the `Notifications` group; archive/restore toasts carry Undo): visible in the tree, not driven.
