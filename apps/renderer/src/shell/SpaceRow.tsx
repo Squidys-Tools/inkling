@@ -14,7 +14,7 @@ import { confirm } from "./confirm.ts";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { SelectionFill } from "./NavRow.tsx";
 import { dragSteps } from "./sidebarGeometry.ts";
-import { SpaceMark } from "./SpaceMark.tsx";
+import { SpaceCover, SpaceSwatch } from "./SpaceCover.tsx";
 import { glide } from "./useReorderGlide.ts";
 import { opensMenu, openSpaceMenu } from "./spaceMenu.ts";
 
@@ -56,9 +56,6 @@ export function SpaceRow({
   const editing = useRef(false);
   const caretAtEnd = useRef(false);
   const thumbs = useSpaceThumbs(space);
-  // A remembered cover may belong to an item deleted since; then the plain mark returns.
-  const [brokenCover, setBrokenCover] = useState<string>();
-  const cover = strip || thumbs[0] === brokenCover ? undefined : thumbs[0];
 
   const commit = async (draft: string) => {
     setRenaming(null);
@@ -97,8 +94,7 @@ export function SpaceRow({
       <CompactSpaceRow
         space={space}
         selected={selected}
-        cover={cover}
-        onBrokenCover={setBrokenCover}
+        thumbs={thumbs}
         can={can}
         actions={actions}
       />
@@ -177,29 +173,12 @@ export function SpaceRow({
       )}
     >
       {selected && !strip && <SelectionFill />}
-      <button
-        type="button"
-        aria-label={`Change color of ${space.name}`}
-        title={`Change color (now ${space.color})`}
-        // One tab stop per row, like every other sidebar row; the row's menu changes color by keyboard.
-        tabIndex={-1}
-        onClick={() => void recolorSpace(space)}
-        {...stylex.props(
-          styles.mark,
-          strip && styles.stripMark,
-          cover !== undefined && styles.badge,
-        )}
-      >
-        <SpaceMark small={Boolean(cover)} color={space.color} hollow={space.kind === "smart"} />
-      </button>
-      {cover && (
-        <img
-          src={cover}
-          alt=""
-          {...thumbProps}
-          onError={() => setBrokenCover(cover)}
-          {...stylex.props(styles.cover)}
-        />
+      {strip ? (
+        <span {...stylex.props(styles.swatch)}>
+          <SpaceSwatch space={space} />
+        </span>
+      ) : (
+        <SpaceCover space={space} thumbs={thumbs} style={styles.cover} />
       )}
       {renaming !== null ? (
         <input
@@ -328,7 +307,6 @@ const styles = stylex.create({
     boxShadow: `inset 0 0 0 1px ${color.borderStrong}`,
     color: { default: color.inkStrong, ":hover": color.inkStrong },
   },
-  stripMark: { top: "7px" },
   // The link still covers the whole row, pictures included, so any click opens the Space.
   stripName: { alignItems: "flex-start", paddingTop: "7px", borderRadius: radius.tile },
   stripRename: { alignSelf: "flex-start", marginTop: "7px" },
@@ -347,25 +325,14 @@ const styles = stylex.create({
   },
   stripImage: { display: "block", width: "100%", height: "32px", objectFit: "cover" },
   emptySlot: { backgroundColor: color.raised },
-  cover: {
+  // Under the link, which covers the whole row, so a click on the picture opens the Space.
+  cover: { position: "absolute", left: "14px", top: "6px" },
+  swatch: {
     position: "absolute",
-    left: "14px",
-    top: "6px",
-    width: "24px",
-    height: "24px",
-    borderRadius: "6px",
-    objectFit: "cover",
-    boxShadow: `0 0 0 1px ${color.border}`,
+    left: "20px",
+    top: "7px",
+    display: "flex",
     pointerEvents: "none",
-  },
-  // Over the cover's corner, still the recolor target.
-  badge: {
-    zIndex: 1,
-    left: "27px",
-    top: "17px",
-    width: "17px",
-    height: "17px",
-    backgroundColor: color.window,
   },
   lifted: {
     zIndex: 1,
@@ -374,23 +341,6 @@ const styles = stylex.create({
     cursor: "grabbing",
   },
   lift: (offset: number) => ({ transform: `translateY(${offset}px)` }),
-  // Over the link, on the same line as the mascot and every other sidebar icon.
-  mark: {
-    position: "absolute",
-    left: "18px",
-    top: "10px",
-    display: "grid",
-    placeItems: "center",
-    width: "16px",
-    height: "16px",
-    padding: 0,
-    borderWidth: 0,
-    backgroundColor: "transparent",
-    cursor: "pointer",
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-    outlineOffset: "2px",
-    borderRadius: radius.round,
-  },
   name: {
     display: "flex",
     alignItems: "center",
