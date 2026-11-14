@@ -6,7 +6,7 @@ import * as stylex from "@stylexjs/stylex";
 import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useRef, useState } from "react";
 import { tagMarker } from "../markers.stylex.ts";
-import { SpaceMark } from "../shell/SpaceMark.tsx";
+import { SpaceSwatch } from "../shell/SpaceCover.tsx";
 
 /** The Regular Spaces the item is filed in as chips, then its tags as text, and a field to add more. */
 export function TagList({
@@ -41,7 +41,7 @@ export function TagList({
     <ul aria-label="Spaces and tags" {...stylex.props(styles.list)}>
       {spaces.map((filed) => (
         <li key={filed.id} {...stylex.props(styles.filed)}>
-          <SpaceMark small color={filed.color} />
+          <SpaceSwatch space={filed} />
           <span {...stylex.props(styles.name)}>{filed.name}</span>
         </li>
       ))}

@@ -20,7 +20,7 @@ Tokens live in `packages/ui/src/tokens.stylex.ts`, the only file with color valu
 - The ground and surfaces are dark and warm, and text is a warm off-white ink.
 - The copper accent marks focus rings, selection and the primary action. Green marks processing that is going well.
 - Notes and quotes sit on the dark surface, notes in a grey-green ink and quotes in a warm yellow.
-- Spaces pick one of six colors: the accent orange, green, blue, pink, purple and yellow.
+- Spaces pick one of six colors: the accent orange, green, blue, pink, purple and yellow. The color draws the Space's kind on its cover: a dashed outline around a Regular Space's newest picture, and a seam splitting a Smart Space's two latest matches corner to corner.
 - Body text uses the system UI stack, display text DM Sans, sizes and counts DM Mono, and quotes and note headings Libre Baskerville. Note and Focus Mode text is Source Serif 4, and the reader offers font sets of its own.
 - Floating controls over the library are glass, the one `Glass` component in `packages/ui`; cards never are. [tech-stack.md](tech-stack.md#styling) gives the limit on glass and why.
 
