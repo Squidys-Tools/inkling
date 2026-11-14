@@ -36,7 +36,6 @@ export function CardKinds() {
             <CardFace
               view={view}
               index={index}
-              list={false}
               processing={undefined}
               onOpen={ignore}
               onRead={ignore}

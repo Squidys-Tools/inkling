@@ -8,20 +8,17 @@ import { GradualBlur } from "./GradualBlur.tsx";
 import { relayoutLanes } from "./masonryLanes.ts";
 import { warmCards } from "../library/cards.ts";
 import { useAppearance } from "../settings/appearance.ts";
-import { viewState } from "./viewState.ts";
-import { animateArrival } from "./viewTransition.ts";
+import { animateArrival } from "./cardArrival.ts";
 
 const gap = 12;
 const sidePadding = 14;
 // Below this width a card's contents no longer fit, so the whole card is drawn smaller instead.
-const designWidth: Record<CardLayout, number> = { grid: 220, list: 0, archive: 160 };
-const estimatedHeight: Record<CardLayout, number> = { grid: 300, list: 96, archive: 190 };
+const designWidth: Record<CardLayout, number> = { grid: 220, archive: 160 };
+const estimatedHeight: Record<CardLayout, number> = { grid: 300, archive: 190 };
 
 // Archive tiles are smaller than cards, so the archive shows two more columns than the library.
-function columnCount(gridColumns: number, layout: CardLayout) {
-  if (layout === "list") return 1;
-  return layout === "archive" ? gridColumns + 2 : gridColumns;
-}
+const columnCount = (gridColumns: number, layout: CardLayout) =>
+  layout === "archive" ? gridColumns + 2 : gridColumns;
 
 // Rows are loaded a page at a time; the next page is asked for while this many
 // pixels of cards are still below the fold.
@@ -85,9 +82,8 @@ export function Grid({
   useLayoutEffect(() => {
     if (!measured || arrived.current) return;
     arrived.current = true;
-    const element = scroller.current;
-    if (element && !viewState.get().entering) animateArrival(element, layout === "list");
-  }, [measured, layout]);
+    if (scroller.current) animateArrival(scroller.current);
+  }, [measured]);
 
   // Written straight to the element: the width changes on every frame of the sidebar's
   // journey, and React must not render once per pixel.
@@ -147,7 +143,7 @@ const styles = stylex.create({
     position: "absolute",
     inset: 0,
   },
-  // The grid scrolls under the search bar and the dock, and GradualBlur blurs both edges.
+  // The grid scrolls under the search bar, and GradualBlur blurs both edges.
   // The side padding sits inside the scroller so the edge cards' focus ring and hover
   // shadow are not clipped.
   scroller: {

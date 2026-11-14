@@ -90,7 +90,7 @@ export function ProcessingBadge({
   );
 }
 
-/** The list row's status lines: what is running, or what failed and a way to try again. */
+/** Status lines: what is running, or what failed and a way to try again. */
 export function ProcessingRows({
   processing,
   onPaper,

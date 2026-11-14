@@ -21,18 +21,17 @@ export function GridCell({ id, index, layout }: { id: string; index: number; lay
   return layout === "archive" ? (
     <ArchiveTile view={view} index={index} />
   ) : (
-    <LibraryCard view={view} index={index} list={layout === "list"} />
+    <LibraryCard view={view} index={index} />
   );
 }
 
-function LibraryCard({ view, index, list }: { view: CardView; index: number; list: boolean }) {
+function LibraryCard({ view, index }: { view: CardView; index: number }) {
   const navigate = useNavigate();
   const processing = useProcessing(view.id);
   return (
     <CardFace
       view={view}
       index={index}
-      list={list}
       processing={processing}
       onOpen={() => openItem(view, navigate)}
       onRead={() => openReader(view, navigate)}
