@@ -39,7 +39,7 @@ export const color = stylex.defineVars({
 
   glass: "rgba(12, 11, 10, 0.62)",
   glassEdge: "rgba(255, 255, 255, 0.08)",
-  // Glass controls over the library (search, view toggle): a heavy blur under a dark tint.
+  // Glass controls over the library and media (search, filter chips): a heavy blur under a dark tint.
   glassThin: "rgba(9, 8, 8, 0.76)",
   glassRim: "rgba(255, 255, 255, 0.1)",
   glassSheen: "rgba(255, 255, 255, 0.06)",
