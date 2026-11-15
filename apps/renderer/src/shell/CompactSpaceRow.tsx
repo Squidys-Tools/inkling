@@ -40,10 +40,16 @@ export function CompactSpaceRow({
       {...stylex.props(styles.row, selected && styles.selected)}
     >
       {selected && <SelectionFill />}
-      <SpaceCover space={space} thumbs={thumbs} style={styles.cover} />
+      <SpaceCover space={space} thumbs={thumbs} glide={`cover ${space.id}`} style={railCover} />
     </Link>
   );
 }
+
+// The open row's height, and its cover's center, so the swap to this row at the end of closing
+// moves nothing. The open row takes this larger cover as soon as it starts closing.
+export const { railCover } = stylex.create({
+  railCover: { position: "absolute", left: "11px", top: "3px", width: "30px", height: "30px" },
+});
 
 const styles = stylex.create({
   row: {
@@ -66,8 +72,6 @@ const styles = stylex.create({
     transitionDuration: motion.micro,
     outline: "none",
   },
-  // The open row's height and cover spot, so closing the sidebar only crops each row.
-  cover: { position: "absolute", left: "14px", top: "6px" },
   selected: {
     isolation: "isolate",
     backgroundColor: { default: "transparent", ":hover": "transparent" },

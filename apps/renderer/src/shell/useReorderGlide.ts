@@ -45,21 +45,24 @@ export function useReorderGlide(order: string) {
   return list;
 }
 
-const key = (node: HTMLElement) => node.dataset.glide ?? `hold ${node.dataset.glideHold}`;
+const key = (node: HTMLElement) =>
+  node.dataset.glide ?? node.dataset.glideScale ?? `hold ${node.dataset.glideHold}`;
+const gliding = "[data-glide], [data-glide-hold], [data-glide-scale]";
 
 const painted = (area: HTMLElement | null) =>
   new Map(
-    [...(area?.querySelectorAll<HTMLElement>("[data-glide], [data-glide-hold]") ?? [])].map(
-      (node) => {
-        const box = node.getBoundingClientRect();
-        return [key(node), { x: box.left, y: box.top, height: box.height }] as const;
-      },
-    ),
+    [...(area?.querySelectorAll<HTMLElement>(gliding) ?? [])].map((node) => {
+      const box = node.getBoundingClientRect();
+      return [
+        key(node),
+        { x: box.left, y: box.top, width: box.width, height: box.height },
+      ] as const;
+    }),
   );
 
 /**
- * When `layout` changes, each `[data-glide]` node slides from where it was painted to its new
- * spot over `duration` ms. Nodes match by their id, so one swapped for another component travels too.
+ * When `layout` changes, each `[data-glide]` node slides from where it was painted, and each
+ * `[data-glide-scale]` node grows from its painted size; nodes match by id across components.
  * A `[data-glide-hold]` box that shrinks keeps its old height and lets it go on the same curve,
  * so it does not clip the nodes still gliding up inside it.
  */
@@ -79,7 +82,7 @@ export function useLayoutGlide<Area extends HTMLElement>(layout: string, duratio
     const from = before.current;
     before.current = null;
     if (!from) return;
-    const nodes = area.current?.querySelectorAll<HTMLElement>("[data-glide], [data-glide-hold]");
+    const nodes = area.current?.querySelectorAll<HTMLElement>(gliding);
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     for (const node of nodes ?? []) {
       const was = from.get(key(node));
@@ -89,7 +92,15 @@ export function useLayoutGlide<Area extends HTMLElement>(layout: string, duratio
       const box = node.getBoundingClientRect();
       if (node.dataset.glide !== undefined)
         glide(node, was.y - box.top, was.x - box.left, duration, relayout);
-      else if (was.height > box.height && !still)
+      // Scaled about its center, which stays put inside its gliding row.
+      else if (node.dataset.glideScale !== undefined) {
+        if (was.width !== box.width && box.width > 0 && !still)
+          node.animate([{ transform: `scale(${was.width / box.width})` }, { transform: "none" }], {
+            id: relayout,
+            duration,
+            easing: "cubic-bezier(0.2, 0, 0, 1)",
+          });
+      } else if (was.height > box.height && !still)
         node.animate([{ minHeight: `${was.height}px` }, { minHeight: "0px" }], {
           id: relayout,
           duration,

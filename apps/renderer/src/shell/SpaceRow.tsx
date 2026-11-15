@@ -9,7 +9,7 @@ import { search } from "../library/search.ts";
 import { useSpaceThumbs } from "../library/spaceThumbs.ts";
 import { deleteSpace, moveSpace, recolorSpace, renameSpace } from "../library/spaces.ts";
 import { spaceRowMarker } from "../markers.stylex.ts";
-import { CompactSpaceRow } from "./CompactSpaceRow.tsx";
+import { CompactSpaceRow, railCover } from "./CompactSpaceRow.tsx";
 import { confirm } from "./confirm.ts";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { SelectionFill } from "./NavRow.tsx";
@@ -34,6 +34,7 @@ export function SpaceRow({
   selected,
   count,
   compact,
+  rail,
   strip,
   index,
   lastIndex,
@@ -42,6 +43,8 @@ export function SpaceRow({
   selected: boolean;
   count: number | undefined;
   compact: boolean;
+  /** Laid out for the rail: while the sidebar closes, and once it is closed. */
+  rail: boolean;
   /** The Strip look: the name over the four newest pictures. Otherwise the newest is the cover. */
   strip: boolean;
   index: number;
@@ -173,7 +176,14 @@ export function SpaceRow({
       )}
     >
       {selected && !strip && <SelectionFill />}
-      {!strip && <SpaceCover space={space} thumbs={thumbs} style={styles.cover} />}
+      {!strip && (
+        <SpaceCover
+          space={space}
+          thumbs={thumbs}
+          glide={`cover ${space.id}`}
+          style={[styles.cover, rail && railCover]}
+        />
+      )}
       {renaming !== null ? (
         <input
           // oxlint-disable-next-line jsx-a11y/no-autofocus -- The field appears because the user asked to rename; typing goes straight into it.

@@ -43,7 +43,7 @@ export function AddMenu({ compact }: { compact: boolean }) {
   );
 
   return (
-    <div data-glide="add" {...stylex.props(styles.anchor)}>
+    <div data-glide="add" {...stylex.props(styles.anchor, compact && styles.anchorCompact)}>
       <input
         ref={files}
         type="file"
@@ -109,5 +109,6 @@ const styles = stylex.create({
     transitionTimingFunction: motion.enter,
     outline: "none",
   },
-  compact: { justifyContent: "center", width: "36px", height: "36px", paddingInline: 0 },
+  compact: { justifyContent: "center", width: "100%", height: "36px", paddingInline: 0 },
+  anchorCompact: { width: "100%" },
 });

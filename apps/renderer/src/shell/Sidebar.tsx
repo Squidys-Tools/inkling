@@ -257,12 +257,7 @@ export function Sidebar({
               />
             )}
           </nav>
-          <SpacesSection
-            compact={compact}
-            rail={rail}
-            strip={strip}
-            onExpand={() => setSidebarOpen(true)}
-          />
+          <SpacesSection compact={compact} rail={rail} strip={strip} />
         </div>
         <div {...stylex.props(styles.footer, strip && styles.stripFooter)}>
           <UpdateRow compact={compact} />
