@@ -21,6 +21,7 @@ test("the add tile keeps its words through a scroll-away and a failed save, and 
   const captureText = (text: string) =>
     new Promise<boolean>((settle) => saves.push({ text, settle }));
   const pictures: File[][] = [];
+  let kept = 0;
   // The real component, with StyleX's build-time tokens and the library client stubbed.
   const source = readFileSync(new URL("./AddTile.tsx", import.meta.url), "utf8")
     .replace(/^import[\s\S]*?from ["'][^"']+["'];\n/gm, "")
@@ -80,7 +81,7 @@ test("the add tile keeps its words through a scroll-away and a failed save, and 
     act(async () =>
       handlers().onPaste({
         clipboardData: { files, types, getData: () => text },
-        preventDefault: () => {},
+        preventDefault: () => kept++,
       }),
     );
   try {
@@ -105,10 +106,12 @@ test("the add tile keeps its words through a scroll-away and a failed save, and 
     expect(field().value).toBe("a thought\nthe next one");
 
     const picture = new File(["png"], "shot.png", { type: "image/png" });
-    await paste([picture], "");
+    await paste([picture], "", ["text/html", "Files"]);
+    await paste([picture], "\n", ["text/plain", "text/html", "Files"]);
     await paste([picture], "a copied cell", ["text/plain", "text/html", "Files"]);
     await paste([picture], "shot.png", ["text/plain", "Files"]);
-    expect(pictures).toEqual([[picture], [picture]]);
+    expect(pictures).toEqual([[picture], [picture], [picture]]);
+    expect(kept).toBe(3);
   } finally {
     await act(async () => root.unmount());
     names.forEach((name, index) => {
