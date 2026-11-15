@@ -8,7 +8,7 @@ import { useRef, useState } from "react";
 import { tagMarker } from "../markers.stylex.ts";
 import { SpaceSwatch } from "../shell/SpaceCover.tsx";
 
-/** The Regular Spaces the item is filed in as chips, then its tags as text, and a field to add more. */
+/** The Regular Spaces the item is filed in, then its tags, as chips, and a field to add more. */
 export function TagList({
   tags,
   spaces,
@@ -124,8 +124,7 @@ const styles = stylex.create({
     display: "flex",
     flexWrap: "wrap",
     alignItems: "center",
-    columnGap: "12px",
-    rowGap: "6px",
+    gap: "6px",
     margin: 0,
     padding: 0,
     listStyleType: "none",
@@ -148,24 +147,22 @@ const styles = stylex.create({
     fontSize: text.sm,
     color: color.ink,
   },
-  // A tag is plain text so a long list stays light. Keyboard focus on its remove
-  // button washes the whole tag; the margins cancel the padding that wash needs.
+  // Keyboard focus on a tag's remove button washes the whole chip.
   tag: {
+    boxSizing: "border-box",
     display: "inline-flex",
     alignItems: "center",
     gap: "2px",
     maxWidth: "100%",
-    paddingBlock: "3px",
-    paddingLeft: "7px",
-    paddingRight: "3px",
-    marginBlock: "-3px",
-    marginLeft: "-7px",
-    marginRight: "-3px",
+    height: "26px",
+    paddingLeft: "10px",
+    paddingRight: "5px",
     borderRadius: radius.round,
     backgroundColor: {
-      default: "transparent",
+      default: color.raised,
       [stylex.when.descendant(":focus-visible", tagMarker)]: color.hover,
     },
+    fontSize: text.sm,
     color: {
       default: itemColor.tagInk,
       [stylex.when.descendant(":focus-visible", tagMarker)]: color.ink,
@@ -188,20 +185,24 @@ const styles = stylex.create({
     outline: "none",
   },
   add: {
+    boxSizing: "border-box",
     display: "inline-flex",
     alignItems: "center",
     gap: space.s1,
-    padding: 0,
-    borderWidth: 0,
-    borderRadius: "4px",
-    backgroundColor: "transparent",
+    height: "26px",
+    paddingInline: "10px",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: color.borderStrong,
+    borderRadius: radius.round,
+    backgroundColor: { default: "transparent", ":hover": color.overlayHover },
     fontFamily: "inherit",
-    fontSize: "inherit",
+    fontSize: text.sm,
     lineHeight: "inherit",
     color: { default: color.muted, ":hover": color.ink },
     cursor: "pointer",
     outline: focusRing,
-    outlineOffset: "3px",
+    outlineOffset: "2px",
   },
   input: {
     boxSizing: "border-box",

@@ -1,16 +1,7 @@
 import type { LibraryCard } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Button, Kbd } from "@inkling/ui";
-import {
-  color,
-  font,
-  itemColor,
-  layout,
-  motion,
-  radius,
-  space,
-  text,
-} from "@inkling/ui/tokens.stylex";
+import { color, font, itemColor, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { controlsOnRight } from "../desktop.ts";
@@ -180,11 +171,11 @@ function ItemBody({
       </div>
       <div
         data-flight="panel"
-        {...stylex.props(styles.inspector, controlsOnRight && styles.belowControls)}
+        {...stylex.props(styles.inspector, controlsOnRight && styles.besideControls)}
       >
         <div data-flight="shadow" aria-hidden="true" {...stylex.props(styles.panelShadow)} />
         <div data-flight="details" {...stylex.props(styles.details)}>
-          <header {...stylex.props(styles.header)}>
+          <header {...stylex.props(styles.header, controlsOnRight && styles.clearControls)}>
             {item && (
               <nav aria-label="Item sections" {...stylex.props(styles.tabs)}>
                 {sections.map(({ id: target, label }) => (
@@ -203,11 +194,13 @@ function ItemBody({
             <Button
               ref={closeButton}
               aria-label="Close"
+              title="Close (Esc)"
               data-bench="item-close"
               style={styles.close}
               onClick={onClose}
             >
-              Close <Kbd>esc</Kbd>
+              {/* Beside the window's buttons there is room for the word only. */}
+              Close {!controlsOnRight && <Kbd>esc</Kbd>}
             </Button>
           </header>
           {status && (
@@ -369,8 +362,9 @@ const styles = stylex.create({
     fontFamily: font.body,
   },
   details: { display: "flex", flexDirection: "column", flexGrow: 1, minHeight: 0 },
-  // The Close button sits just under the window's own buttons.
-  belowControls: { paddingTop: { default: `calc(3px + ${layout.titlebar})`, [narrow]: "6px" } },
+  // The header sits level with the window's own buttons (13px down, 32px tall), and Close stops
+  // short of their 138px inset. Below the stage, at narrow widths, the buttons are over the stage.
+  besideControls: { paddingTop: { default: "3px", [narrow]: "6px" } },
   header: {
     display: "flex",
     flexShrink: 0,
@@ -381,6 +375,11 @@ const styles = stylex.create({
     minHeight: "40px",
     flexWrap: { default: "nowrap", "@media (max-width: 360px)": "wrap" },
     gap: { default: 0, "@media (max-width: 360px)": "8px 12px" },
+  },
+  clearControls: {
+    height: { default: "36px", "@media (max-width: 360px)": "auto" },
+    minHeight: "36px",
+    paddingRight: { default: "118px", [narrow]: 0 },
   },
   tabs: { display: "flex", alignItems: "center", gap: "18px" },
   tab: {
@@ -409,9 +408,11 @@ const styles = stylex.create({
     color: { default: color.muted, ":hover": color.ink },
   },
   // One page: Info fills the first screen and Similar follows it.
+  // Reaches into the panel's gutters so the title's rename wash and focus ring aren't clipped.
   scroller: {
     flexGrow: 1,
     minHeight: 0,
+    marginInline: `calc(-1 * ${space.s3})`,
     overflowY: "auto",
     scrollbarWidth: "none",
     scrollBehavior: { default: "smooth", "@media (prefers-reduced-motion: reduce)": "auto" },
@@ -424,6 +425,7 @@ const styles = stylex.create({
     gridTemplateColumns: "minmax(0, 1fr)",
     gridTemplateRows: "auto 1fr auto",
     paddingTop: space.s5,
+    paddingInline: space.s3,
   },
   // Holds the heading and Info rows to one screen, so Similar starts below the fold.
   firstScreen: {
