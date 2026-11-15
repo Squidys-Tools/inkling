@@ -27,7 +27,7 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 
 ## Features
 
-Every feature was executed end to end with agent-desktop on 2026-11-13 unless its file says otherwise.
+Every feature was executed end to end with agent-desktop on 2026-11-15 unless its file says otherwise.
 
 - [Capture a note](./capture-note.md): Add > Note > Save to library, Ctrl+Enter.
 - [Edit a note](./edit-note.md): item view > Edit note > Save note.
@@ -40,8 +40,8 @@ Every feature was executed end to end with agent-desktop on 2026-11-13 unless it
 - [Archive and restore](./archive-restore.md): item Archive, Archive view, Restore.
 - [Tags](./tags.md): item view > Add tag, Enter, Escape, Remove tag.
 - [Similar items](./item-similar.md): item view > Similar, empty state and populated tiles.
-- [Welcome tour](./welcome.md): first launch on an unfinished library, `launch --empty`. Driven 2026-11-14.
-- [Windows setup window](./installer.md): `launch --installer`, Install, progress pacing, ready, failed. Driven 2026-11-13.
+- [Welcome tour](./welcome.md): first launch on an unfinished library, `launch --empty`. Driven 2026-11-15.
+- [Windows setup window](./installer.md): `launch --installer`, Install, progress pacing, ready, failed. Driven 2026-11-15.
 
 ## Not covered, with the reason
 
@@ -51,6 +51,7 @@ Every feature was executed end to end with agent-desktop on 2026-11-13 unless it
 - The `/` shortcut: driven on the Linux instabox box (its xdotool path sends the key); on Windows agent-desktop has no key name for it. Ctrl+K reaches the same field.
 - Permanent delete from Archive, Settings, Reader: not driven. Unmapped is unverified, not passing.
 - Item-view media wheel zoom and pan (`ZoomableMedia`): needs `--headed` wheel input.
+- The Post item view's `Load post from X` (`XPostFrame`; reloads the embed from x.com over the network): not driven.
 - The sidebar update row (`apps/renderer/src/shell/UpdateRow.tsx`): only an installed release build with an `app-update.yml` feed can update, so an unpackaged run never shows it.
 - The compact sidebar rail (collapsed sidebar): Space rows become blots whose context menu is the expanded rows' `Actions for <name>` menu. It opens only by right-click or Shift+F10, so the rail's menu is not driven.
 - Custom window controls (`Minimize`, `Maximize window`, `Close window` buttons) and toast notifications (the `Notifications` group; archive/restore toasts carry Undo): visible in the tree, not driven.

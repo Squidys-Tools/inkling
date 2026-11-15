@@ -1,6 +1,6 @@
 # Archive and restore
 
-Archiving moves an item out of Everything into the Archive view; Restore brings it back. Status: **driven** on 2026-11-13 (Archive and Restore, via the item footer and the card's right-click `Item actions` menu). Permanent delete is deliberately not driven.
+Archiving moves an item out of Everything into the Archive view; Restore brings it back. Status: **driven** on 2026-11-15 (Archive and Restore, via the item footer). Permanent delete is deliberately not driven.
 
 ## Sub-features
 

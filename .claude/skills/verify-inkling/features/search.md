@@ -1,6 +1,6 @@
 # Search
 
-Search narrows the library to items matching a query, shows an empty state with Clear search when nothing matches, and can save the query as a Smart Space. Status: **driven** on 2026-11-13. Not driven on Windows: the `/` shortcut (agent-desktop has no key name for `/` there; the Linux instabox driver's xdotool path sends it and it is covered there).
+Search narrows the library to items matching a query, shows an empty state with Clear search when nothing matches, and can save the query as a Smart Space. Status: **driven** on 2026-11-15. Not driven on Windows: the `/` shortcut (agent-desktop has no key name for `/` there; the Linux instabox driver's xdotool path sends it and it is covered there).
 
 ## Sub-features
 
@@ -33,3 +33,4 @@ Preconditions: seeded library, Everything selected.
 - Full-app search is whole-token text (FTS) plus optional semantic ranking: `hund` will not match `hundred`; a semantic match may add unrelated cards once embeddings exist. Search never downloads the model (`embedQuery` may not use the network): without it the semantic pass quietly contributes nothing (`embedQuery` fails fast on missing model assets) and text ranking alone answers.
 - Typing in the field while a Space or the Archive is selected navigates to Everything — search is always library-wide, there is no in-space filter. Escape in the focused field clears the query and blurs. Saving a Smart Space with Save as Space clears the search and lands you in the new Space.
 - `check` on `List view` leaves the app in List view; check `Grid view` to go back.
+- Focusing the field swaps the resting pill's view-name label for the mascot's eyes (an aria-hidden canvas: present in focused-field screenshots, never in `tree`/`ref`).

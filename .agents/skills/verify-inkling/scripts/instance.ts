@@ -248,7 +248,20 @@ const launchInstaller = async (flags: string[]) => {
     console.log("launch: test-identity NSIS (cached until win-unpacked changes; log: build.log)");
     const nsisPath = buildTestNsis(join(base, "build.log"));
     const setupExe = join(setupVerifyDir, "inkling-setup-verify.exe");
-    await packSetup({ nsisPath, unpackedDir: unpackedApp, outPath: setupExe });
+    // The previous run's setup window can still be letting go of the packed exe
+    // after its process exits, so a rewrite that lands in that window fails EBUSY.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await packSetup({ nsisPath, unpackedDir: unpackedApp, outPath: setupExe });
+        break;
+      } catch (error) {
+        const busy =
+          (error as { code?: string }).code === "EBUSY" ||
+          (error as Error).message?.includes("EBUSY");
+        if (!busy || attempt >= 9) throw error;
+        await Bun.sleep(1000);
+      }
+    }
     deployWebView2Loader(setupExe);
     // A file where the install folder belongs makes NSIS fail, for the failed screen.
     if (flags.includes("--fail")) writeFileSync(installDir, "blocks the install folder\n");
