@@ -37,7 +37,7 @@ export function AddTile() {
             const files = [...data.files];
             if (
               files.length === 0 ||
-              (data.getData("text/plain") && data.types.includes("text/html"))
+              (data.getData("text/plain").trim() && data.types.includes("text/html"))
             )
               return;
             event.preventDefault();
