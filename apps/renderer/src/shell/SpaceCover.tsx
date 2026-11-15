@@ -11,14 +11,21 @@ export function SpaceCover({
   space,
   thumbs,
   style,
+  glide,
 }: {
   space: Pick<Space, "kind" | "color">;
   thumbs: readonly string[];
   style?: stylex.StyleXStyles;
+  /** Grows or shrinks to a new size over the sidebar's layout glide. */
+  glide?: string;
 }) {
   if (space.kind === "regular")
     return (
-      <span aria-hidden="true" {...stylex.props(styles.slot, tints[space.color], style)}>
+      <span
+        aria-hidden="true"
+        data-glide-scale={glide}
+        {...stylex.props(styles.slot, tints[space.color], style)}
+      >
         {thumbs[0] && (
           <img
             key={thumbs[0]}
@@ -31,7 +38,11 @@ export function SpaceCover({
       </span>
     );
   return (
-    <span aria-hidden="true" {...stylex.props(styles.split, tints[space.color], style)}>
+    <span
+      aria-hidden="true"
+      data-glide-scale={glide}
+      {...stylex.props(styles.split, tints[space.color], style)}
+    >
       {thumbs[0] && (
         <img
           key={thumbs[0]}
@@ -149,8 +160,8 @@ const styles = stylex.create({
   // Fills the outline, a 1px gap short of its dashes so they stay readable over any picture.
   inner: {
     display: "block",
-    width: "19px",
-    height: "19px",
+    width: "calc(100% - 2px)",
+    height: "calc(100% - 2px)",
     borderRadius: "4.5px",
     objectFit: "cover",
   },

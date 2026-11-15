@@ -22,12 +22,6 @@ export function openSpaceDraft(query = "") {
   spaceDraft.set({ open: true, name: "", kind: "smart", query });
 }
 
-/** The compact + reveals an existing draft without discarding its captured query or name. */
-export function resumeSpaceDraft() {
-  if (spaceDraft.get().open) setSidebarOpen(true);
-  else openSpaceDraft();
-}
-
 export const updateSpaceDraft = (patch: Partial<SpaceDraft>) =>
   spaceDraft.set((draft) => ({ ...draft, ...patch }));
 export const closeSpaceDraft = () => spaceDraft.set(closed);

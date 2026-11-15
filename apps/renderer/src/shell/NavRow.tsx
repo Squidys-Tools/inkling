@@ -120,7 +120,8 @@ const styles = stylex.create({
     display: "flex",
     alignItems: "center",
     gap: "10px",
-    height: "32px",
+    // Every rail control is the column's width and this tall, so each takes the same click.
+    height: "36px",
     minWidth: 0,
     flexGrow: 1,
     paddingLeft: "18px",
