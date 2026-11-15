@@ -121,6 +121,7 @@ export function LibraryHost({
           key={gridKey}
           ids={ids}
           layout={layout}
+          addTile={scope._tag === "Active" && !searching && ready}
           pinnedOffset={pinned}
           onNearEnd={() => {
             if (!searching) void loadScope(scope, "more");
