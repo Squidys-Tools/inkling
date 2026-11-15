@@ -9,7 +9,7 @@ import { search } from "../library/search.ts";
 import { useSpaceThumbs } from "../library/spaceThumbs.ts";
 import { deleteSpace, moveSpace, recolorSpace, renameSpace } from "../library/spaces.ts";
 import { spaceRowMarker } from "../markers.stylex.ts";
-import { CompactSpaceRow, railCover } from "./CompactSpaceRow.tsx";
+import { CompactSpaceRow } from "./CompactSpaceRow.tsx";
 import { confirm } from "./confirm.ts";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { SelectionFill } from "./NavRow.tsx";
@@ -181,7 +181,7 @@ export function SpaceRow({
           space={space}
           thumbs={thumbs}
           glide={`cover ${space.id}`}
-          style={[styles.cover, rail && railCover]}
+          style={[styles.cover, rail && styles.railCover]}
         />
       )}
       {renaming !== null ? (
@@ -310,6 +310,9 @@ const styles = stylex.create({
   },
   // Under the link, which covers the whole row, so a click on the picture opens the Space.
   cover: { position: "absolute", left: "14px", top: "6px" },
+  // The rail row's cover and its center, so the swap to that row at the end of closing moves
+  // nothing. The open row takes this larger cover as soon as it starts closing.
+  railCover: { left: "11px", top: "3px", width: "30px", height: "30px" },
   lifted: {
     zIndex: 1,
     backgroundColor: { default: color.hover, ":hover": color.hover },
