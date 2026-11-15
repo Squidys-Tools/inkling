@@ -182,7 +182,6 @@ const styles = stylex.create({
     flexShrink: 0,
     display: "flex",
     alignItems: "center",
-    gap: "2px",
     height: "44px",
     marginTop: space.s3,
     borderTopWidth: 1,
@@ -192,11 +191,13 @@ const styles = stylex.create({
   button: {
     gap: "6px",
     height: "28px",
-    paddingInline: space.s2,
+    paddingInline: "6px",
     fontSize: text.sm,
     color: { default: color.muted, ":hover": color.ink },
-    // The first icon lines up with the panel's text; its hover wash reaches into the gutter.
-    marginLeft: { default: 0, ":first-child": `calc(-1 * ${space.s2})` },
+    // The end words line up with the panel's text, and their hover wash reaches into the gutter.
+    // Four labeled actions only just fit the 320px panel, so keep these tight.
+    marginLeft: { default: 0, ":first-child": "-6px" },
+    marginRight: { default: 0, ":last-child": "-6px" },
   },
   end: { marginLeft: "auto" },
   danger: { color: { default: color.muted, ":hover": color.danger } },
