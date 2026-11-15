@@ -1,13 +1,14 @@
 import * as stylex from "@stylexjs/stylex";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { flushSync } from "react-dom";
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from "react";
 import { GridCell } from "../cards/Card.tsx";
 import type { CardLayout } from "../cards/CardMedia.tsx";
 import { GradualBlur } from "./GradualBlur.tsx";
 import { relayoutLanes } from "./masonryLanes.ts";
 import { warmCards } from "../library/cards.ts";
 import { useAppearance } from "../settings/appearance.ts";
+import { AddTile } from "./AddTile.tsx";
 import { animateArrival } from "./cardArrival.ts";
 
 const gap = 12;
@@ -24,21 +25,27 @@ const columnCount = (gridColumns: number, layout: CardLayout) =>
 // pixels of cards are still below the fold.
 const loadAhead = 1600;
 const warmAhead = 12;
+// No item id has this shape, so the add tile's cell never takes a card's cached size or lane.
+const addTileKey = "add-tile:";
 
 /** Virtualized masonry fills the moving frame. The column count is the user's Appearance
  * choice and never follows the width: CSS scales the cells as the frame resizes.
  */
 export function Grid({
-  ids,
+  ids: cardIds,
   layout,
+  addTile = false,
   pinnedOffset,
   onNearEnd,
 }: {
   ids: readonly string[];
   layout: CardLayout;
+  /** Everything opens with a tile for typing a note or pasting a link. */
+  addTile?: boolean;
   pinnedOffset: boolean;
   onNearEnd: () => void;
 }) {
+  const ids = useMemo(() => (addTile ? [addTileKey, ...cardIds] : cardIds), [addTile, cardIds]);
   const scroller = useRef<HTMLDivElement>(null);
   const cells = useRef<HTMLDivElement>(null);
   const columns = columnCount(Number(useAppearance().gridColumns), layout);
@@ -101,9 +108,10 @@ export function Grid({
 
   useEffect(() => {
     warmCards(
-      backward
+      (backward
         ? ids.slice(Math.max(0, first - warmAhead), first)
-        : ids.slice(last + 1, last + 1 + warmAhead),
+        : ids.slice(last + 1, last + 1 + warmAhead)
+      ).filter((id) => id !== addTileKey),
     );
   }, [ids, first, last, backward]);
 
@@ -126,7 +134,15 @@ export function Grid({
               {...stylex.props(styles.cell(item.lane, columns, item.start))}
             >
               <div {...stylex.props(styles.zoomed)}>
-                <GridCell id={ids[item.index]} index={item.index} layout={layout} />
+                {item.key === addTileKey ? (
+                  <AddTile />
+                ) : (
+                  <GridCell
+                    id={ids[item.index]}
+                    index={item.index - (addTile ? 1 : 0)}
+                    layout={layout}
+                  />
+                )}
               </div>
             </div>
           ))}

@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useRef } from "react";
-import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
+import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { captureFiles, captureScreenshot, useCaptureState } from "../capture/capture.ts";
 import type { Choice } from "./AddChoices.tsx";
 import { handleCommand } from "./commands.ts";
@@ -15,17 +15,10 @@ const AddChoices = lazy(() =>
 );
 
 /**
- * The sidebar's Add button. Note, Link and Quote open their pages; File and
- * Screenshot save straight into the library without leaving it.
+ * The sidebar's Add button, in the top bar or under the rail's mascot. Note, Link and
+ * Quote open their pages; File and Screenshot save straight into the library.
  */
-export function AddMenu({
-  compact,
-  beside = 0,
-}: {
-  compact: boolean;
-  /** The width of what shares the button's row, which the sidebar's motion leaves for it. */
-  beside?: number;
-}) {
+export function AddMenu({ compact }: { compact: boolean }) {
   const navigate = useNavigate();
   const files = useRef<HTMLInputElement>(null);
   const saving = useCaptureState((state) => state.saving > 0);
@@ -44,21 +37,13 @@ export function AddMenu({
   };
   const label = (
     <>
-      <HugeiconsIcon icon={PlusSignIcon} size={16} />
-      {!compact && (
-        <span data-sidebar-label data-sidebar-add-label {...stylex.props(styles.label)}>
-          {saving ? "Saving…" : "Add"}
-        </span>
-      )}
+      <HugeiconsIcon icon={PlusSignIcon} size={compact ? 16 : 14} />
+      {!compact && <span data-sidebar-label>{saving ? "Saving…" : "Add"}</span>}
     </>
   );
 
   return (
-    <div
-      data-sidebar-add
-      data-glide="add"
-      {...stylex.props(styles.anchor, beside > 0 && styles.inRow(beside))}
-    >
+    <div data-glide="add" {...stylex.props(styles.anchor)}>
       <input
         ref={files}
         type="file"
@@ -87,14 +72,7 @@ export function AddMenu({
 }
 
 const styles = stylex.create({
-  anchor: { position: "relative", marginBottom: "8px" },
-  // A width, not flex growth, so the sidebar's motion can still size the button.
-  inRow: (beside: number) => ({
-    width: `calc(100% - ${beside}px)`,
-    flexShrink: 0,
-    marginBottom: 0,
-  }),
-  label: { display: "inline-block", overflow: "hidden", whiteSpace: "nowrap" },
+  anchor: { position: "relative", flexShrink: 0, WebkitAppRegion: "no-drag" },
   fileInput: {
     position: "absolute",
     width: "1px",
@@ -102,29 +80,34 @@ const styles = stylex.create({
     opacity: 0,
     pointerEvents: "none",
   },
+  // Quiet like the close button beside it; the word is what makes it read as Add.
   trigger: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    gap: "7px",
-    width: "100%",
-    height: "40px",
-    paddingInline: "14px",
+    gap: "5px",
+    height: "30px",
+    paddingLeft: "8px",
+    paddingRight: "10px",
     borderWidth: 0,
-    borderRadius: radius.tile,
-    backgroundColor: { default: color.ink, ":hover": cardColor.addHover },
-    boxShadow: `inset 0 1px 0 ${cardColor.addHighlight}, inset 0 -2px 0 ${cardColor.addLowlight}, 0 6px 18px ${cardColor.addShadow}`,
-    color: color.window,
+    borderRadius: radius.control,
+    backgroundColor: {
+      default: "transparent",
+      ":hover": color.overlayHover,
+      ":focus-visible": color.overlayHover,
+      ":active": color.overlayActive,
+    },
+    color: { default: color.inkSoft, ":hover": color.ink, ":focus-visible": color.ink },
     fontFamily: font.body,
-    fontSize: "14px",
+    fontSize: "13px",
     lineHeight: "18px",
-    fontWeight: 600,
+    fontWeight: 500,
+    whiteSpace: "nowrap",
     cursor: "pointer",
     transform: { default: "none", ":active": "scale(0.96)" },
-    transitionProperty: "background-color, transform",
+    transitionProperty: "color, background-color, transform",
     transitionDuration: motion.micro,
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-    outlineOffset: "3px",
+    transitionTimingFunction: motion.enter,
+    outline: "none",
   },
-  compact: { paddingInline: 0 },
+  compact: { justifyContent: "center", width: "36px", height: "36px", paddingInline: 0 },
 });

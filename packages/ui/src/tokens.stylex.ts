@@ -197,10 +197,6 @@ export const cardColor = stylex.defineVars({
   dangerTool: "#e08a5e",
   dangerEdge: "rgba(208, 112, 85, 0.28)",
   dangerWash: "rgba(208, 112, 85, 0.06)",
-  addHover: "#f2ece1",
-  addHighlight: "rgba(255, 255, 255, 0.55)",
-  addLowlight: "rgba(0, 0, 0, 0.08)",
-  addShadow: "rgba(0, 0, 0, 0.35)",
   sidebarScrim: "rgba(10, 10, 9, 0.48)",
   dropWash: "rgba(176, 113, 79, 0.1)",
 });
