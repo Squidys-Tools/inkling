@@ -25,7 +25,13 @@ import {
 
 /** Each end of the list fades only while rows hide past it, reaching full depth 24px in. */
 function fadeEdges(node: HTMLElement) {
-  const below = node.scrollHeight - node.clientHeight - node.scrollTop;
+  // Measured from the rows' layout, not scrollHeight: the sidebar's glide moves rows with transforms,
+  // which scrollHeight counts, and nothing re-measures once they land.
+  const rows = node.querySelectorAll<HTMLElement>(":scope > *");
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  const content = first && last ? last.offsetTop + last.offsetHeight - first.offsetTop : 0;
+  const below = content - node.clientHeight - node.scrollTop;
   node.style.setProperty("--fade-top", `${Math.min(Math.max(node.scrollTop, 0), 24)}px`);
   node.style.setProperty("--fade-bottom", `${Math.min(Math.max(below, 0), 24)}px`);
 }
