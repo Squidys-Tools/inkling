@@ -145,9 +145,9 @@ const tints = stylex.create({
 const styles = stylex.create({
   // Border-box: the dashes sit inside the same 24px as a Smart cover.
   slot: {
+    position: "relative",
     boxSizing: "border-box",
-    display: "grid",
-    placeItems: "center",
+    display: "block",
     width: "24px",
     height: "24px",
     flexShrink: 0,
@@ -158,7 +158,10 @@ const styles = stylex.create({
     pointerEvents: "none",
   },
   // Fills the outline, a 1px gap short of its dashes so they stay readable over any picture.
+  // Pinned to the outline: sized as a grid or flex item, a tall picture overflowed its height.
   inner: {
+    position: "absolute",
+    inset: "1px",
     display: "block",
     width: "calc(100% - 2px)",
     height: "calc(100% - 2px)",

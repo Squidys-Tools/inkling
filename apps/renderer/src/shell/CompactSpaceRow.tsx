@@ -3,7 +3,7 @@ import * as stylex from "@stylexjs/stylex";
 import { Link } from "@tanstack/react-router";
 import { color, motion, radius } from "@inkling/ui/tokens.stylex";
 import { search } from "../library/search.ts";
-import { SelectionFill } from "./NavRow.tsx";
+import { railSquare, SelectionFill } from "./NavRow.tsx";
 import { SpaceCover } from "./SpaceCover.tsx";
 import { opensMenu, openSpaceMenu, type SpaceActions } from "./spaceMenu.ts";
 
@@ -37,21 +37,17 @@ export function CompactSpaceRow({
       onKeyDown={(event) => {
         if (opensMenu(event)) void openSpaceMenu(event, space.name, can, actions);
       }}
-      {...stylex.props(styles.row, selected && styles.selected)}
+      {...stylex.props(styles.row, railSquare, selected && styles.selected)}
     >
       {selected && <SelectionFill />}
-      <SpaceCover space={space} thumbs={thumbs} glide={`cover ${space.id}`} style={railCover} />
+      <SpaceCover space={space} thumbs={thumbs} glide={`cover ${space.id}`} style={styles.cover} />
     </Link>
   );
 }
 
-// The open row's height, and its cover's center, so the swap to this row at the end of closing
-// moves nothing. The open row takes this larger cover as soon as it starts closing.
-export const { railCover } = stylex.create({
-  railCover: { position: "absolute", left: "11px", top: "3px", width: "30px", height: "30px" },
-});
-
 const styles = stylex.create({
+  // Centered in the square with 3px around it; the open row's rail cover sits at the same spot.
+  cover: { width: "30px", height: "30px" },
   row: {
     position: "relative",
     display: "flex",

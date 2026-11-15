@@ -6,6 +6,7 @@ import { lazy, Suspense, useEffect, useRef } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { captureFiles, captureScreenshot, useCaptureState } from "../capture/capture.ts";
 import type { Choice } from "./AddChoices.tsx";
+import { railSquare } from "./NavRow.tsx";
 import { handleCommand } from "./commands.ts";
 
 // Base UI's menu is a large share of the first screen's code and only matters once the button
@@ -33,7 +34,7 @@ export function AddMenu({ compact }: { compact: boolean }) {
   const trigger = {
     "aria-label": compact ? (saving ? "Saving…" : "Add") : undefined,
     title: compact ? "Add" : undefined,
-    ...stylex.props(styles.trigger, compact && styles.compact),
+    ...stylex.props(styles.trigger, compact && styles.compact, compact && railSquare),
   };
   const label = (
     <>

@@ -47,6 +47,7 @@ export function NavLink({
         styles.row,
         styles[tone],
         compact && styles.compact,
+        compact && railSquare,
         active && styles.active,
         active && slides && styles.slid,
       )}
@@ -102,6 +103,7 @@ export function NavButton({
         styles.button,
         styles[tone],
         compact && styles.compact,
+        compact && railSquare,
         active && styles.active,
       )}
     >
@@ -114,6 +116,24 @@ export function NavButton({
     </button>
   );
 }
+
+// A rail control keeps the column's full click but draws its fill as a square, like a Space's cover:
+// transparent side borders take the width, and each corner is wider by the same 8px to stay round.
+export const { railSquare } = stylex.create({
+  railSquare: {
+    borderLeftWidth: "8px",
+    borderRightWidth: "8px",
+    borderLeftStyle: "solid",
+    borderRightStyle: "solid",
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    backgroundClip: "padding-box",
+    borderTopLeftRadius: `calc(${radius.control} + 8px) ${radius.control}`,
+    borderTopRightRadius: `calc(${radius.control} + 8px) ${radius.control}`,
+    borderBottomLeftRadius: `calc(${radius.control} + 8px) ${radius.control}`,
+    borderBottomRightRadius: `calc(${radius.control} + 8px) ${radius.control}`,
+  },
+});
 
 const styles = stylex.create({
   row: {
@@ -161,7 +181,7 @@ const styles = stylex.create({
     position: "absolute",
     inset: 0,
     zIndex: -1,
-    borderRadius: "inherit",
+    borderRadius: radius.control,
     backgroundColor: color.overlayActive,
     pointerEvents: "none",
   },
