@@ -1,6 +1,6 @@
 # Capture a note
 
-Capture a note saves typed text as a note card in Everything immediately, with a stored `note` row. Status: **driven** on 2026-11-13 (menu click path and the `n` shortcut, Ctrl+Enter save).
+Capture a note saves typed text as a note card in Everything immediately, with a stored `note` row. Status: **driven** on 2026-11-15 (menu click path, Ctrl+Enter save).
 
 ## Sub-features
 
@@ -30,5 +30,5 @@ Preconditions: seeded library, `doctor` all PASS, sidebar reads `Everything 32`.
 - Notes store a null title; the card is `Note: <title>`, and without a title `Note: Untitled note`. Don't search the grid for the body text.
 - `set-value` reports `application_commit: not_verified` but the app did commit it (the saved row proves it). Always read the row.
 - The `Everything` count includes only active items; the seed also has archived rows.
-- Empty text is refused; text that is only a URL is saved as a `url` item (an `Article:` card), not a note.
+- Empty text is refused; text that is only a URL is saved as a `url` item (an `Article:` card — a recognized YouTube/Vimeo link renders `Video:`), not a note.
 - `ref group 'Note: Untitled note'` reports multiple matches if you capture twice; the seed's other note is `Note: Books to reread this fall`.

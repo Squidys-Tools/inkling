@@ -1,6 +1,6 @@
 # Tags
 
-The item view's Info panel lists the Regular Spaces an item is filed in as chips, then its tags as plain text with a remove button each. A field adds more. Status: **driven** on 2026-11-13.
+The item view's Info panel lists the Regular Spaces an item is filed in as chips, then its tags as plain text with a remove button each. A field adds more. Status: **driven** on 2026-11-15.
 
 ## Sub-features
 

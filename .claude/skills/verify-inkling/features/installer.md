@@ -1,11 +1,11 @@
 # Windows setup window
 
-`inkling-setup-<version>-win-<arch>.exe` (`apps/setup`, packed by `tools/installer/pack.ts`) shows a branded window over the silent NSIS installer: Install, a progress bar, "You're all set" with a 3 s countdown that opens inkling, or "Setup didn't finish" with Try again and Copy details. Status: **driven** on 2026-11-13 on Windows 11 — welcome, paced progress, ready countdown (`open` in `progress.log`), failed-install rollback (both guid keys absent), Try again and page Close. Windows only.
+`inkling-setup-<version>-win-<arch>.exe` (`apps/setup`, packed by `tools/installer/pack.ts`) shows a branded window over the silent NSIS installer: Install, a progress bar, "You're all set" with a 3 s countdown that opens inkling, or "Setup didn't finish" with Try again and Copy details. Status: **driven** on 2026-11-15 on Windows 11 — welcome, paced progress, ready countdown (`open` in `progress.log`), failed-install rollback (both guid keys absent), Try again and page Close. Windows only.
 
 ## Sub-features
 
 - `setup-welcome` the window opens on Install; each screen's own buttons appear only while it shows, but the capsule `Minimize`/`Close` are in the tree on every screen (Close only disappears while installing).
-- `setup-progress` the bar tracks the install's real work — phase-weighted (read/check/stage/copy), not elapsed time; `$I progress` resamples it at tenths of the run (`$I progress`).
+- `setup-progress` the bar tracks the install's real work — phase-weighted (read/check/stage/copy); the check phase has no byte signal, so it eases on time (`CHECK_EASE_SECS`) instead of bytes. `$I progress` resamples it at tenths of the run.
 - `setup-ready` success shows "You're all set" and the countdown sends `open`.
 - `setup-failed` an install that leaves no `inkling.exe` shows "Setup didn't finish" with the reason.
 - `setup-close` the page's Close button closes the window on every screen except installing, where it is gone.

@@ -1,6 +1,6 @@
 # Capture by the extension receiver
 
-The loopback receiver the browser extension posts to. `POST /v1/captures` with the pairing token saves a capture through the same intake the extension uses. Status: **driven** on 2026-11-13 with `instance.ts capture`, raw HTTP to the discovered port, and the pairing flow. Not driven: the Chrome extension itself (it runs in a real browser), and the auth-gated body checks (415/413/422) that sit behind a valid token.
+The loopback receiver the browser extension posts to. `POST /v1/captures` with the pairing token saves a capture through the same intake the extension uses. Status: **driven** on 2026-11-15 with `instance.ts capture`, raw HTTP to the discovered port, and the pairing flow. Not driven: the Chrome extension itself (it runs in a real browser), and the auth-gated body checks (415/413/422) that sit behind a valid token.
 
 ## Sub-features
 

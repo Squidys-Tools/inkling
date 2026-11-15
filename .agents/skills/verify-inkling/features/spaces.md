@@ -1,6 +1,6 @@
 # Spaces
 
-Spaces are named collections in the sidebar: Smart (a saved search) or Regular (hand-filed). Status: **driven** on 2026-11-13 (create Smart and Regular, rename, change color, move, file an item, card-menu remove/allow-in, delete populated, Shelf style). Not driven: dragging a row to reorder it and right-clicking a row (both need `--headed`), and a Smart Space's remembered count after a restart (`launch` reseeds). The card right-click menu is driven on the Linux instabox box; on Windows `right-click` needs `--headed`.
+Spaces are named collections in the sidebar: Smart (a saved search) or Regular (hand-filed). Status: **driven** on 2026-11-15 (create Smart and Regular, rename, change color, move, file an item, delete populated). Not driven: dragging a row to reorder it and right-clicking a row (both need `--headed`), and a Smart Space's remembered count after a restart (`launch` reseeds). The card right-click menu is driven on the Linux instabox box; on Windows `right-click` needs `--headed`.
 
 ## Sub-features
 
