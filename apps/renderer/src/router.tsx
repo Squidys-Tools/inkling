@@ -33,7 +33,6 @@ const routes = [
   page("/item/$id/write", () => import("./pages/FocusPage.tsx"), "FocusPage"),
   page("/add/note", () => import("./pages/AddNotePage.tsx"), "AddNotePage"),
   page("/add/quote", () => import("./pages/AddQuotePage.tsx"), "AddQuotePage"),
-  page("/add/link", () => import("./pages/AddLinkPage.tsx"), "AddLinkPage"),
   page("/welcome", () => import("./pages/WelcomePage.tsx"), "WelcomePage"),
   page("/dev/design", () => import("./pages/DesignPage.tsx"), "DesignPage"),
 ] as const;
