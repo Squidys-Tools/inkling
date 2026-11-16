@@ -1,5 +1,4 @@
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
-import ArrowUpRight01Icon from "@hugeicons/core-free-icons/ArrowUpRight01Icon";
 import InformationCircleIcon from "@hugeicons/core-free-icons/InformationCircleIcon";
 import LinkSquare02Icon from "@hugeicons/core-free-icons/LinkSquare02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -20,6 +19,7 @@ import { registerFontSet } from "./fonts.ts";
 import { fontSetTheme, uprightQuotes, useFontSet, useTextSize } from "./fontSets.ts";
 import { ReaderControls } from "./ReaderControls.tsx";
 import { reader } from "./readerTheme.stylex.ts";
+import { ScrollArea } from "./ScrollArea.tsx";
 
 const nonEmpty = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -140,8 +140,10 @@ export function ReaderView({ id }: { id: string }) {
           />
         )}
       </div>
-      <div
-        ref={scroller}
+      <ScrollArea
+        viewportRef={scroller}
+        viewportStyle={styles.scroll}
+        trackStyle={styles.track}
         onScroll={(event) => {
           const { scrollTop, clientHeight, scrollHeight } = event.currentTarget;
           const down = scrollTop > lastTop.current;
@@ -150,7 +152,6 @@ export function ReaderView({ id }: { id: string }) {
           // Reading down hides the pill; scrolling up, or reaching the end, brings it back.
           setReadingDown(down && scrollTop > 80 && scrollTop + clientHeight < scrollHeight - 48);
         }}
-        {...stylex.props(styles.scroll)}
       >
         {status && (
           <p role="alert" {...stylex.props(styles.status)}>
@@ -179,22 +180,9 @@ export function ReaderView({ id }: { id: string }) {
               uprightQuotes={uprightQuotes(fontSet)}
               textSize={textSize}
             />
-            {sourceUrl && (
-              <footer {...stylex.props(styles.footer)}>
-                <a
-                  href={sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  {...stylex.props(styles.source)}
-                >
-                  Continue reading at {site ?? sourceUrl}
-                  <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} />
-                </a>
-              </footer>
-            )}
           </article>
         )}
-      </div>
+      </ScrollArea>
       <ReaderControls
         fontSet={fontSet}
         onFontSet={setFontSet}
@@ -291,16 +279,10 @@ const styles = stylex.create({
     transitionProperty: "background-color, color",
     transitionDuration: motion.micro,
   },
-  scroll: {
-    position: "relative",
-    height: "100%",
-    overflowX: "hidden",
-    overflowY: "auto",
-    // Named for ArticleContent: figures break out of the column when this is wide enough.
-    containerName: "reader",
-    containerType: "inline-size",
-    maskImage: "linear-gradient(to bottom, black 0, black calc(100% - 110px), transparent 100%)",
-  },
+  // Named for ArticleContent: figures break out of the column when this is wide enough.
+  scroll: { containerName: "reader", containerType: "inline-size" },
+  // Starts under the bar, clear of its buttons and the window's.
+  track: { top: "58px" },
   status: {
     maxWidth: "720px",
     marginInline: "auto",
@@ -356,32 +338,5 @@ const styles = stylex.create({
     fontWeight: 700,
     textTransform: "uppercase",
     color: color.accentStrong,
-  },
-  footer: {
-    marginTop: "clamp(44px, 8vh, 70px)",
-    paddingTop: "26px",
-    borderTopWidth: 1,
-    borderTopStyle: "solid",
-    borderTopColor: color.border,
-    textAlign: "center",
-  },
-  source: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "7px",
-    paddingBlock: "11px",
-    paddingInline: "18px",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: { default: color.border, ":hover": color.accent },
-    borderRadius: radius.round,
-    backgroundColor: color.surface,
-    fontFamily: reader.meta,
-    fontSize: text.md,
-    color: color.ink,
-    textDecoration: "none",
-    transitionProperty: "border-color, transform",
-    transitionDuration: motion.micro,
-    transform: { default: "none", ":hover": "translateY(-1px)" },
   },
 });

@@ -46,6 +46,9 @@ export const color = stylex.defineVars({
   glassSheen: "rgba(255, 255, 255, 0.06)",
   overlayHover: "rgba(255, 255, 255, 0.04)",
   overlayActive: "rgba(255, 255, 255, 0.08)",
+  // An overlay scrollbar's pill: ink at 30%, and 46% under the pointer.
+  scrollThumb: "rgba(229, 221, 210, 0.3)",
+  scrollThumbHot: "rgba(229, 221, 210, 0.46)",
   scrim: "rgba(0, 0, 0, 0.5)",
   // The settings sheet dims the library under it harder than a small dialog does.
   modalScrim: "rgba(8, 8, 7, 0.74)",
