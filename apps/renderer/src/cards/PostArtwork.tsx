@@ -14,7 +14,7 @@ import {
 
 /**
  * `card` is the grid's post at its own height; `compact` fills a small tile or a list row with
- * the header and a few lines; `stage` is the item view's, scrolling when the post runs long.
+ * the header and a few lines; `stage` is the item view's, sized as X's post detail.
  */
 export type PostLayout = "card" | "compact" | "stage";
 
@@ -29,29 +29,30 @@ export function PostArtwork({
   style?: stylex.StyleXStyles;
 }) {
   const full = layout !== "compact";
+  const stage = layout === "stage";
   return (
     <div
       {...stylex.props(styles.art, layouts[layout], style)}
-      aria-hidden={layout === "stage" ? undefined : true}
+      aria-hidden={stage ? undefined : true}
     >
-      <div {...stylex.props(styles.header)}>
-        <Avatar author={post} size="large" />
+      <div {...stylex.props(styles.header, stage && x.header)}>
+        <Avatar author={post} size="large" stage={stage} />
         <div {...stylex.props(styles.who)}>
           <div {...stylex.props(styles.nameRow)}>
-            <span {...stylex.props(styles.name)}>{post.displayName}</span>
-            {post.verified && <VerifiedBadge kind={post.verified} />}
+            <span {...stylex.props(styles.name, stage && x.line)}>{post.displayName}</span>
+            {post.verified && <VerifiedBadge kind={post.verified} stage={stage} />}
           </div>
-          <div {...stylex.props(styles.handle)}>
+          <div {...stylex.props(styles.handle, stage && x.line)}>
             {post.handle}
             {post.published && ` · ${post.published}`}
           </div>
         </div>
         <span {...stylex.props(styles.logo)}>
-          <HugeiconsIcon icon={NewTwitterIcon} size={15} strokeWidth={2} />
+          <HugeiconsIcon icon={NewTwitterIcon} size={stage ? 18 : 15} strokeWidth={2} />
         </span>
       </div>
       {full && post.replyTo && (
-        <p {...stylex.props(styles.context)}>
+        <p {...stylex.props(styles.context, stage && x.context)}>
           Replying to <span {...stylex.props(styles.link)}>@{post.replyTo}</span>
         </p>
       )}
@@ -60,20 +61,20 @@ export function PostArtwork({
           <PostText parts={post.parts} />
         </p>
       )}
-      {full && post.media.length > 0 && <MediaGrid media={post.media} />}
+      {full && post.media.length > 0 && <MediaGrid media={post.media} stage={stage} />}
       {full && post.quote && (
-        <div {...stylex.props(styles.box, styles.quote)}>
-          <div {...stylex.props(styles.quoteHeader)}>
-            <Avatar author={post.quote} size="small" />
+        <div {...stylex.props(styles.box, stage && x.box, styles.quote, stage && x.quote)}>
+          <div {...stylex.props(styles.quoteHeader, stage && x.line)}>
+            <Avatar author={post.quote} size="small" stage={stage} />
             <span {...stylex.props(styles.quoteName)}>{post.quote.displayName}</span>
-            {post.quote.verified && <VerifiedBadge kind={post.quote.verified} />}
+            {post.quote.verified && <VerifiedBadge kind={post.quote.verified} stage={stage} />}
             <span {...stylex.props(styles.quoteHandle)}>
               {post.quote.handle}
               {post.quote.published && ` · ${post.quote.published}`}
             </span>
           </div>
           <div {...stylex.props(styles.quoteBody)}>
-            <p {...stylex.props(styles.quoteText)}>
+            <p {...stylex.props(styles.quoteText, stage && x.quoteText)}>
               <PostText parts={post.quote.parts} />
             </p>
             {post.quote.image && (
@@ -83,14 +84,14 @@ export function PostArtwork({
                 loading="lazy"
                 decoding="async"
                 draggable={false}
-                {...stylex.props(styles.quoteImage)}
+                {...stylex.props(styles.quoteImage, stage && x.quoteImage)}
               />
             )}
           </div>
         </div>
       )}
       {full && post.linkCard && (
-        <div {...stylex.props(styles.box, !post.linkCard.large && styles.linkRow)}>
+        <div {...stylex.props(styles.box, stage && x.box, !post.linkCard.large && styles.linkRow)}>
           {post.linkCard.image && (
             <img
               src={post.linkCard.image}
@@ -101,23 +102,26 @@ export function PostArtwork({
               {...stylex.props(
                 styles.linkImage,
                 post.linkCard.large ? styles.ratio(post.linkCard.ratio) : styles.linkThumb,
+                stage && !post.linkCard.large && x.linkThumb,
               )}
             />
           )}
-          <div {...stylex.props(styles.linkText)}>
+          <div {...stylex.props(styles.linkText, stage && x.linkText)}>
             <span {...stylex.props(styles.linkTitle)}>{post.linkCard.title}</span>
             {post.linkCard.domain && (
-              <small {...stylex.props(styles.linkDomain)}>From {post.linkCard.domain}</small>
+              <small {...stylex.props(styles.linkDomain, stage && x.small)}>
+                From {post.linkCard.domain}
+              </small>
             )}
           </div>
         </div>
       )}
       {full && post.poll && (
-        <div {...stylex.props(styles.poll)}>
+        <div {...stylex.props(styles.poll, stage && x.poll)}>
           {post.poll.choices.map((choice) => (
             <div
               key={choice.label}
-              {...stylex.props(styles.choice, choice.winner && styles.winner)}
+              {...stylex.props(styles.choice, stage && x.choice, choice.winner && styles.winner)}
             >
               {choice.percent !== undefined && (
                 <span
@@ -135,7 +139,9 @@ export function PostArtwork({
             </div>
           ))}
           {post.poll.summary && (
-            <small {...stylex.props(styles.pollSummary)}>{post.poll.summary}</small>
+            <small {...stylex.props(styles.pollSummary, stage && x.small)}>
+              {post.poll.summary}
+            </small>
           )}
         </div>
       )}
@@ -158,14 +164,24 @@ function PostText({ parts }: { parts: PostPart[] }) {
   });
 }
 
-function Avatar({ author, size }: { author: PostAuthor; size: "large" | "small" }) {
+function Avatar({
+  author,
+  size,
+  stage,
+}: {
+  author: PostAuthor;
+  size: "large" | "small";
+  stage: boolean;
+}) {
   const initial = Array.from(author.displayName.trim())[0]?.toLowerCase() ?? "x";
+  const large = size === "large";
   return (
     <span
       {...stylex.props(
         styles.avatar,
-        size === "large" ? styles.avatarLarge : styles.avatarSmall,
-        author.squareAvatar && (size === "large" ? styles.squareLarge : styles.squareSmall),
+        large ? styles.avatarLarge : styles.avatarSmall,
+        stage && (large ? x.avatarLarge : x.avatarSmall),
+        author.squareAvatar && (large ? styles.squareLarge : styles.squareSmall),
       )}
     >
       {initial}
@@ -183,9 +199,15 @@ function Avatar({ author, size }: { author: PostAuthor; size: "large" | "small" 
   );
 }
 
-function VerifiedBadge({ kind }: { kind: NonNullable<PostAuthor["verified"]> }) {
+function VerifiedBadge({
+  kind,
+  stage,
+}: {
+  kind: NonNullable<PostAuthor["verified"]>;
+  stage: boolean;
+}) {
   return (
-    <svg viewBox="0 0 24 24" {...stylex.props(styles.badge)}>
+    <svg viewBox="0 0 24 24" {...stylex.props(styles.badge, stage && x.badge)}>
       <path
         d="M12 1.6l2.6 2 3.2-.3 1 3.1 2.8 1.6-.9 3.1.9 3.1-2.8 1.6-1 3.1-3.2-.3-2.6 2-2.6-2-3.2.3-1-3.1-2.8-1.6.9-3.1-.9-3.1 2.8-1.6 1-3.1 3.2.3z"
         {...stylex.props(badgeFill[kind])}
@@ -201,14 +223,16 @@ function VerifiedBadge({ kind }: { kind: NonNullable<PostAuthor["verified"]> }) 
   );
 }
 
-function MediaGrid({ media }: { media: PostMedia[] }) {
+function MediaGrid({ media, stage }: { media: PostMedia[]; stage: boolean }) {
   const count = media.length;
   return (
     <div
       {...stylex.props(
         styles.box,
+        stage && x.box,
         styles.media,
         styles.ratio(count === 1 ? media[0].ratio : 16 / 10),
+        stage && count === 1 && x.tallest(media[0].ratio),
         count > 1 && styles.twoColumns,
         count > 2 && styles.twoRows,
       )}
@@ -227,7 +251,7 @@ function MediaGrid({ media }: { media: PostMedia[] }) {
             {...stylex.props(styles.cover)}
           />
           {item.kind !== "photo" && (
-            <span {...stylex.props(styles.pill)}>
+            <span {...stylex.props(styles.pill, stage && x.pill)}>
               {item.kind === "gif" ? (
                 "GIF"
               ) : (
@@ -253,14 +277,13 @@ const layouts = stylex.create({
     paddingInline: "12px",
     paddingBottom: "12px",
   },
+  // X's post detail, as xeet measures it: 16 by 12 padding and 15/20 type.
   stage: {
-    height: "100%",
-    overflowY: "auto",
-    paddingTop: "28px",
-    // Clears the item view's Load post from X button.
-    paddingBottom: "76px",
-    paddingInline: "max(28px, calc((100% - 560px) / 2))",
+    paddingTop: "12px",
+    paddingInline: "16px",
+    paddingBottom: "16px",
     fontSize: "15px",
+    lineHeight: "20px",
     pointerEvents: "auto",
   },
 });
@@ -268,7 +291,29 @@ const layouts = stylex.create({
 const bodyClamp = stylex.create({
   card: { WebkitLineClamp: 8 },
   compact: { WebkitLineClamp: 3 },
-  stage: { display: "block" },
+  stage: { display: "block", marginTop: "12px", fontSize: "17px", lineHeight: "24px" },
+});
+
+// The stage layout's sizes, where they differ from the grid card's.
+const x = stylex.create({
+  header: { alignItems: "center", gap: "8px" },
+  avatarLarge: { width: "40px", height: "40px", fontSize: "17px" },
+  avatarSmall: { width: "20px", height: "20px", fontSize: "10px" },
+  line: { fontSize: "15px", lineHeight: "20px" },
+  badge: { width: "17px", height: "17px" },
+  context: { marginTop: "12px", marginBottom: "-8px", fontSize: "15px" },
+  box: { marginTop: "12px", borderRadius: "16px" },
+  // X never draws one picture taller than 510px; a tall one narrows instead.
+  tallest: (ratio: number) => ({ maxWidth: `${510 * ratio}px` }),
+  pill: { left: "12px", bottom: "12px", fontSize: "13px", lineHeight: "16px" },
+  quote: { paddingBlock: "12px", paddingInline: "12px" },
+  quoteText: { fontSize: "15px", lineHeight: "20px", WebkitLineClamp: 8 },
+  quoteImage: { width: "80px", height: "80px", borderRadius: "12px" },
+  linkThumb: { width: "120px", height: "120px" },
+  linkText: { paddingBlock: "12px", paddingInline: "12px", fontSize: "15px", lineHeight: "20px" },
+  small: { fontSize: "13px", lineHeight: "16px" },
+  poll: { gap: "8px", marginTop: "12px" },
+  choice: { height: "32px", paddingInline: "12px", fontSize: "15px" },
 });
 
 const badgeFill = stylex.create({
@@ -298,8 +343,8 @@ const styles = stylex.create({
     flexShrink: 0,
     overflow: "hidden",
     borderRadius: radius.round,
-    backgroundColor: cardColor.postInk,
-    color: cardColor.postAvatarInk,
+    backgroundColor: cardColor.postAvatar,
+    color: cardColor.postInk,
     lineHeight: 1,
     fontWeight: 600,
   },
@@ -334,7 +379,7 @@ const styles = stylex.create({
   },
   logo: { display: "flex", flexShrink: 0, marginTop: "1px" },
   badge: { flexShrink: 0, width: "13px", height: "13px" },
-  badgeCheck: { fill: "none", stroke: cardColor.postPaper },
+  badgeCheck: { fill: "none", stroke: cardColor.verifiedCheck },
   context: {
     marginTop: "8px",
     marginBottom: "-4px",
