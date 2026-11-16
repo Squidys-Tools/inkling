@@ -40,16 +40,20 @@ Every feature was executed end to end with agent-desktop on 2026-11-15 unless it
 - [Archive and restore](./archive-restore.md): item Archive, Archive view, Restore.
 - [Tags](./tags.md): item view > Add tag, Enter, Escape, Remove tag.
 - [Similar items](./item-similar.md): item view > Similar, empty state and populated tiles.
+- [Rename an item's title](./item-title.md): item view > title > inline field > Enter.
+- [Reader](./item-reader.md): card or item view > Read > TYPEFACE > ESC.
+- [Settings](./settings.md): Settings or Ctrl+, > sheet sections, welcome replay.
+- [Keyboard shortcuts](./shortcuts.md): `?` > bindings dialog; the commands it lists.
 - [Welcome tour](./welcome.md): first launch on an unfinished library, `launch --empty`. Driven 2026-11-15.
 - [Windows setup window](./installer.md): `launch --installer`, Install, progress pacing, ready, failed. Driven 2026-11-15.
 
 ## Not covered, with the reason
 
 - The OS-level deep link (a browser or the shell opening `inkling://`): only a packaged build registers the scheme, and that build opens the real library. The app's own intake is covered by [capture-deep-link](./capture-deep-link.md).
-- File and Screenshot capture (native pickers) and drag and drop: OS input this driver does not reach. Paste is driven on the Linux instabox box (`ad paste` saves a `note`/`clipboard` item); on Windows it needs `--headed`.
+- File and Screenshot capture (native pickers) and drag and drop: OS input this driver does not reach. Paste is driven on the Linux instabox box (`ad clipboard-set "<text>"` then `ad press ctrl+v` with the grid focused saves a `note`/`clipboard` item); on Windows it needs `--headed`.
 - Card right-click menu: driven on the Linux instabox box (opens `Item actions` with the `Keep in a Space` submenu); on Windows `right-click` needs `--headed` (real cursor and focus). The item view's `Keep in a Space` offers a flat `Add to`/`Remove from <space>` list; the card's own menu wraps the same Space actions in a submenu (adding `Allow in <smart>` entries) among other card actions, plus a top-level `Remove from <current>` when opened inside a Space.
 - The `/` shortcut: driven on the Linux instabox box (its xdotool path sends the key); on Windows agent-desktop has no key name for it. Ctrl+K reaches the same field.
-- Permanent delete from Archive, Settings, Reader: not driven. Unmapped is unverified, not passing.
+- Permanent delete from Archive: not driven. Unmapped is unverified, not passing.
 - Item-view media wheel zoom and pan (`ZoomableMedia`): needs `--headed` wheel input.
 - The Post item view's `Load post from X` (`XPostFrame`; reloads the embed from x.com over the network): not driven.
 - The sidebar update row (`apps/renderer/src/shell/UpdateRow.tsx`): only an installed release build with an `app-update.yml` feed can update, so an unpackaged run never shows it.
