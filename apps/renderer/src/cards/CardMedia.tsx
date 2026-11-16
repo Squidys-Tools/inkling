@@ -105,21 +105,12 @@ export function CardMedia({
 }) {
   switch (view.media) {
     case "x-post":
-      return (
-        <div {...stylex.props(styles.fill, styles.embedPaper)}>
-          {view.post && (
-            <PostArtwork post={view.post} compact={layout === "archive"} style={styles.postFill} />
-          )}
-        </div>
+      if (!view.post) return null;
+      return layout === "grid" ? (
+        <PostArtwork post={view.post} />
+      ) : (
+        <PostArtwork post={view.post} layout="compact" style={styles.fill} />
       );
-    case "post":
-      return view.post ? (
-        <PostArtwork
-          post={view.post}
-          compact={layout === "archive"}
-          style={[styles.fill, styles.postFill]}
-        />
-      ) : null;
     case "image":
     case "video":
       return (
@@ -162,8 +153,6 @@ const styles = stylex.create({
   mediaGround: { backgroundColor: color.raised },
   paperGround: { backgroundColor: color.surface },
   articleGround: { backgroundColor: "transparent" },
-  embedPaper: { backgroundColor: cardColor.embedPaper },
-  postFill: { width: "100%", height: "100%" },
   pill: {
     position: "absolute",
     left: "10px",

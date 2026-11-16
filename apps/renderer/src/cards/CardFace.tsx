@@ -86,6 +86,7 @@ const shapes = stylex.create({
   file: { height: "300px" },
   video: { height: "190px" },
   media: {},
+  post: {},
 });
 
 const styles = stylex.create({

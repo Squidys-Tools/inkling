@@ -47,7 +47,19 @@ describe("seedLibrary", () => {
         .prepare("SELECT metadata FROM items WHERE id = 'preview-article-image'")
         .get() as { metadata: string };
       expect(JSON.parse(article.metadata).html).toContain("article-lede");
+      const post = db.prepare("SELECT metadata FROM items WHERE id = 'seed-x-roll-1904'").get() as {
+        metadata: string;
+      };
+      const { social } = JSON.parse(post.metadata) as {
+        social: { avatarPath: string; media: { path: string }[] };
+      };
+      const postPaths = [social.avatarPath, ...social.media.map((media) => media.path)];
       db.close();
+      expect(postPaths).toHaveLength(5);
+      for (const path of postPaths) {
+        expect(path).toStartWith("assets/items/seed-x-roll-1904/");
+        await access(join(directory, path));
+      }
       for (const item of seedItems) {
         const fileName = item.file ?? item.thumbnailFile;
         if (fileName) await access(join(directory, "assets", "items", item.id, fileName));

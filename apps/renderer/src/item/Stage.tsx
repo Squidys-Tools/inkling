@@ -46,7 +46,7 @@ export function Stage({
         <XPostFrame
           key={item.xPostId}
           postId={item.xPostId}
-          fallback={<PostArtwork post={item.post} style={styles.fillArt} />}
+          fallback={<PostArtwork post={item.post} layout="stage" />}
         />
       </ArtBox>
     );
@@ -77,7 +77,7 @@ export function Stage({
   if (item.post)
     return (
       <ArtBox>
-        <PostArtwork post={item.post} style={styles.fillArt} />
+        <PostArtwork post={item.post} layout="stage" />
       </ArtBox>
     );
   return (
@@ -97,5 +97,4 @@ const styles = stylex.create({
     backgroundColor: color.surface,
   },
   paper: { backgroundColor: cardColor.embedPaper },
-  fillArt: { height: "100%" },
 });

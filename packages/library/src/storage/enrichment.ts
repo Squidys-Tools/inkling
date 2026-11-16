@@ -1,16 +1,15 @@
 import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { XPost } from "@inkling/contracts/jobs";
 import {
   imageExtension,
   missingXPostMedia,
   withXPostMediaPaths,
   X_MEDIA_SLOT,
 } from "@inkling/ingestion/x-post-media";
-import { Effect, Option, Predicate, Schema } from "effect";
+import { Effect, Predicate } from "effect";
 import { isInside } from "../paths.ts";
 import type { StorageContext, Thumbnail } from "./context.ts";
-import { readItem } from "./rows.ts";
+import { readItem, xPostOf } from "./rows.ts";
 import { changes, isSafeItemId, nonEmpty, normalizeHttpUrl, parseJson } from "./shared.ts";
 import { attempt, invalidInput, itemNotFound } from "./errors.ts";
 import {
@@ -40,11 +39,6 @@ type Candidate = { rowid: number; id: string };
 
 /** A downloaded picture for one of a saved post's slots, and the URL it came from. */
 export type XPostMediaFile = { slot: string; url: string; bytes: Uint8Array };
-
-const decodeXPost = Schema.decodeUnknownOption(XPost);
-/** A post item's X metadata, or undefined for anything else. */
-export const xPostOf = (metadata: Record<string, unknown>) =>
-  Option.getOrUndefined(decodeXPost(metadata.social));
 
 const missingThumbnailCandidateSql = (kind: "pdf" | "video") => `SELECT rowid, id FROM items
   WHERE kind = '${kind}' AND rowid > ? AND thumbnail_path IS NULL AND local_asset_path != ''

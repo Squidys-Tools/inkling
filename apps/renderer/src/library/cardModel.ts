@@ -1,22 +1,47 @@
 import type { ItemDetail, ItemRecord, LibraryCard } from "@inkling/contracts";
 import { displayKind, itemKind, type ItemKind } from "@inkling/ingestion/item-kind";
 import { videoLinkFromSourceUrl } from "@inkling/ingestion/video-links";
-import { dayMonthYear, monthDayStamp } from "../format.ts";
-import { assetUrl, webUrl } from "./assets.ts";
+import { dayAndMonth, dayMonthYear, monthDayStamp } from "../format.ts";
+import { assetUrl, hostname, webUrl } from "./assets.ts";
 import { expireLabelAt } from "./labelClock.ts";
 
 export { displayKind, type ItemKind };
 
 /** How a card draws in the grid. Kinds with no artwork fall back to the typed file card. */
-type Treatment = "note" | "quote" | "pdf" | "article" | "video" | "file" | "media";
-type MediaKind = "x-post" | "video" | "image" | "post" | "paper";
+type Treatment = "note" | "quote" | "pdf" | "article" | "video" | "file" | "media" | "post";
+type MediaKind = "x-post" | "video" | "image" | "paper";
 
-export type PostArt = {
+/** A run of a post's text; `link` runs are a URL, mention, hashtag or cashtag. */
+export type PostPart = { text: string; link: boolean };
+
+type Verified = "blue" | "business" | "government";
+
+export type PostAuthor = {
   displayName: string;
   handle: string;
-  body: string;
-  published: string;
+  /** Absent when the post's date is unknown. */
+  published?: string;
   avatarUrl?: string;
+  squareAvatar: boolean;
+  verified?: Verified;
+};
+
+export type PostMedia = {
+  kind: "photo" | "video" | "gif";
+  url: string;
+  ratio: number;
+  durationSeconds?: number;
+};
+
+export type PostArt = PostAuthor & {
+  body: string;
+  parts: PostPart[];
+  /** Only pictures the library holds a copy of; a missing one is left out, never fetched from X. */
+  media: PostMedia[];
+  quote?: PostAuthor & { parts: PostPart[]; image?: string };
+  linkCard?: { title: string; domain: string; image?: string; ratio: number; large: boolean };
+  poll?: { choices: { label: string; percent?: number; winner: boolean }[]; summary: string };
+  replyTo?: string;
 };
 
 /** What a card shows, derived once per stored card. */
@@ -55,21 +80,161 @@ export type CardView = {
 const positive = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 const text = (value: unknown) => (typeof value === "string" ? value : undefined);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const record = (value: unknown) => (isRecord(value) ? value : undefined);
+const records = (value: unknown) => (Array.isArray(value) ? value.filter(isRecord) : []);
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const offset = (value: unknown) =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
 
-function xPost(value: unknown) {
-  if (!value || typeof value !== "object") return undefined;
-  const record = value as Record<string, unknown>;
-  if (record.provider !== "x" || !text(record.postUrl) || !text(record.postId)) return undefined;
-  const handle = text(record.authorHandle)?.replace(/^@/u, "");
-  const published = text(record.publishedDate);
+/**
+ * A post's text cut into plain and linked runs. Spans are UTF-16 offsets; one that overlaps an
+ * earlier span, runs past the text or would split an emoji's surrogate pair stays plain.
+ */
+export function postParts(body: string, entities: unknown): PostPart[] {
+  const splitsPair = (index: number) => {
+    const code = body.charCodeAt(index - 1);
+    return index > 0 && code >= 0xd800 && code <= 0xdbff;
+  };
+  const spans = records(entities)
+    .flatMap((entity) => {
+      const start = offset(entity.start);
+      const end = offset(entity.end);
+      return start !== undefined &&
+        end !== undefined &&
+        start < end &&
+        end <= body.length &&
+        !splitsPair(start) &&
+        !splitsPair(end)
+        ? [{ start, end }]
+        : [];
+    })
+    .sort((a, b) => a.start - b.start);
+  const parts: PostPart[] = [];
+  let at = 0;
+  for (const { start, end } of spans) {
+    if (start < at) continue;
+    if (start > at) parts.push({ text: body.slice(at, start), link: false });
+    parts.push({ text: body.slice(start, end), link: true });
+    at = end;
+  }
+  if (at < body.length) parts.push({ text: body.slice(at), link: false });
+  return parts;
+}
+
+// X's own rule: a date in the current year leaves the year out.
+function postDate(value: unknown, now: number) {
+  const published = text(value);
+  if (!published || Number.isNaN(Date.parse(published))) return undefined;
+  return new Date(published).getFullYear() === new Date(now).getFullYear()
+    ? dayAndMonth(published)
+    : dayMonthYear(published);
+}
+
+const verifiedKinds: readonly unknown[] = ["blue", "business", "government"] satisfies Verified[];
+const isVerified = (value: unknown): value is Verified => verifiedKinds.includes(value);
+
+function postAuthor(post: Record<string, unknown>, now: number): PostAuthor {
+  const handle = text(post.authorHandle)?.replace(/^@/u, "");
+  return {
+    displayName: text(post.authorName)?.trim() || "X user",
+    handle: handle ? `@${handle}` : "@x",
+    published: postDate(post.publishedDate, now),
+    avatarUrl: assetUrl(text(post.avatarPath)),
+    squareAvatar: post.squareAvatar === true,
+    verified: isVerified(post.verified) ? post.verified : undefined,
+  };
+}
+
+function postMedia(value: unknown) {
+  return records(value).flatMap((media): PostMedia[] => {
+    const url = assetUrl(text(media.path));
+    const width = positive(media.width);
+    const height = positive(media.height);
+    if (!url) return [];
+    return [
+      {
+        kind: media.kind === "video" || media.kind === "gif" ? media.kind : "photo",
+        url,
+        ratio: width && height ? width / height : 1,
+        durationSeconds: positive(media.durationSeconds),
+      },
+    ];
+  });
+}
+
+function pollArt(value: unknown): PostArt["poll"] {
+  const poll = record(value);
+  const choices = records(poll?.choices).flatMap((choice) => {
+    const label = text(choice.label)?.trim();
+    const votes = typeof choice.votes === "number" && choice.votes >= 0 ? choice.votes : undefined;
+    return label ? [{ label, votes }] : [];
+  });
+  if (!poll || choices.length === 0) return undefined;
+  const counted = choices.some((choice) => choice.votes !== undefined);
+  const total = choices.reduce((sum, choice) => sum + (choice.votes ?? 0), 0);
+  const top = Math.max(...choices.map((choice) => choice.votes ?? 0));
+  const final = poll.final === true;
+  return {
+    choices: choices.map(({ label, votes }) => ({
+      label,
+      percent: total > 0 ? Math.round(((votes ?? 0) / total) * 100) : undefined,
+      winner: final && total > 0 && votes === top,
+    })),
+    summary: [
+      counted && `${total.toLocaleString()} ${total === 1 ? "vote" : "votes"}`,
+      final && "Final results",
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  };
+}
+
+function linkCardArt(value: unknown): PostArt["linkCard"] {
+  const card = record(value);
+  if (!card) return undefined;
+  const domain = text(card.domain)?.trim() || hostname(webUrl(text(card.url))) || "";
+  const title = text(card.title)?.trim() || domain;
+  if (!title) return undefined;
+  const width = positive(card.imageWidth);
+  const height = positive(card.imageHeight);
+  return {
+    title,
+    domain,
+    image: assetUrl(text(card.imagePath)),
+    ratio: width && height ? clamp(width / height, 1, 2.2) : 1.91,
+    large: card.large !== false,
+  };
+}
+
+function xPost(value: unknown, now: number) {
+  const post = record(value);
+  if (!post || post.provider !== "x" || !text(post.postUrl) || !text(post.postId)) return undefined;
+  const handle = text(post.authorHandle)?.replace(/^@/u, "");
+  const media = postMedia(post.media).slice(0, 4);
+  // Not trimmed: entity offsets index the text as stored.
+  const stored = text(post.text) ?? "";
+  const body =
+    stored.trim() || media.length > 0 || post.poll || post.quote
+      ? stored
+      : "Post preview unavailable.";
+  const quote = record(post.quote);
   return {
     handle,
     art: {
-      displayName: text(record.authorName) ?? "X user",
-      handle: handle ? `@${handle}` : "@x",
-      body: text(record.text) ?? "Post preview unavailable.",
-      published:
-        published && !Number.isNaN(Date.parse(published)) ? dayMonthYear(published) : "On X",
+      ...postAuthor(post, now),
+      body,
+      parts: postParts(body, post.entities),
+      media: media.length === 1 ? [{ ...media[0], ratio: clamp(media[0].ratio, 0.8, 2) }] : media,
+      quote: quote && {
+        ...postAuthor(quote, now),
+        parts: postParts(text(quote.text) ?? "", quote.entities),
+        image: postMedia(quote.media)[0]?.url,
+      },
+      linkCard: linkCardArt(post.linkCard),
+      poll: pollArt(post.poll),
+      replyTo: text(record(post.replyTo)?.handle)?.replace(/^@/u, "") || undefined,
     } satisfies PostArt,
   };
 }
@@ -87,8 +252,7 @@ function itemDateLabel(timestamp: number, now: number) {
   };
 }
 
-function fallbackRatio(kind: ItemKind, isXPost: boolean) {
-  if (isXPost) return 1.6;
+function fallbackRatio(kind: ItemKind) {
   switch (kind) {
     case "Video":
       return 16 / 9;
@@ -104,11 +268,8 @@ function fallbackRatio(kind: ItemKind, isXPost: boolean) {
   }
 }
 
-function treatmentOf(
-  kind: ItemKind,
-  image: string | undefined,
-  post: PostArt | undefined,
-): Treatment {
+function treatmentOf(kind: ItemKind, image: string | undefined, isXPost: boolean): Treatment {
+  if (isXPost) return "post";
   switch (kind) {
     case "Note":
       return "note";
@@ -123,20 +284,14 @@ function treatmentOf(
     case "File":
       return "file";
     default:
-      return image || post ? "media" : "file";
+      return image ? "media" : "file";
   }
 }
 
-function mediaOf(
-  kind: ItemKind,
-  image: string | undefined,
-  post: PostArt | undefined,
-  isX: boolean,
-) {
-  if (isX && post) return "x-post";
+function mediaOf(kind: ItemKind, image: string | undefined, isXPost: boolean): MediaKind {
+  if (isXPost) return "x-post";
   if (kind === "Video" && image) return "video";
   if (image) return "image";
-  if (kind === "Post" && post) return "post";
   return "paper";
 }
 
@@ -159,20 +314,17 @@ function remoteImage(metadata: LibraryCard["metadata"]) {
 }
 
 function remoteDimensions(metadata: LibraryCard["metadata"], url: string | undefined) {
-  const entries = Array.isArray(metadata.imageDimensions) ? metadata.imageDimensions : [];
-  for (const entry of entries) {
-    if (!entry || typeof entry !== "object") continue;
-    const record = entry as Record<string, unknown>;
-    const width = positive(record.width);
-    const height = positive(record.height);
-    if (width && height && (!url || record.url === url)) return { width, height };
+  for (const entry of records(metadata.imageDimensions)) {
+    const width = positive(entry.width);
+    const height = positive(entry.height);
+    if (width && height && (!url || entry.url === url)) return { width, height };
   }
   return undefined;
 }
 
 export function toCardView(card: LibraryCard, now = Date.now()): CardView {
   const { metadata } = card;
-  const social = xPost(metadata.social);
+  const social = xPost(metadata.social, now);
   const baseKind = displayKind(card.kind);
   const video = baseKind === "Article" ? videoLinkFromSourceUrl(card.sourceUrl) : null;
   const kind = itemKind(card.kind, card.sourceUrl, Boolean(social));
@@ -186,8 +338,7 @@ export function toCardView(card: LibraryCard, now = Date.now()): CardView {
   const width = positive(metadata.mediaWidth) ?? dimensions?.width;
   const height = positive(metadata.mediaHeight) ?? dimensions?.height;
   const aspectRatio =
-    positive(metadata.mediaAspectRatio) ??
-    (width && height ? width / height : fallbackRatio(kind, Boolean(social)));
+    positive(metadata.mediaAspectRatio) ?? (width && height ? width / height : fallbackRatio(kind));
   const title = card.title?.trim() || (kind === "Note" ? "Untitled note" : "Untitled");
   const description =
     social?.art.body.trim() ||
@@ -227,8 +378,8 @@ export function toCardView(card: LibraryCard, now = Date.now()): CardView {
     hasArticleContent: card.hasArticleContent,
     hasLocalFile: Boolean(card.localAssetPath),
     archived: card.archived,
-    treatment: noPreview ? "media" : treatmentOf(kind, image, social?.art),
-    media: mediaOf(kind, image, social?.art, Boolean(social)),
+    treatment: noPreview ? "media" : treatmentOf(kind, image, Boolean(social)),
+    media: mediaOf(kind, image, Boolean(social)),
   };
 }
 
