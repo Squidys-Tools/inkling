@@ -10,12 +10,10 @@ import { scopeFromPath, scopeKey } from "../library/scope.ts";
 import { search, useSearch } from "../library/search.ts";
 import { spacesStore, useSpace } from "../library/spaces.ts";
 import { useSelector } from "@tanstack/react-store";
-import { libraryMarker } from "../markers.stylex.ts";
 import { EmptyState } from "./EmptyState.tsx";
 import { FilterRow } from "./FilterRow.tsx";
 import { Grid } from "./Grid.tsx";
 import { SearchBar } from "./SearchBar.tsx";
-import { ViewDock } from "./ViewDock.tsx";
 import { setSidebarOpen, useViewState } from "./viewState.ts";
 
 /**
@@ -59,8 +57,6 @@ export function LibraryHost({
   const searchError = useSearch((search) => search.error);
   const ran = useSearch((search) => search.ran);
   const focused = useViewState((view) => view.searchFocused);
-  const list = useViewState((view) => view.list);
-  const entering = useViewState((view) => view.entering);
 
   const archive = scope._tag === "Archived";
   const searching = query !== "" && !archive;
@@ -71,8 +67,8 @@ export function LibraryHost({
     : state?.status === "ready";
   const pinned = searching && !focused;
   const viewName = archive ? "Archive" : (space?.name ?? "Everything");
-  const layout = archive ? "archive" : list ? "list" : "grid";
-  // A new scope, search or layout starts a new grid at the top; anything else keeps the scroll.
+  const layout = archive ? "archive" : "grid";
+  // A new scope or search starts a new grid at the top; anything else keeps the scroll.
   const gridKey = `${layout}|${searching ? `search:${results === null ? "" : ran}` : scopeKey(scope)}`;
 
   let empty: { title: string; detail: string; action?: { label: string; run: () => void } } | null =
@@ -110,8 +106,7 @@ export function LibraryHost({
     <section
       aria-label={viewName}
       inert={covered}
-      data-entering={entering ? "" : undefined}
-      {...stylex.props(styles.host, libraryMarker, covered && !painting && styles.covered)}
+      {...stylex.props(styles.host, covered && !painting && styles.covered)}
     >
       {spaceGone ? null : state?.status === "error" && !searching ? (
         <EmptyState
@@ -158,8 +153,6 @@ export function LibraryHost({
           Couldn’t search: {searchError}
         </p>
       )}
-
-      {!archive && ids.length > 0 && <ViewDock />}
 
       {/* Screen readers hear the count of what the grid shows. */}
       <p role="status" {...stylex.props(srOnly)}>
