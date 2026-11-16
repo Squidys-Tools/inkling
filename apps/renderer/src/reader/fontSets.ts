@@ -128,3 +128,34 @@ export function useFontSet() {
   };
   return [fontSet, choose] as const;
 }
+
+/** Text sizes as a percent of the font set's own body size. */
+export const textSizes = [80, 90, 100, 110, 120, 135] as const;
+export type TextSize = (typeof textSizes)[number];
+
+const textSizeKey = "reader-text-size";
+
+function storedTextSize(): TextSize {
+  try {
+    const stored = Number(localStorage.getItem(textSizeKey));
+    const size = textSizes.find((each) => each === stored);
+    if (size) return size;
+  } catch {
+    // Storage can be unavailable; the set's own size reads fine.
+  }
+  return 100;
+}
+
+/** The reader's text size, kept across sessions. */
+export function useTextSize() {
+  const [size, setSize] = useState(storedTextSize);
+  const choose = (next: TextSize) => {
+    setSize(next);
+    try {
+      localStorage.setItem(textSizeKey, String(next));
+    } catch {
+      // The choice still holds for this session.
+    }
+  };
+  return [size, choose] as const;
+}
