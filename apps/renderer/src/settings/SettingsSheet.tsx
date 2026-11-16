@@ -96,10 +96,10 @@ export function SettingsSheet() {
                 ))}
               </ul>
             </nav>
-            {version && <p {...stylex.props(styles.version)}>inkling {version}</p>}
           </aside>
           {section === "general" && (
             <GeneralPanel
+              version={version}
               onShowLicenses={() => show("licenses")}
               onShowWelcome={() => void navigate({ to: "/welcome", replace: true })}
               onClose={close}
@@ -225,14 +225,4 @@ const styles = stylex.create({
   },
   tabIcon: { display: "inline-flex", flexShrink: 0, color: color.muted },
   tabIconSelected: { color: color.accentStrong },
-  version: {
-    marginTop: "auto",
-    marginBottom: 0,
-    paddingInline: "10px",
-    fontFamily: font.mono,
-    fontSize: text.xs,
-    lineHeight: "14px",
-    color: color.faint,
-    display: { default: "block", [narrow]: "none" },
-  },
 });

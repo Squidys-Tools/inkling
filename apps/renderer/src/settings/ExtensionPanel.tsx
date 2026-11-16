@@ -3,7 +3,6 @@ import DropletIcon from "@hugeicons/core-free-icons/DropletIcon";
 import FlashIcon from "@hugeicons/core-free-icons/FlashIcon";
 import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import Unlink03Icon from "@hugeicons/core-free-icons/Unlink03Icon";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { captureReceiverPorts } from "@inkling/contracts/capture";
 import type { DesktopBridge } from "@inkling/contracts/desktop";
 import * as stylex from "@stylexjs/stylex";
@@ -16,6 +15,9 @@ import {
   Card,
   CardRow,
   EmptyState,
+  Flow,
+  FlowLink,
+  FlowNode,
   Panel,
   PanelBody,
   Section,
@@ -63,7 +65,7 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
     onError: () => setNotice({ text: "Could not disconnect the browsers.", failed: true }),
   });
   const port = receiver.data?.running ? receiver.data.port : null;
-  const state: keyof typeof links = receiver.isPending
+  const state: keyof typeof linkLabel = receiver.isPending
     ? "waiting"
     : port === null
       ? "off"
@@ -74,18 +76,16 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
   return (
     <>
       <Card>
-        <div {...stylex.props(styles.flow)}>
-          <Node icon={BrowserIcon} title="Your browser" detail="Chrome, Edge, Arc or Brave" />
-          <div aria-hidden="true" {...stylex.props(styles.link, links[state])}>
-            <span {...stylex.props(styles.linkLabel, labels[state])}>{linkLabel[state]}</span>
-          </div>
-          <Node
+        <Flow>
+          <FlowNode icon={BrowserIcon} title="Your browser" detail="Chrome, Edge, Arc or Brave" />
+          <FlowLink tone={linkTone[state]} label={linkLabel[state]} />
+          <FlowNode
             icon={DropletIcon}
             title="inkling"
             detail={port === null ? "Not listening" : `127.0.0.1:${port}`}
             strong
           />
-        </div>
+        </Flow>
         <CardRow
           title="Connection"
           description={
@@ -153,28 +153,6 @@ function Pairing({ capture }: { capture: DesktopBridge["capture"] }) {
   );
 }
 
-function Node({
-  icon,
-  title,
-  detail,
-  strong,
-}: {
-  icon: IconSvgElement;
-  title: string;
-  detail: string;
-  strong?: boolean;
-}) {
-  return (
-    <div {...stylex.props(styles.node)}>
-      <span aria-hidden="true" {...stylex.props(styles.nodeIcon, strong && styles.nodeIconStrong)}>
-        <HugeiconsIcon icon={icon} size={26} />
-      </span>
-      <span {...stylex.props(styles.nodeTitle)}>{title}</span>
-      <span {...stylex.props(styles.nodeDetail)}>{detail}</span>
-    </div>
-  );
-}
-
 const linkLabel = {
   waiting: "checking…",
   on: "listening · stays on this computer",
@@ -189,92 +167,14 @@ const status = {
   busy: "Other programs hold the ports the extension looks for, so its saves open inkling instead.",
 };
 
-const links = stylex.create({
-  waiting: {
-    backgroundImage: `repeating-linear-gradient(90deg, ${color.borderStrong} 0 6px, transparent 6px 11px)`,
-  },
-  on: {
-    backgroundImage: `repeating-linear-gradient(90deg, ${color.success} 0 6px, transparent 6px 11px)`,
-  },
-  off: {
-    backgroundImage: `repeating-linear-gradient(90deg, ${color.danger} 0 6px, transparent 6px 11px)`,
-    opacity: 0.6,
-  },
-  busy: {
-    backgroundImage: `repeating-linear-gradient(90deg, ${color.accent} 0 6px, transparent 6px 11px)`,
-  },
-});
-
-const labels = stylex.create({
-  waiting: { color: color.muted },
-  on: { color: color.success },
-  off: { color: color.danger },
-  busy: { color: color.accentStrong },
-});
+const linkTone = {
+  waiting: "muted",
+  on: "success",
+  off: "danger",
+  busy: "accent",
+} as const;
 
 const styles = stylex.create({
-  flow: {
-    display: "flex",
-    alignItems: "flex-start",
-    paddingInline: "28px",
-    paddingBlock: "26px",
-  },
-  node: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    flexShrink: 0,
-    width: "160px",
-    textAlign: "center",
-  },
-  nodeIcon: {
-    display: "grid",
-    placeItems: "center",
-    width: "56px",
-    height: "56px",
-    marginBottom: space.s2,
-    borderRadius: radius.frame,
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: color.borderStrong,
-    backgroundColor: color.raised,
-    color: color.inkSoft,
-  },
-  nodeIconStrong: { color: color.ink },
-  nodeTitle: {
-    fontFamily: font.body,
-    fontSize: "12.5px",
-    lineHeight: "17px",
-    fontWeight: 500,
-    color: color.ink,
-  },
-  nodeDetail: {
-    fontFamily: font.body,
-    fontSize: "11.5px",
-    lineHeight: "16px",
-    color: color.muted,
-  },
-  link: {
-    position: "relative",
-    flex: "1 1 auto",
-    minWidth: "60px",
-    height: "2px",
-    // Level with the middle of the 56px node icons.
-    marginTop: "27px",
-  },
-  linkLabel: {
-    position: "absolute",
-    left: "50%",
-    top: "-22px",
-    transform: "translateX(-50%)",
-    paddingInline: "6px",
-    backgroundColor: color.surface,
-    fontFamily: font.mono,
-    fontSize: text.xs,
-    lineHeight: "14px",
-    fontWeight: 500,
-    whiteSpace: "nowrap",
-  },
   actions: { display: "flex", flexShrink: 0, gap: space.s2 },
   failed: {
     margin: 0,
