@@ -17,6 +17,24 @@ const FADE = 28;
 const MIN_THUMB = 28;
 const LINGER = 900;
 
+/** Writes the edge fades and the thumb for the current scroll; true while content overflows. */
+function paint(node: HTMLElement | null, bar: HTMLElement | null, pill: HTMLElement | null) {
+  if (!node) return false;
+  const { scrollTop, scrollHeight, clientHeight } = node;
+  const max = Math.max(0, scrollHeight - clientHeight);
+  const top = Math.min(FADE, scrollTop);
+  const bottom = Math.min(FADE, max - scrollTop);
+  node.style.maskImage = `linear-gradient(to bottom, transparent, black ${top}px, black calc(100% - ${bottom}px), transparent)`;
+  if (max <= 0.5) return false;
+  if (bar && pill) {
+    const length = bar.clientHeight;
+    const size = Math.max(MIN_THUMB, (length * clientHeight) / scrollHeight);
+    pill.style.height = `${size}px`;
+    pill.style.transform = `translate3d(0, ${(length - size) * (scrollTop / max)}px, 0)`;
+  }
+  return true;
+}
+
 /**
  * Native vertical scrolling with a thin overlay scrollbar that shows while
  * scrolling or under the pointer, and edges that fade only where more is hidden.
@@ -46,31 +64,15 @@ export function ScrollArea({
   const [dragging, setDragging] = useState(false);
   useImperativeHandle(viewportRef, () => viewport.current as HTMLDivElement);
 
-  const sync = () => {
-    const node = viewport.current;
-    if (!node) return;
-    const { scrollTop, scrollHeight, clientHeight } = node;
-    const max = Math.max(0, scrollHeight - clientHeight);
-    const top = Math.min(FADE, scrollTop);
-    const bottom = Math.min(FADE, max - scrollTop);
-    node.style.maskImage = `linear-gradient(to bottom, transparent, black ${top}px, black calc(100% - ${bottom}px), transparent)`;
-    setOverflowing(max > 0.5);
-    const bar = track.current;
-    const pill = thumb.current;
-    if (!bar || !pill || max <= 0.5) return;
-    const length = bar.clientHeight;
-    const size = Math.max(MIN_THUMB, (length * clientHeight) / scrollHeight);
-    pill.style.height = `${size}px`;
-    pill.style.transform = `translate3d(0, ${(length - size) * (scrollTop / max)}px, 0)`;
-  };
+  const sync = () => setOverflowing(paint(viewport.current, track.current, thumb.current));
 
   useLayoutEffect(() => {
-    sync();
-    const observer = new ResizeObserver(() => sync());
+    const repaint = () => setOverflowing(paint(viewport.current, track.current, thumb.current));
+    repaint();
+    const observer = new ResizeObserver(repaint);
     if (viewport.current) observer.observe(viewport.current);
     if (content.current) observer.observe(content.current);
     return () => observer.disconnect();
-    // Once: sync reads only refs, and the observer covers every later size change.
   }, []);
 
   useEffect(() => () => window.clearTimeout(linger.current), []);
