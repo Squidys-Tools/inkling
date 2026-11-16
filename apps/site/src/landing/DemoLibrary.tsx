@@ -26,24 +26,50 @@ function prepareRevealDocument(doc: Document | null | undefined): doc is Documen
   return true;
 }
 
+const routedViews = new WeakSet<Window>();
+
+// The live demo scrolls its own grid, so without this a wheel over it stops the page
+// partway through the reveal and the grid rubber-bands under the half-open mask.
+function routeRevealWheel(doc: Document, onWheel: (event: WheelEvent) => boolean) {
+  const view = doc.defaultView;
+  if (!view || routedViews.has(view)) return;
+  routedViews.add(view);
+  view.addEventListener(
+    "wheel",
+    (event) => {
+      if (!event.ctrlKey && onWheel(event)) event.preventDefault();
+    },
+    { passive: false },
+  );
+}
+
 export function DemoLibrary({
   active,
   calm,
   loaded,
   onLoad,
+  onWheel,
 }: {
   active: boolean;
   calm: boolean;
   loaded: boolean;
   onLoad: () => void;
+  onWheel: (event: WheelEvent) => boolean;
 }) {
   const frame = useRef<HTMLIFrameElement | null>(null);
+  const wheel = useRef(onWheel);
+  useEffect(() => {
+    wheel.current = onWheel;
+  }, [onWheel]);
   const attachFrame = useCallback(
     (node: HTMLIFrameElement | null) => {
       frame.current = node;
       const doc = node?.contentDocument;
       // A prerendered iframe may finish before React attaches its load handler.
-      if (doc?.readyState === "complete" && prepareRevealDocument(doc)) onLoad();
+      if (doc?.readyState === "complete" && prepareRevealDocument(doc)) {
+        routeRevealWheel(doc, (event) => wheel.current(event));
+        onLoad();
+      }
     },
     [onLoad],
   );
@@ -53,6 +79,7 @@ export function DemoLibrary({
   const ready = () => {
     const doc = frame.current?.contentDocument;
     if (!prepareRevealDocument(doc)) return;
+    routeRevealWheel(doc, (event) => wheel.current(event));
     syncRevealDocument(doc, active, calm);
     onLoad();
   };
