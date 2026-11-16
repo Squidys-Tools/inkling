@@ -3,7 +3,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Button } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
-import type { ComponentProps, ReactNode } from "react";
+import { type ComponentProps, type ReactNode, useId } from "react";
 
 /** One settings section: a header with the close button, then a scrolling body. */
 export function Panel({
@@ -101,6 +101,73 @@ export function EmptyState({
   );
 }
 
+/** A labeled group of settings on one card, like the details panel's Spaces & tags. */
+export function Section({ label, children }: { label: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <section aria-labelledby={id} {...stylex.props(styles.section)}>
+      <h3 id={id} {...stylex.props(styles.sectionLabel)}>
+        {label}
+      </h3>
+      <Card>{children}</Card>
+    </section>
+  );
+}
+
+export function Card({ children }: { children: ReactNode }) {
+  return <div {...stylex.props(styles.card)}>{children}</div>;
+}
+
+/** One setting on a Section's card: its name and what it does, then its control. */
+export function CardRow({
+  title,
+  description,
+  action,
+  children,
+}: {
+  title: string;
+  description?: ReactNode;
+  action?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div {...stylex.props(styles.cardRow)}>
+      <div {...stylex.props(styles.rowText)}>
+        <h4 {...stylex.props(styles.cardRowTitle)}>{title}</h4>
+        {description && <p {...stylex.props(styles.cardRowDescription)}>{description}</p>}
+        {children}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+type ActionButtonProps = Omit<ComponentProps<typeof Button>, "variant" | "style" | "icon"> & {
+  icon?: IconSvgElement;
+  look?: "plain" | "danger";
+};
+
+/** A card row's button: sans words after a muted icon. */
+export function ActionButton({ icon, look = "plain", ...props }: ActionButtonProps) {
+  return (
+    <Button
+      variant="outline"
+      {...props}
+      icon={
+        icon && (
+          <span
+            aria-hidden="true"
+            {...stylex.props(styles.actionIcon, look === "danger" && styles.actionIconDanger)}
+          >
+            <HugeiconsIcon icon={icon} size={14} />
+          </span>
+        )
+      }
+      style={[styles.action, look === "danger" && styles.actionDanger]}
+    />
+  );
+}
+
 type SquareButtonProps = Omit<ComponentProps<typeof Button>, "variant" | "style"> & {
   look?: "plain" | "solid" | "danger";
 };
@@ -174,6 +241,8 @@ export const inset = stylex.create({
     backgroundColor: color.surface,
     boxShadow: `inset 0 1px 0 ${color.glassEdge}`,
   },
+  // A Section's card is already the surface color, so a capsule on it sinks below it instead.
+  onCard: { borderColor: color.border, backgroundColor: color.sunken },
 });
 
 const narrow = "@media (max-width: 700px)";
@@ -258,6 +327,75 @@ const styles = stylex.create({
     paddingRight: "3px",
     scrollbarWidth: "thin",
     scrollbarColor: `${color.borderStrong} transparent`,
+  },
+  section: {
+    display: "flex",
+    flexDirection: "column",
+    flexShrink: 0,
+    marginTop: { default: "26px", ":first-child": 0 },
+  },
+  sectionLabel: {
+    marginTop: 0,
+    marginBottom: space.s2,
+    marginInline: "2px",
+    fontFamily: font.body,
+    fontSize: text.xs,
+    lineHeight: "14px",
+    fontWeight: 600,
+    letterSpacing: "0.07em",
+    textTransform: "uppercase",
+    color: color.muted,
+  },
+  card: {
+    display: "flex",
+    flexShrink: 0,
+    flexDirection: "column",
+    borderRadius: radius.tile,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: color.border,
+    backgroundColor: color.surface,
+  },
+  cardRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: space.s4,
+    minHeight: "62px",
+    paddingInline: space.s4,
+    paddingBlock: "14px",
+    borderTopStyle: "solid",
+    borderTopColor: color.border,
+    borderTopWidth: { default: 1, ":first-child": 0 },
+  },
+  cardRowTitle: {
+    margin: 0,
+    fontFamily: font.body,
+    fontSize: "13.5px",
+    lineHeight: "18px",
+    fontWeight: 500,
+    color: color.ink,
+  },
+  cardRowDescription: {
+    margin: 0,
+    fontFamily: font.body,
+    fontSize: "12.5px",
+    lineHeight: "17px",
+    color: color.muted,
+  },
+  action: {
+    flexShrink: 0,
+    gap: "6px",
+    height: "30px",
+    paddingInline: space.s3,
+    borderColor: color.borderStrong,
+    backgroundColor: { default: color.raised, ":hover": color.hover },
+    fontSize: "12.5px",
+  },
+  actionIcon: { display: "inline-flex", color: color.muted },
+  actionIconDanger: { color: color.danger },
+  actionDanger: {
+    color: color.danger,
+    backgroundColor: { default: color.raised, ":hover": color.dangerSoft },
   },
   row: {
     display: "flex",

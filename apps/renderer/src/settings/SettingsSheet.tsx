@@ -224,7 +224,7 @@ const styles = stylex.create({
     boxShadow: `inset 0 1px 0 ${color.glassEdge}`,
   },
   tabIcon: { display: "inline-flex", flexShrink: 0, color: color.muted },
-  tabIconSelected: { color: color.ink },
+  tabIconSelected: { color: color.accentStrong },
   version: {
     marginTop: "auto",
     marginBottom: 0,

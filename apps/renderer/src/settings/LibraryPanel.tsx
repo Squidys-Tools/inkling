@@ -1,8 +1,6 @@
 import Download04Icon from "@hugeicons/core-free-icons/Download04Icon";
 import Folder01Icon from "@hugeicons/core-free-icons/Folder01Icon";
-import Loading01Icon from "@hugeicons/core-free-icons/Loading01Icon";
 import Upload04Icon from "@hugeicons/core-free-icons/Upload04Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, radius, space, text } from "@inkling/ui/tokens.stylex";
 import type { ReactNode } from "react";
@@ -10,7 +8,7 @@ import { desktop } from "../desktop.ts";
 import { formatByteSize } from "../format.ts";
 import { formatExportSummary, formatImportSummary, formatLastCopy } from "./format.ts";
 import { KindBreakdown } from "./KindBreakdown.tsx";
-import { Panel, PanelBody, Row, settingsText, SquareButton } from "./parts.tsx";
+import { ActionButton, CardRow, Panel, PanelBody, Section, settingsText } from "./parts.tsx";
 import { useLibraryOverview, type useLibraryTransfer } from "./useLibraryTransfer.ts";
 
 export function LibraryPanel({
@@ -45,63 +43,73 @@ export function LibraryPanel({
                   : `${count.toLocaleString()} ${count === 1 ? "thing" : "things"}`}
               </p>
               {sizeBytes !== undefined && (
-                <span {...stylex.props(settingsText.mono)}>
-                  {formatByteSize(sizeBytes)} on disk
+                <span {...stylex.props(styles.size)}>
+                  {formatByteSize(sizeBytes)} on this computer
                 </span>
               )}
             </div>
             {desktop && (
-              <SquareButton
-                onClick={showFolder}
-                icon={<HugeiconsIcon icon={Folder01Icon} size={13} />}
-              >
+              <ActionButton icon={Folder01Icon} onClick={showFolder}>
                 Show folder
-              </SquareButton>
+              </ActionButton>
             )}
           </div>
           <KindBreakdown kinds={kinds} />
         </div>
         {failure("folder")}
-        <Row
-          icon={busy === "export" ? Loading01Icon : Download04Icon}
-          title="Export a copy"
-          description="A dated folder with the database, every file, and a manifest. Keep it on another drive."
-          action={
-            <SquareButton look="solid" disabled={!desktop || busy !== null} onClick={exportCopy}>
-              {busy === "export" ? "Exporting…" : "Export…"}
-            </SquareButton>
-          }
-        >
-          {lastCopy && <p {...stylex.props(styles.lastCopy)}>{formatLastCopy(lastCopy)}</p>}
-          {!desktop && <p {...stylex.props(settingsText.hint)}>Export runs in the desktop app.</p>}
-          {outcome?.action === "export" && "report" in outcome && (
-            <Result>
-              <span {...stylex.props(styles.summary)}>{formatExportSummary(outcome.report)}</span>
-              <span {...stylex.props(styles.path)}>{outcome.report.directory}</span>
-            </Result>
-          )}
-          {failure("export")}
-        </Row>
-        <Row
-          icon={busy === "import" ? Loading01Icon : Upload04Icon}
-          title="Restore from an export"
-          description="Adds its items, files and Spaces here. Nothing already in your library gets replaced."
-          action={
-            <SquareButton disabled={!desktop || busy !== null} onClick={restoreCopy}>
-              {busy === "import" ? "Restoring…" : "Restore…"}
-            </SquareButton>
-          }
-        >
-          {!desktop && <p {...stylex.props(settingsText.hint)}>Restore runs in the desktop app.</p>}
-          {outcome?.action === "import" && "report" in outcome && (
-            <Result>
-              <span {...stylex.props(styles.summary)}>
-                {formatImportSummary(outcome.report)}. Search indexing continues in the background.
-              </span>
-            </Result>
-          )}
-          {failure("import")}
-        </Row>
+        <Section label="Backups">
+          <CardRow
+            title="Export a copy"
+            description="A dated folder with the database, every file, and a manifest. Keep it on another drive."
+            action={
+              <ActionButton
+                icon={Download04Icon}
+                disabled={!desktop || busy !== null}
+                onClick={exportCopy}
+              >
+                {busy === "export" ? "Exporting…" : "Export…"}
+              </ActionButton>
+            }
+          >
+            {lastCopy && <p {...stylex.props(styles.lastCopy)}>{formatLastCopy(lastCopy)}</p>}
+            {!desktop && (
+              <p {...stylex.props(settingsText.hint)}>Export runs in the desktop app.</p>
+            )}
+            {outcome?.action === "export" && "report" in outcome && (
+              <Result>
+                <span {...stylex.props(styles.summary)}>{formatExportSummary(outcome.report)}</span>
+                <span {...stylex.props(styles.path)}>{outcome.report.directory}</span>
+              </Result>
+            )}
+            {failure("export")}
+          </CardRow>
+          <CardRow
+            title="Restore from an export"
+            description="Adds its items, files and Spaces here. Nothing already in your library gets replaced."
+            action={
+              <ActionButton
+                icon={Upload04Icon}
+                disabled={!desktop || busy !== null}
+                onClick={restoreCopy}
+              >
+                {busy === "import" ? "Restoring…" : "Restore…"}
+              </ActionButton>
+            }
+          >
+            {!desktop && (
+              <p {...stylex.props(settingsText.hint)}>Restore runs in the desktop app.</p>
+            )}
+            {outcome?.action === "import" && "report" in outcome && (
+              <Result>
+                <span {...stylex.props(styles.summary)}>
+                  {formatImportSummary(outcome.report)}. Search indexing continues in the
+                  background.
+                </span>
+              </Result>
+            )}
+            {failure("import")}
+          </CardRow>
+        </Section>
       </PanelBody>
     </Panel>
   );
@@ -121,10 +129,10 @@ const styles = stylex.create({
     flexDirection: "column",
     flexShrink: 0,
     gap: space.s4,
-    marginBottom: "28px",
-    paddingInline: "22px",
-    paddingBlock: space.s5,
-    borderRadius: radius.frame,
+    paddingInline: "18px",
+    paddingTop: "18px",
+    paddingBottom: space.s4,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: color.border,
@@ -132,7 +140,7 @@ const styles = stylex.create({
   },
   headline: {
     display: "flex",
-    alignItems: "baseline",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: space.s3,
   },
@@ -140,12 +148,13 @@ const styles = stylex.create({
   count: {
     margin: 0,
     fontFamily: font.display,
-    fontSize: "22px",
-    lineHeight: "28px",
+    fontSize: "30px",
+    lineHeight: "34px",
     fontWeight: 600,
-    letterSpacing: "-0.01em",
-    color: color.ink,
+    letterSpacing: "-0.02em",
+    color: color.inkStrong,
   },
+  size: { fontFamily: font.body, fontSize: "12.5px", color: color.muted },
   lastCopy: {
     margin: 0,
     fontFamily: font.mono,
