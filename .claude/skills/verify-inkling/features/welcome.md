@@ -15,15 +15,15 @@ The first launch over an unfinished library opens a five-screen welcome (`#/welc
 
 ## Driving it with agent-desktop
 
-Preconditions: `$I launch --empty` (unseeded library). `doctor` accepts `Skip` as the ready marker on an unseeded run — the whole app shell is `inert` under the welcome, so the sidebar's `Everything` link is not the marker here.
+Preconditions: `$I launch --empty` (unseeded library). `doctor` accepts `Skip` as the ready marker on an unseeded run — the shell under the welcome overlay is `inert` (the `TitleBar` sits outside the inert wrapper and stays live), so the sidebar's `Everything` link is not the marker here.
 
-- **Screens.** `$I tree` shows `group "Welcome to inkling"` with `Continue` and `Skip` on screen one; from screen two a `Back` button joins. `$I ad click "$($I ref button Continue)"` four times walks all five; on the last screen `Continue` is replaced by `Open my library`.
+- **Screens.** `$I tree` shows `group "Welcome to inkling"` (`region` on Linux) with `Continue` and `Skip` on screen one; from screen two a `Back` button joins. `$I ad click "$($I ref button Continue)"` four times walks all five; on the last screen `Continue` is replaced by `Open my library`.
 - **Finish.** `$I ad click "$($I ref button 'Open my library')"` lands on `document …#/` with `Everything 0`. `$I db "SELECT value FROM app_settings WHERE key='onboarding_completed'"` → `1`. `$I shot`.
 - **Skip.** `Skip` on any screen finishes identically (same flag, same landing); Escape does the same. To prove Skip instead of finishing, click it on screen one and check the flag.
 
 ## Gotchas
 
 - A seeded run never shows the tour — its library already carries `onboarding_completed`. Verify only on `--empty`.
-- The tour is not reachable in the web preview (`useFirstRun` is desktop-only) and a failed `onboardingCompleted` check counts as complete, so the welcome can't trap the user.
+- Automatic first-launch opening is desktop-only (`useFirstRun` checks `desktop`), but the Settings > General replay navigates to the shared `/welcome` route without a desktop check, so the tour is reachable in the web preview that way. A failed `onboardingCompleted` check counts as complete, so the welcome can't trap the user.
 - While `#/welcome` is shown, all shortcuts are suppressed (`useCommands` returns early), so Ctrl+K etc. do nothing — don't diagnose that as a broken search.
 - Screen transitions animate; the button names stay stable (`Continue`/`Back`/`Skip`), so ref-lookup still works mid-transition.
