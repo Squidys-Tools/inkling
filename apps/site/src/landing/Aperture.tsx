@@ -131,6 +131,18 @@ export function Aperture() {
     return () => observer.disconnect();
   }, [paint, progress]);
   const onDemoLoad = useCallback(() => setDemoLoaded(true), []);
+  const onDemoWheel = useCallback(
+    (event: WheelEvent) => {
+      const rect = area.current?.getBoundingClientRect();
+      // Until the pinned runway ends, the wheel drives the reveal, not the demo grid.
+      if (reduced || !rect || event.deltaY === 0 || rect.bottom <= window.innerHeight + 1)
+        return false;
+      const unit = event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? window.innerHeight : 1;
+      window.scrollBy({ top: event.deltaY * unit, behavior: "instant" });
+      return true;
+    },
+    [reduced],
+  );
   return (
     <section
       ref={area}
@@ -194,7 +206,13 @@ export function Aperture() {
               />
             </g>
           </svg>
-          <DemoLibrary active={live} calm={reduced} loaded={demoLoaded} onLoad={onDemoLoad} />
+          <DemoLibrary
+            active={live}
+            calm={reduced}
+            loaded={demoLoaded}
+            onLoad={onDemoLoad}
+            onWheel={onDemoWheel}
+          />
         </div>
         <div {...stylex.props(styles.caption)}>
           <h2 id="library-heading" {...stylex.props(base.heading, styles.captionTitle)}>
