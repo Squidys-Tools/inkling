@@ -39,7 +39,7 @@ export const color = stylex.defineVars({
 
   glass: "rgba(12, 11, 10, 0.62)",
   glassEdge: "rgba(255, 255, 255, 0.08)",
-  // Glass controls over the library (search, view toggle): a heavy blur under a dark tint.
+  // Glass controls over the library and media (search, filter chips): a heavy blur under a dark tint.
   glassThin: "rgba(9, 8, 8, 0.76)",
   glassRim: "rgba(255, 255, 255, 0.1)",
   glassSheen: "rgba(255, 255, 255, 0.06)",
@@ -178,13 +178,10 @@ export const cardColor = stylex.defineVars({
   articleLine: "#4a4842",
   stampEdge: "#a06b4e",
   stampInk: "#d98d68",
-  noteText: "#9fb1ae",
-  noteKicker: "#9fb9b7",
   quoteKicker: "#b3ad8d",
   quoteMark: "#c4ba8c",
   quoteText: "#d0c68f",
   quoteRule: "#81764c",
-  quoteEdge: "rgba(255, 255, 255, 0.04)",
   postPaper: "#edf4f5",
   postInk: "#243d42",
   postMuted: "#6b8589",

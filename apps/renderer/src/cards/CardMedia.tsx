@@ -11,7 +11,7 @@ import { QuoteArtwork } from "./QuoteArtwork.tsx";
 import { TypedArtworkFor } from "./TypedArtwork.tsx";
 import { hasThumbnail, retainThumbnail, takeThumbnail } from "./thumbnailCache.ts";
 
-export type CardLayout = "grid" | "list" | "archive";
+export type CardLayout = "grid" | "archive";
 
 /**
  * Every card image goes through here. The library keeps one thumbnail per
@@ -76,13 +76,13 @@ function VideoPill({ view }: { view: CardView }) {
   );
 }
 
-function ArticleArtwork({ view, showTitle }: { view: CardView; showTitle: boolean }) {
+function ArticleArtwork({ view }: { view: CardView }) {
   return (
     <>
       <span {...stylex.props(styles.line, styles.lineLong)} />
       <span {...stylex.props(styles.line, styles.lineShort)} />
       <span {...stylex.props(styles.stamp)}>m</span>
-      {showTitle && view.webUrl && (
+      {view.webUrl && (
         <span {...stylex.props(styles.articleText)}>
           <span {...stylex.props(styles.articleTitle)}>{view.title}</span>
           <span {...stylex.props(styles.articleSource)}>{view.source}</span>
@@ -103,12 +103,10 @@ export function CardMedia({
   priority: boolean;
   waiting?: boolean;
 }) {
-  const list = layout === "list";
-  const box = list ? styles.row : styles.fill;
   switch (view.media) {
     case "x-post":
       return (
-        <div {...stylex.props(box, styles.embedPaper)}>
+        <div {...stylex.props(styles.fill, styles.embedPaper)}>
           {view.post && (
             <PostArtwork post={view.post} compact={layout === "archive"} style={styles.postFill} />
           )}
@@ -119,13 +117,13 @@ export function CardMedia({
         <PostArtwork
           post={view.post}
           compact={layout === "archive"}
-          style={[box, styles.postFill, list && styles.postRow]}
+          style={[styles.fill, styles.postFill]}
         />
       ) : null;
     case "image":
     case "video":
       return (
-        <div {...stylex.props(box, styles.mediaGround, list && styles.imageRow)}>
+        <div {...stylex.props(styles.fill, styles.mediaGround)}>
           <CardImage view={view} priority={priority} />
           {view.media === "video" && <VideoPill view={view} />}
         </div>
@@ -134,20 +132,14 @@ export function CardMedia({
       break;
   }
   if (view.kind === "Quote")
-    return (
-      <QuoteArtwork view={view} layout={list ? "list" : layout === "grid" ? "grid" : "fill"} />
-    );
+    return <QuoteArtwork view={view} layout={layout === "grid" ? "grid" : "fill"} />;
   const article = view.kind === "Article";
   return (
     <div
-      {...stylex.props(box, article ? styles.articleGround : styles.paperGround)}
+      {...stylex.props(styles.fill, article ? styles.articleGround : styles.paperGround)}
       aria-hidden="true"
     >
-      {article ? (
-        <ArticleArtwork view={view} showTitle={!list} />
-      ) : (
-        <TypedArtworkFor view={view} compact={list} waiting={waiting} />
-      )}
+      {article ? <ArticleArtwork view={view} /> : <TypedArtworkFor view={view} waiting={waiting} />}
     </div>
   );
 }
@@ -159,14 +151,6 @@ const styles = stylex.create({
     overflow: "hidden",
     pointerEvents: "none",
   },
-  row: {
-    position: "relative",
-    height: "100%",
-    minHeight: "155px",
-    overflow: "hidden",
-    pointerEvents: "none",
-  },
-  imageRow: { minHeight: "120px" },
   image: {
     position: "absolute",
     inset: 0,
@@ -180,7 +164,6 @@ const styles = stylex.create({
   articleGround: { backgroundColor: "transparent" },
   embedPaper: { backgroundColor: cardColor.embedPaper },
   postFill: { width: "100%", height: "100%" },
-  postRow: { minHeight: "155px" },
   pill: {
     position: "absolute",
     left: "10px",

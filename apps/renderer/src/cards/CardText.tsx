@@ -3,12 +3,7 @@ import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, radius } from "@inkling/ui/tokens.stylex";
-import { type CardView, quoteAttribution } from "../library/cardModel.ts";
-import type { Processing } from "../library/jobs.ts";
-import { KindIcon } from "./KindIcon.tsx";
-import { ProcessingRows } from "./Processing.tsx";
-
-const quoted = (title: string) => (/^["“]/u.test(title.trim()) ? title : `“${title}”`);
+import type { CardView } from "../library/cardModel.ts";
 
 function Action({
   view,
@@ -52,97 +47,30 @@ function Action({
   return <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} aria-hidden="true" />;
 }
 
-/**
- * The words under a card's media: the whole text column of a list row, and
- * just the title and source of a grid article.
- */
+/** The words under a grid article's image: its title, source and Read button. */
 export function CardText({
   view,
-  list,
-  processing,
   onRead,
   onOpen,
-  onRetry,
 }: {
   view: CardView;
-  list: boolean;
-  processing: Processing | undefined;
   onRead: () => void;
   onOpen: () => void;
-  onRetry: (jobId: string) => void;
 }) {
-  const article = view.kind === "Article";
-  const quote = view.kind === "Quote";
-  const note = view.kind === "Note";
   const source = view.readingMinutes ? `${view.source} · ${view.readingMinutes} min` : view.source;
-  const footer = (
-    <div
-      {...stylex.props(
-        styles.footer,
-        list && styles.footerRule,
-        list && article && styles.footerRuleOnPaper,
-      )}
-    >
-      <span {...stylex.props(styles.source, article && styles.onPaperMuted)}>{source}</span>
-      <Action view={view} onRead={onRead} onOpen={onOpen} />
-    </div>
-  );
-
-  if (!list)
-    return (
-      <div {...stylex.props(styles.gridArticle)}>
-        <h2 {...stylex.props(styles.title, styles.articleTitle, styles.flush)}>{view.title}</h2>
-        {footer}
-      </div>
-    );
-
   return (
-    <div {...stylex.props(styles.listText, quote && styles.quoteText)}>
-      <div
-        {...stylex.props(
-          styles.kicker,
-          article && styles.onPaperMuted,
-          note && styles.noteKicker,
-          quote && styles.quoteKicker,
-        )}
-      >
-        <span {...stylex.props(styles.kickerKind)}>
-          <KindIcon kind={view.kind} />
-          {view.kind}
-        </span>
-        <span>{view.date}</span>
+    <div {...stylex.props(styles.text)}>
+      <h2 {...stylex.props(styles.title)}>{view.title}</h2>
+      <div {...stylex.props(styles.footer)}>
+        <span {...stylex.props(styles.source)}>{source}</span>
+        <Action view={view} onRead={onRead} onOpen={onOpen} />
       </div>
-      <h2
-        {...stylex.props(
-          styles.title,
-          quote
-            ? styles.quoteTitle
-            : article
-              ? styles.articleTitle
-              : note
-                ? styles.noteTitle
-                : styles.plainTitle,
-        )}
-      >
-        {quote ? quoted(view.title) : view.title}
-      </h2>
-      <p
-        {...stylex.props(
-          quote ? styles.attribution : styles.description,
-          article && styles.onPaperMuted,
-          note && styles.noteText,
-        )}
-      >
-        {quote ? quoteAttribution(view.description) : view.description}
-      </p>
-      {processing && <ProcessingRows processing={processing} onPaper={article} onRetry={onRetry} />}
-      {footer}
     </div>
   );
 }
 
 const styles = stylex.create({
-  gridArticle: {
+  text: {
     display: "flex",
     flexDirection: "column",
     justifyContent: "space-between",
@@ -151,67 +79,8 @@ const styles = stylex.create({
     minHeight: 0,
     padding: "16px",
   },
-  listText: {
-    display: "flex",
-    flexDirection: "column",
-    minWidth: 0,
-    minHeight: 0,
-    paddingTop: "17px",
-    paddingInline: { default: "18px", "@media (max-width: 480px)": "12px" },
-    paddingBottom: "16px",
-  },
-  quoteText: {
-    backgroundColor: color.surface,
-    borderLeftWidth: 1,
-    borderLeftStyle: "solid",
-    borderLeftColor: cardColor.quoteEdge,
-  },
-  kicker: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: { default: "nowrap", "@media (max-width: 480px)": "wrap" },
-    gap: { default: "12px", "@media (max-width: 480px)": "6px 12px" },
-    fontFamily: font.mono,
-    fontSize: "10px",
-    lineHeight: 1.2,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: color.muted,
-  },
-  kickerKind: { display: "flex", alignItems: "center", gap: "6px" },
-  noteKicker: { color: cardColor.noteKicker },
-  quoteKicker: { color: cardColor.quoteKicker },
   title: {
-    marginTop: "13px",
-    marginBottom: "7px",
-    marginInline: 0,
-    color: color.ink,
-  },
-  flush: { margin: 0 },
-  plainTitle: {
-    overflowWrap: "anywhere",
-    fontFamily: font.display,
-    fontSize: "17px",
-    lineHeight: 1.22,
-    fontWeight: 600,
-    letterSpacing: "-0.02em",
-  },
-  noteTitle: {
-    fontFamily: font.display,
-    fontSize: "19px",
-    lineHeight: 1.22,
-    fontWeight: 600,
-    letterSpacing: "-0.025em",
-  },
-  quoteTitle: {
-    fontFamily: font.display,
-    fontSize: "16px",
-    lineHeight: 1.28,
-    fontWeight: 400,
-    letterSpacing: "-0.01em",
-  },
-  articleTitle: {
+    margin: 0,
     fontFamily: font.body,
     fontSize: "16px",
     lineHeight: 1.3,
@@ -223,24 +92,6 @@ const styles = stylex.create({
     WebkitLineClamp: 4,
     overflow: "hidden",
   },
-  description: {
-    margin: 0,
-    maxWidth: "56ch",
-    fontFamily: font.display,
-    fontSize: "12px",
-    lineHeight: 1.52,
-    color: color.muted,
-  },
-  attribution: {
-    margin: 0,
-    minHeight: "37px",
-    fontFamily: font.mono,
-    fontSize: "10px",
-    lineHeight: 1.45,
-    color: color.muted,
-  },
-  noteText: { color: cardColor.noteText },
-  onPaperMuted: { color: cardColor.articleMuted },
   footer: {
     display: "flex",
     alignItems: "center",
@@ -248,14 +99,6 @@ const styles = stylex.create({
     gap: "10px",
     color: color.muted,
   },
-  footerRule: {
-    marginTop: "auto",
-    paddingTop: "11px",
-    borderTopWidth: 1,
-    borderTopStyle: "solid",
-    borderTopColor: color.border,
-  },
-  footerRuleOnPaper: { borderTopColor: cardColor.articleRule },
   source: {
     minWidth: 0,
     overflow: "hidden",
@@ -264,6 +107,7 @@ const styles = stylex.create({
     fontFamily: font.mono,
     fontSize: "11px",
     lineHeight: 1.2,
+    color: cardColor.articleMuted,
   },
   action: {
     display: "inline-flex",

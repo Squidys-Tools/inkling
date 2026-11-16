@@ -4,10 +4,6 @@ export const appearanceOptions = {
     { value: "cover", label: "Cover" },
     { value: "strip", label: "Strip" },
   ],
-  viewToggle: [
-    { value: "pill", label: "Pill" },
-    { value: "segmented", label: "Segmented" },
-  ],
   gridColumns: [
     { value: "3", label: "3" },
     { value: "4", label: "4" },
@@ -26,10 +22,7 @@ export type Appearance = {
 };
 
 // Earlier builds stored `sidebarStyle` and `sidebarToggle`; neither is read, so an old choice picks no sidebar.
-export function parseAppearance(
-  raw: string | null,
-  viewToggleStyle: string | null = null,
-): Appearance {
+export function parseAppearance(raw: string | null): Appearance {
   let stored: Record<string, unknown> = {};
   try {
     const parsed: unknown = JSON.parse(raw ?? "{}");
@@ -39,12 +32,6 @@ export function parseAppearance(
   return {
     // Strip replaced Shelf, so a stored Shelf choice keeps the picture-led sidebar.
     sidebar: stored.sidebar === "strip" || stored.sidebar === "shelf" ? "strip" : "cover",
-    viewToggle:
-      viewToggleStyle === "pill" || viewToggleStyle === "segmented"
-        ? viewToggleStyle
-        : stored.viewToggle === "segmented"
-          ? "segmented"
-          : "pill",
     gridColumns:
       appearanceOptions.gridColumns.find((option) => option.value === stored.gridColumns)?.value ??
       "4",

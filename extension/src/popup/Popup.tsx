@@ -117,7 +117,6 @@ function SaveForm({ choices, connection }: { choices: Choice[]; connection: Conn
             <CardFace
               view={view}
               index={0}
-              list={false}
               processing={undefined}
               onOpen={ignore}
               onRead={ignore}

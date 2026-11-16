@@ -3,10 +3,7 @@ import { type Appearance, parseAppearance } from "./appearanceModel.ts";
 
 function readAppearance() {
   try {
-    return parseAppearance(
-      localStorage.getItem("appearance"),
-      localStorage.getItem("view-toggle-style"),
-    );
+    return parseAppearance(localStorage.getItem("appearance"));
   } catch {
     return parseAppearance(null);
   }
@@ -20,7 +17,5 @@ export function setAppearance<Key extends keyof Appearance>(key: Key, value: App
   appearance.set((current) => ({ ...current, [key]: value }));
   try {
     localStorage.setItem("appearance", JSON.stringify(appearance.get()));
-    if (key === "viewToggle")
-      localStorage.setItem("view-toggle-style", appearance.get().viewToggle);
   } catch {}
 }
