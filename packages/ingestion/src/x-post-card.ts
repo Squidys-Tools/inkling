@@ -19,6 +19,10 @@ const localMedia = (media: readonly XPostMedia[] | undefined) =>
     path ? [{ kind, width, height, ...(durationSeconds && { durationSeconds }), path }] : [],
   );
 
+// The card crosses RPC as JSON, which has no undefined: a missing field is left out.
+const defined = <T extends object>(value: T) =>
+  Object.fromEntries(Object.entries(value).filter((entry) => entry[1] !== undefined)) as T;
+
 /**
  * What a card draws of a saved post, sent with every card instead of the whole post: no embed
  * HTML, no remote picture URLs, and only as much text as a card can show.
@@ -26,7 +30,7 @@ const localMedia = (media: readonly XPostMedia[] | undefined) =>
 export function xPostCard(post: XPostMetadata) {
   const quote = post.quote;
   const card = post.linkCard;
-  return {
+  return defined({
     provider: post.provider,
     postUrl: post.postUrl,
     postId: post.postId,
@@ -38,28 +42,32 @@ export function xPostCard(post: XPostMetadata) {
     publishedDate: post.publishedDate,
     ...(post.text !== undefined && clipped(post.text, post.entities, CARD_TEXT_LENGTH)),
     media: localMedia(post.media),
-    quote: quote && {
-      postId: quote.postId,
-      postUrl: quote.postUrl,
-      authorName: quote.authorName,
-      authorHandle: quote.authorHandle,
-      verified: quote.verified,
-      avatarPath: quote.avatarPath,
-      squareAvatar: quote.squareAvatar,
-      publishedDate: quote.publishedDate,
-      ...clipped(quote.text, quote.entities, QUOTE_TEXT_LENGTH),
-      media: localMedia(quote.media)?.slice(0, 1),
-    },
-    linkCard: card && {
-      url: card.url,
-      domain: card.domain,
-      title: card.title,
-      imageWidth: card.imageWidth,
-      imageHeight: card.imageHeight,
-      imagePath: card.imagePath,
-      large: card.large,
-    },
+    quote:
+      quote &&
+      defined({
+        postId: quote.postId,
+        postUrl: quote.postUrl,
+        authorName: quote.authorName,
+        authorHandle: quote.authorHandle,
+        verified: quote.verified,
+        avatarPath: quote.avatarPath,
+        squareAvatar: quote.squareAvatar,
+        publishedDate: quote.publishedDate,
+        ...clipped(quote.text, quote.entities, QUOTE_TEXT_LENGTH),
+        media: localMedia(quote.media)?.slice(0, 1),
+      }),
+    linkCard:
+      card &&
+      defined({
+        url: card.url,
+        domain: card.domain,
+        title: card.title,
+        imageWidth: card.imageWidth,
+        imageHeight: card.imageHeight,
+        imagePath: card.imagePath,
+        large: card.large,
+      }),
     poll: post.poll,
     replyTo: post.replyTo,
-  };
+  });
 }

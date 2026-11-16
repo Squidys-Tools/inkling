@@ -17,3 +17,15 @@ test("a long post's card text stops before an emoji it would split, with the spa
   expect(card.text).toBe(text.slice(0, 999));
   expect(card.entities).toEqual([{ kind: "hashtag", start: 994, end: 998 }]);
 });
+
+test("a post's card leaves out what the post lacks, so it crosses RPC as JSON", () => {
+  const card = xPostCard({
+    provider: "x",
+    postUrl: "https://x.com/maraokafor/status/2",
+    postId: "2",
+    text: "low tide",
+    quote: { postId: "3", postUrl: "https://x.com/kit/status/3", text: "quoted" },
+    linkCard: { url: "https://example.com/tides", large: false },
+  });
+  expect(JSON.parse(JSON.stringify(card))).toStrictEqual(card);
+});
