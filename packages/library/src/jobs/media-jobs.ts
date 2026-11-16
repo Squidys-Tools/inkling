@@ -1,7 +1,8 @@
 import type { Job } from "@inkling/contracts";
 import { missingXPostMedia } from "@inkling/ingestion/x-post-media";
 import { Effect } from "effect";
-import { type XPostMediaFile, xPostOf } from "../storage/enrichment.ts";
+import type { XPostMediaFile } from "../storage/enrichment.ts";
+import { xPostOf } from "../storage/rows.ts";
 import { storageFailure } from "../storage/errors.ts";
 import { IMAGE_PALETTE_JOB, JobQueue } from "../storage/jobs.ts";
 import { Library } from "../storage/library.ts";

@@ -19,7 +19,9 @@ export function loadingPhase(
   if (!processing || view.treatment === "note" || view.treatment === "quote") return null;
   if (processing.startedAt - view.createdAt > firstCaptureWindow) return null;
   if (processing.active) return view.image ? "processing" : "captured";
-  return processing.failedJob && view.treatment !== "media" ? "failed" : null;
+  return processing.failedJob && view.treatment !== "media" && view.treatment !== "post"
+    ? "failed"
+    : null;
 }
 
 /** The reveal plays when jobs that were running finish and there is a thumbnail to resolve to. */

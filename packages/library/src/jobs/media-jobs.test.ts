@@ -283,9 +283,27 @@ test("a saved X post's pictures land in its own folder, and a network failure re
     library.db.prepare("SELECT status FROM jobs WHERE kind = ?").all(X_POST_MEDIA_JOB),
   ).toEqual([{ status: "completed" }]);
   // Search reaches the quoted post through the enriched text.
-  expect((await library.searchItems("paper maps", 20)).map((item) => item.id)).toEqual([
-    captured.id,
-  ]);
+  const cards = await library.searchItems("paper maps", 20);
+  expect(cards.map((item) => item.id)).toEqual([captured.id]);
+  // The card draws the library's copies only; a picture still missing is left off it.
+  expect(cards[0].metadata.social).toEqual({
+    provider: "x",
+    postUrl: xPostUrl,
+    postId: "301",
+    authorName: "Mara Okafor",
+    authorHandle: "mara_okafor",
+    avatarPath: `${folder}/x-avatar.png`,
+    text: "Tide tables, annotated",
+    media: [{ kind: "photo", width: 1200, height: 800, path: `${folder}/x-media-0.png` }],
+    quote: {
+      postId: "90",
+      postUrl: "https://x.com/ines_lund/status/90",
+      authorName: "Ines Lund",
+      authorHandle: "ines_lund",
+      avatarPath: `${folder}/x-quote-avatar.png`,
+      text: "Paper maps still win offline",
+    },
+  });
 });
 
 test("post pictures are refused for an unsafe item id or a deleted item", async () => {

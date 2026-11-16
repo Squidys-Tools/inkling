@@ -1,7 +1,7 @@
 import type { LibraryCard } from "@inkling/contracts";
 import { describe, expect, it } from "bun:test";
 import { assetUrl } from "./assets.ts";
-import { cardView, toCardView } from "./cardModel.ts";
+import { cardView, postParts, toCardView } from "./cardModel.ts";
 import { scopeFromPath } from "./scope.ts";
 
 const card = (fields: Partial<LibraryCard> = {}): LibraryCard => ({
@@ -33,7 +33,7 @@ describe("card views", () => {
       "url",
       { metadata: { social: { provider: "x", postUrl: "https://x.com/a/status/1", postId: "1" } } },
       "Post",
-      "media",
+      "post",
     ],
   ] as const)("shows a stored %s as its own kind", (kind, fields, shown, treatment) => {
     const view = toCardView(card({ kind, ...fields }));
@@ -41,16 +41,16 @@ describe("card views", () => {
     expect(view.treatment).toBe(treatment);
   });
 
+  const localDate = (value: string, year: boolean) =>
+    new Date(value).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      ...(year && { year: "numeric" }),
+    });
   it.each([
-    [
-      "2026-11-07T12:00:00Z",
-      new Date("2026-11-07T12:00:00Z").toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-    ],
-    ["not a date", "On X"],
+    ["2026-11-07T12:00:00Z", localDate("2026-11-07T12:00:00Z", false)],
+    ["2025-06-07T12:00:00Z", localDate("2025-06-07T12:00:00Z", true)],
+    ["not a date", undefined],
   ])("labels an X post published %s as %s", (publishedDate, label) => {
     const social = {
       provider: "x",
@@ -58,8 +58,46 @@ describe("card views", () => {
       postId: "1",
       publishedDate,
     };
-    const view = toCardView(card({ kind: "url", metadata: { social } }));
+    const now = Date.parse("2026-11-16T12:00:00Z");
+    const view = toCardView(card({ kind: "url", metadata: { social } }), now);
     expect(view.post?.published).toBe(label);
+  });
+
+  it("links a post's entity spans by UTF-16 offset and leaves a bad span plain", () => {
+    const body = "🌊 #tide at @mara";
+    // The emoji is two UTF-16 units, so "#tide" starts at 3.
+    expect(
+      postParts(body, [
+        { kind: "mention", start: 12, end: 17 },
+        { kind: "hashtag", start: 3, end: 8 },
+        { kind: "hashtag", start: 5, end: 10 },
+        { kind: "url", start: 1, end: 2 },
+        { kind: "url", start: 15, end: 40 },
+      ]),
+    ).toEqual([
+      { text: "🌊 ", link: false },
+      { text: "#tide", link: true },
+      { text: " at ", link: false },
+      { text: "@mara", link: true },
+    ]);
+  });
+
+  it("draws only pictures the library holds, never X's own URLs", () => {
+    const social = {
+      provider: "x",
+      postUrl: "https://x.com/a/status/1",
+      postId: "1",
+      avatarUrl: "https://pbs.twimg.com/profile_images/1/a.jpg",
+      media: [
+        { kind: "photo", url: "https://pbs.twimg.com/media/A", width: 4, height: 3 },
+        { kind: "gif", url: "https://pbs.twimg.com/media/B", width: 1, height: 1, path: "/b.png" },
+      ],
+      linkCard: { url: "https://example.org/a", imageUrl: "https://pbs.twimg.com/c", large: true },
+    };
+    const post = toCardView(card({ kind: "url", metadata: { social } })).post;
+    expect(post?.avatarUrl).toBeUndefined();
+    expect(post?.media).toEqual([{ kind: "gif", url: "/b.png", ratio: 1 }]);
+    expect(post?.linkCard).toMatchObject({ domain: "example.org", image: undefined });
   });
 
   it.each([
