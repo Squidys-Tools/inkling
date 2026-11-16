@@ -2,7 +2,6 @@ import type { LibraryCard } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { Button, Kbd } from "@inkling/ui";
 import { color, font, itemColor, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
-import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { controlsOnRight } from "../desktop.ts";
 import { reportActionError } from "../cards/actionError.ts";
@@ -68,7 +67,6 @@ function ItemBody({
   onClose: () => void;
   onOpenSimilar: (id: string) => void;
 }) {
-  const navigate = useNavigate();
   const readerNavigation = useReaderNavigation();
   const query = useItem(id);
   const memberships = useMemberships(id);
@@ -235,7 +233,7 @@ function ItemBody({
                       onRemoveTag={(removeTag) =>
                         void write((client) => client.updateItem({ id, removeTag }))
                       }
-                      onEditNote={() => void navigate({ to: "/item/$id/write", params: { id } })}
+                      onEditNote={() => readerNavigation.openFromItem(id, "/item/$id/write")}
                       onOpenPdf={() => setPdfOpen(true)}
                       onRead={() => readerNavigation.openFromItem(id)}
                     />

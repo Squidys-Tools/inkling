@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { Editor } from "@tiptap/core";
 import { MarkdownManager } from "@tiptap/markdown";
-import { type NoteClasses, noteExtensions } from "./noteMarkdown.ts";
+import { JSDOM } from "jsdom";
+import { type NoteClasses, noteChanges, noteExtensions } from "./noteMarkdown.ts";
 import { normalizeNoteBody, noteBodyForEditor, noteBodyForStorage } from "./notes.ts";
 
 const manager = new MarkdownManager({ extensions: noteExtensions() });
@@ -117,5 +119,48 @@ describe("note title heading", () => {
 
   test("an emptied note saves as empty, not as its title alone", () => {
     expect(noteBodyForStorage("# Groceries\n\nMilk", "Groceries", "  \n")).toBe("");
+  });
+});
+
+describe("note changes", () => {
+  test("a note that ends in a quote opens unchanged", async () => {
+    const dom = new JSDOM("<div></div>", { pretendToBeVisual: true });
+    const globals = {
+      window: dom.window,
+      document: dom.window.document,
+      navigator: dom.window.navigator,
+      requestAnimationFrame: (run: () => void) => setTimeout(run, 0),
+    };
+    const before = Object.keys(globals).map((name) => [
+      name,
+      Object.getOwnPropertyDescriptor(globalThis, name),
+    ]);
+    for (const [name, value] of Object.entries(globals))
+      Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
+    try {
+      const changes = noteChanges();
+      const reports: boolean[] = [];
+      const created = Promise.withResolvers<void>();
+      // Autofocus adds a trailing paragraph after the quote, and its update, before `create`.
+      const editor = new Editor({
+        element: dom.window.document.body,
+        extensions: noteExtensions(),
+        content: "Start with the Dillard.\n\n> **slowly**",
+        contentType: "markdown",
+        autofocus: "end",
+        onUpdate: (event) => reports.push(changes.update(event).changed),
+        onCreate: () => created.resolve(),
+      });
+      await created.promise;
+      expect(reports).toEqual([false]);
+      editor.commands.insertContentAt(0, "Then ");
+      editor.commands.deleteRange({ from: 1, to: 6 });
+      expect(reports).toEqual([false, true, false]);
+      editor.destroy();
+    } finally {
+      for (const [name, descriptor] of before)
+        if (descriptor) Object.defineProperty(globalThis, name as string, descriptor);
+        else delete (globalThis as Record<string, unknown>)[name as string];
+    }
   });
 });

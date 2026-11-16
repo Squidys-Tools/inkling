@@ -1,16 +1,28 @@
+import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
+import InformationCircleIcon from "@hugeicons/core-free-icons/InformationCircleIcon";
+import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { isWebUrl } from "@inkling/ingestion/url";
-import { Button, Kbd } from "@inkling/ui";
-import { color, font, itemColor, layout, radius, space, text } from "@inkling/ui/tokens.stylex";
-import { controlsOnRight } from "../desktop.ts";
+import { Button, IconButton } from "@inkling/ui";
+import { color, font, itemColor, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { controlsOnRight, platform } from "../desktop.ts";
 import { errorMessage } from "../library/errors.ts";
 import { registerWritingFont } from "../reader/fonts.ts";
+import { ScrollArea } from "../reader/ScrollArea.tsx";
+import { confirm } from "../shell/confirm.ts";
 import { LinkPopover } from "./LinkPopover.tsx";
-import { type NoteClasses, noteExtensions } from "./noteMarkdown.ts";
+import {
+  applyBlock,
+  SelectionBubble,
+  SlashHint,
+  SlashMenu,
+  slashBlocks,
+  useFormatState,
+} from "./NoteFormatting.tsx";
+import { type NoteClasses, noteChanges, noteExtensions } from "./noteMarkdown.ts";
 import { normalizeNoteBody } from "./notes.ts";
-import { NoteToolbar, useToolbarState } from "./NoteToolbar.tsx";
 
 // This module loads with the first editor, so the writing face loads with it.
 registerWritingFont();
@@ -18,36 +30,57 @@ registerWritingFont();
 /** What the editor hands its page when the user saves. */
 type NoteDraft = { markdown: string; text: string };
 
+const saveKeys = `${platform === "darwin" ? "⌘" : "Ctrl"} ↵ saves · Esc discards`;
+
+export const confirmDiscard = () =>
+  confirm({
+    message: "Discard your changes to this note?",
+    confirmLabel: "Discard",
+    destructive: true,
+  });
+
 /**
- * The full-page note editor (Focus Mode), for a new note or an existing one.
- * Nothing is written until Save; `onChange` reports each edit so the page can
- * keep or guard the draft.
+ * A note as a page: its title, then its text, edited in place. Nothing is
+ * written until Save, and the page stays open after it; `onChange` reports each
+ * edit so the page can keep or guard the draft.
  */
 export function NoteEditor({
-  kicker,
-  name,
+  title,
+  meta = [],
+  tags = [],
   initialMarkdown,
   placeholder,
   saveLabel,
   onSave,
   onCancel,
+  onDetails,
   onChange,
 }: {
-  kicker: string;
-  name?: string;
+  /** null for a note not saved yet. */
+  title: string | null;
+  meta?: readonly string[];
+  tags?: readonly string[];
   initialMarkdown: string;
   placeholder: string;
   saveLabel: string;
   /** Rejects with the library's message, which the editor shows. */
   onSave: (draft: NoteDraft) => Promise<void>;
   onCancel: () => void;
-  /** `changed` compares with the opening text as the editor writes it, so undoing every edit reads as unchanged. */
+  onDetails?: () => void;
+  /** `changed` compares with the last saved text as the editor writes it, so undoing every edit reads as unchanged. */
   onChange?: (markdown: string, changed: boolean) => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
-  const opening = useRef("");
+  const [scrolled, setScrolled] = useState(false);
+  const [origin, setOrigin] = useState<HTMLDivElement | null>(null);
+  const [slashCursor, setSlashCursor] = useState({ key: "", index: 0 });
+  const [dismissed, setDismissed] = useState<number | null>(null);
+  const [changes] = useState(noteChanges);
+  // The editor's key handler is fixed when it is created; this follows each render.
+  const keys = useRef<(event: KeyboardEvent) => boolean>(() => false);
   const editor = useEditor({
     extensions,
     content: initialMarkdown,
@@ -60,23 +93,22 @@ export function NoteEditor({
         "aria-label": "Note",
         "aria-multiline": "true",
       },
-      handleKeyDown: (_view, event) => {
-        // An Escape typed in the editor does not reach the page's window listener, so it leaves here.
-        if (event.key === "Escape") onCancel();
-        else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) void save();
-        else return false;
-        return true;
-      },
+      handleKeyDown: (_view, event) => keys.current(event),
     },
-    onCreate: ({ editor: current }) => {
-      opening.current = normalizeNoteBody(current.getMarkdown());
-    },
-    onUpdate: ({ editor: current }) => {
-      const markdown = normalizeNoteBody(current.getMarkdown());
-      onChange?.(markdown, markdown !== opening.current);
+    onUpdate: (event) => {
+      const { markdown, changed } = changes.update(event);
+      setDirty(changed);
+      onChange?.(markdown, changed);
     },
   });
-  const state = useToolbarState(editor);
+  const state = useFormatState(editor);
+
+  const slash = state.slash && state.slash.from !== dismissed ? state.slash : null;
+  if (!state.slash && dismissed !== null) setDismissed(null);
+  const options = slash ? slashBlocks(slash.query) : [];
+  const slashKey = slash ? `${slash.from}:${slash.query}` : "";
+  const active = slashCursor.key === slashKey ? slashCursor.index : 0;
+  const menuOpen = slash !== null && options.length > 0;
 
   async function save() {
     if (saving) return;
@@ -89,12 +121,61 @@ export function NoteEditor({
     setError(null);
     try {
       await onSave({ markdown, text: editor.getText().trim() });
+      // Typing that landed during the save stays unsaved.
+      changes.save(markdown);
+      setDirty(normalizeNoteBody(editor.getMarkdown()) !== markdown);
     } catch (saveError) {
       setError(errorMessage(saveError));
     } finally {
       setSaving(false);
     }
   }
+
+  async function discard() {
+    if (!dirty || !(await confirmDiscard())) return;
+    editor.commands.setContent(changes.opening() ?? initialMarkdown, {
+      contentType: "markdown",
+      emitUpdate: true,
+    });
+    editor.commands.focus("end");
+    setError(null);
+  }
+
+  const onKey = (event: KeyboardEvent) => {
+    if (menuOpen && slash) {
+      const step = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+      if (step !== 0) {
+        setSlashCursor({ key: slashKey, index: (active + step + options.length) % options.length });
+        return true;
+      }
+      const picked = options[active];
+      if ((event.key === "Enter" || event.key === "Tab") && picked) {
+        applyBlock(editor, slash, picked);
+        return true;
+      }
+      if (event.key === "Escape") {
+        setDismissed(slash.from);
+        return true;
+      }
+    }
+    // An Escape typed in the editor does not reach the page's window listener, so it is
+    // handled here, and stops so the confirm it opens does not see it and close again.
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      if (dirty) void discard();
+      else onCancel();
+      return true;
+    }
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      void save();
+      return true;
+    }
+    return false;
+  };
+
+  useLayoutEffect(() => {
+    keys.current = onKey;
+  });
 
   const applyLink = () => {
     const href = (linkDraft ?? "").trim();
@@ -103,211 +184,300 @@ export function NoteEditor({
     editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
     setLinkDraft(null);
   };
+  const metaLine = [...meta, ...(state.words > 0 ? [`${state.words} words`] : [])];
 
   return (
     <div data-escape-scope {...stylex.props(styles.page)}>
-      <Button
-        aria-label={`Close ${kicker.toLowerCase()}`}
-        style={[styles.exit, controlsOnRight && styles.belowControls]}
-        onClick={onCancel}
+      <div
+        {...stylex.props(
+          styles.bar,
+          scrolled && styles.barScrolled,
+          controlsOnRight && styles.clearControls,
+        )}
       >
-        Close <Kbd>esc</Kbd>
-      </Button>
-      <div {...stylex.props(styles.column)}>
-        <div {...stylex.props(styles.orientation)}>
-          <span {...stylex.props(styles.kicker)}>{kicker}</span>
-          {name && (
-            <>
-              <span aria-hidden="true" {...stylex.props(styles.rule)} />
-              <span {...stylex.props(styles.name)}>{name}</span>
-            </>
-          )}
-        </div>
-        <div {...stylex.props(styles.surface)}>
-          {state.empty && (
-            <p aria-hidden="true" {...stylex.props(styles.placeholder)}>
-              {placeholder}
+        <IconButton
+          label="Back"
+          icon={<HugeiconsIcon icon={ArrowLeft01Icon} size={18} />}
+          onClick={onCancel}
+        />
+        <span {...stylex.props(styles.grow)} />
+        {onDetails && (
+          <IconButton
+            label="Details"
+            icon={<HugeiconsIcon icon={InformationCircleIcon} size={18} />}
+            onClick={onDetails}
+          />
+        )}
+      </div>
+      <ScrollArea
+        trackStyle={styles.track}
+        onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
+      >
+        <div {...stylex.props(styles.column)}>
+          <h1 {...stylex.props(styles.title, title === null && styles.titleNew)}>
+            {title ?? "New note"}
+          </h1>
+          {(metaLine.length > 0 || tags.length > 0) && (
+            <p {...stylex.props(styles.meta)}>
+              {metaLine.map((part, index) => (
+                <span key={part} {...stylex.props(styles.metaPart)}>
+                  {index > 0 && <span aria-hidden="true" {...stylex.props(styles.dot)} />}
+                  {part}
+                </span>
+              ))}
+              {tags.map((tag) => (
+                <span key={tag} {...stylex.props(styles.tag)}>
+                  <span aria-hidden="true" {...stylex.props(styles.hash)}>
+                    #
+                  </span>
+                  {tag}
+                </span>
+              ))}
             </p>
           )}
-          <EditorContent editor={editor} />
+          <div ref={setOrigin} {...stylex.props(styles.surface)}>
+            {state.empty && (
+              <p aria-hidden="true" {...stylex.props(styles.placeholder)}>
+                {placeholder}
+              </p>
+            )}
+            <EditorContent editor={editor} />
+            {origin && state.focused && state.emptyLine && !state.empty && !menuOpen && (
+              <SlashHint editor={editor} origin={origin} />
+            )}
+            {origin && menuOpen && slash && (
+              <SlashMenu
+                editor={editor}
+                slash={slash}
+                options={options}
+                active={active}
+                origin={origin}
+                onPick={(block) => applyBlock(editor, slash, block)}
+              />
+            )}
+            {origin && ((state.hasSelection && state.focused) || linkDraft !== null) && (
+              <SelectionBubble
+                editor={editor}
+                state={state}
+                origin={origin}
+                onLink={() => {
+                  const current: unknown = editor.getAttributes("link").href;
+                  setLinkDraft(typeof current === "string" ? current : "");
+                }}
+              >
+                {linkDraft !== null && (
+                  <LinkPopover
+                    draft={linkDraft}
+                    canRemove={state.link}
+                    onDraftChange={(draft) => {
+                      setLinkDraft(draft);
+                      if (draft === null) editor.commands.focus();
+                    }}
+                    onApply={applyLink}
+                    onRemove={() => {
+                      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+                      setLinkDraft(null);
+                    }}
+                  />
+                )}
+              </SelectionBubble>
+            )}
+          </div>
         </div>
-      </div>
-      <div {...stylex.props(styles.actions)}>
-        {error && (
-          <p role="alert" {...stylex.props(styles.error)}>
-            {error}
-          </p>
-        )}
-        <NoteToolbar
-          editor={editor}
-          state={state}
-          onLink={() => {
-            const current: unknown = editor.getAttributes("link").href;
-            setLinkDraft(typeof current === "string" ? current : "");
-          }}
-        />
-        <div {...stylex.props(styles.cluster)}>
-          {linkDraft !== null && (
-            <LinkPopover
-              draft={linkDraft}
-              canRemove={state.link}
-              onDraftChange={(draft) => {
-                setLinkDraft(draft);
-                if (draft === null) editor.commands.focus();
-              }}
-              onApply={applyLink}
-              onRemove={() => {
-                editor.chain().focus().extendMarkRange("link").unsetLink().run();
-                setLinkDraft(null);
-              }}
-            />
+      </ScrollArea>
+      {(dirty || error) && (
+        <p
+          role={error ? "alert" : "status"}
+          {...stylex.props(styles.status, error !== null && styles.error)}
+        >
+          {error ?? (
+            <>
+              <span aria-hidden="true" {...stylex.props(styles.editedDot)} />
+              Edited<span {...stylex.props(styles.keys)}>{saveKeys}</span>
+            </>
           )}
-          <Button onClick={onCancel}>Cancel</Button>
-          <Button variant="primary" disabled={saving} onClick={() => void save()}>
+        </p>
+      )}
+      {dirty && (
+        <div {...stylex.props(styles.actions)}>
+          <Button style={styles.pill} onClick={() => void discard()}>
+            Discard
+          </Button>
+          <Button
+            variant="primary"
+            style={styles.pill}
+            disabled={saving}
+            onClick={() => void save()}
+          >
             {saving ? "Saving…" : saveLabel}
           </Button>
         </div>
-      </div>
+      )}
     </div>
   );
 }
+
+const fade = stylex.keyframes({ from: { opacity: 0 }, to: { opacity: 1 } });
+const rise = stylex.keyframes({
+  from: { opacity: 0, transform: "translateY(14px)" },
+  to: { opacity: 1, transform: "none" },
+});
 
 const styles = stylex.create({
   page: {
     position: "absolute",
     inset: 0,
     zIndex: 10,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    backgroundColor: color.sunken,
-    backgroundImage: `radial-gradient(ellipse at 50% 42%, ${itemColor.accentGlow}, transparent 58%)`,
-  },
-  belowControls: { top: `calc(4px + ${layout.titlebar})` },
-  exit: {
-    position: "absolute",
-    top: space.s4,
-    right: space.s6,
-    zIndex: 2,
-    height: "28px",
-    paddingInline: space.s3,
-    borderRadius: radius.round,
-    backgroundColor: { default: color.raised, ":hover": color.hover },
-    fontSize: text.xs,
-  },
-  column: {
-    display: "flex",
-    flexDirection: "column",
-    flexGrow: 1,
-    minHeight: 0,
-    width: "min(100%, 760px)",
-    paddingTop: "clamp(64px, 12vh, 126px)",
-  },
-  orientation: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: space.s3,
-    minWidth: 0,
-    paddingBottom: "22px",
-    paddingInline: space.s5,
-  },
-  kicker: {
-    flexShrink: 0,
-    fontFamily: font.body,
-    fontSize: "10px",
-    letterSpacing: "0.16em",
-    textTransform: "uppercase",
-    color: color.accentStrong,
-  },
-  rule: { flexShrink: 0, width: "1px", height: "14px", backgroundColor: color.borderStrong },
-  name: {
-    minWidth: 0,
     overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    fontFamily: font.quote,
-    fontSize: text.lg,
-    color: itemColor.writingInk,
+    backgroundColor: color.frame,
+    color: color.ink,
+    animationName: fade,
+    animationDuration: motion.layout,
+    animationTimingFunction: motion.standard,
   },
-  surface: {
-    position: "relative",
-    flexGrow: 1,
-    minHeight: 0,
-    overflowY: "auto",
-    scrollbarWidth: "none",
-    // Room for the action bar that floats over the end of the note.
-    paddingBottom: "80px",
+  bar: {
+    position: "absolute",
+    top: 0,
+    insetInline: 0,
+    zIndex: 3,
+    display: "flex",
+    alignItems: "center",
+    gap: space.s1,
+    height: "56px",
+    paddingInline: "clamp(10px, 2vw, 20px)",
   },
+  barScrolled: { backgroundImage: `linear-gradient(${color.frame} 70%, transparent)` },
+  // The window's own buttons fill this corner on Windows and Linux.
+  clearControls: { paddingRight: "118px" },
+  grow: { flex: "1 1 auto" },
+  track: { top: "58px" },
+  column: {
+    maxWidth: "640px",
+    marginInline: "auto",
+    paddingTop: "clamp(76px, 11vh, 104px)",
+    paddingInline: "clamp(20px, 5vw, 44px)",
+    // Clear of the status and buttons that float over the end of the note.
+    paddingBottom: "140px",
+    animationName: { default: rise, "@media (prefers-reduced-motion: reduce)": "none" },
+    animationDuration: "0.6s",
+    animationTimingFunction: "cubic-bezier(0.2, 0.75, 0.25, 1)",
+    animationFillMode: "both",
+  },
+  title: {
+    margin: 0,
+    fontFamily: font.display,
+    fontSize: "clamp(28px, 3.4vw, 34px)",
+    fontWeight: 600,
+    lineHeight: 1.18,
+    letterSpacing: "-0.02em",
+    color: color.inkStrong,
+    textWrap: "balance",
+  },
+  titleNew: { color: color.faint },
+  meta: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    columnGap: space.s2,
+    rowGap: space.s1,
+    marginTop: space.s3,
+    marginBottom: 0,
+    fontFamily: font.body,
+    fontSize: "13px",
+    color: color.muted,
+  },
+  metaPart: { display: "inline-flex", alignItems: "center", gap: space.s2 },
+  dot: {
+    width: "3px",
+    height: "3px",
+    borderRadius: radius.round,
+    backgroundColor: color.faint,
+  },
+  tag: {
+    paddingBlock: "2px",
+    paddingInline: "9px",
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: color.border,
+    borderRadius: radius.round,
+    backgroundColor: color.raised,
+    fontSize: "12px",
+    fontWeight: 500,
+    color: color.inkSoft,
+  },
+  hash: { color: color.faint },
+  surface: { position: "relative", marginTop: "30px" },
   placeholder: {
     position: "absolute",
-    top: space.s5,
-    insetInline: "clamp(24px, 6vw, 76px)",
+    top: 0,
+    insetInline: 0,
     margin: 0,
     fontFamily: font.writing,
-    fontSize: "18px",
-    lineHeight: 1.85,
+    fontSize: "19px",
+    lineHeight: 1.75,
     color: color.faint,
     pointerEvents: "none",
   },
   content: {
-    minHeight: "100%",
-    paddingTop: space.s5,
-    paddingInline: "clamp(24px, 6vw, 76px)",
-    paddingBottom: space.s10,
+    minHeight: "40vh",
     outline: "none",
     fontFamily: font.writing,
-    fontSize: "18px",
-    lineHeight: 1.85,
+    fontSize: "19px",
+    lineHeight: 1.75,
     color: itemColor.writingInk,
     caretColor: color.accentStrong,
+    "::selection": { backgroundColor: color.selection },
   },
+  status: {
+    position: "absolute",
+    left: "28px",
+    bottom: "22px",
+    zIndex: 4,
+    display: "flex",
+    alignItems: "center",
+    gap: "7px",
+    margin: 0,
+    fontFamily: font.mono,
+    fontSize: "12px",
+    color: color.faint,
+  },
+  error: { fontFamily: font.body, fontSize: text.sm, color: color.danger },
+  editedDot: {
+    width: "6px",
+    height: "6px",
+    borderRadius: radius.round,
+    backgroundColor: color.accentStrong,
+  },
+  keys: { marginLeft: "7px" },
   actions: {
     position: "absolute",
-    insetInline: 0,
-    bottom: 0,
+    right: "24px",
+    bottom: "18px",
+    zIndex: 4,
     display: "flex",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "center",
-    columnGap: "clamp(8px, 2vw, 18px)",
-    rowGap: space.s2,
-    minHeight: "66px",
-    paddingBlock: "10px",
-    paddingInline: space.s5,
-    borderTopWidth: 1,
-    borderTopStyle: "solid",
-    borderTopColor: color.glassEdge,
-    backgroundColor: color.glass,
-    backdropFilter: "blur(18px)",
+    gap: "6px",
   },
-  error: {
-    flexBasis: "100%",
-    margin: 0,
-    textAlign: "center",
-    fontSize: text.sm,
-    color: color.danger,
-  },
-  cluster: { position: "relative", display: "flex", alignItems: "center", gap: space.s2 },
+  pill: { height: "30px", paddingInline: "13px", borderRadius: radius.round, fontSize: "12.5px" },
 
   // The note's own nodes, handed to TipTap as class names.
-  paragraph: { marginTop: 0, marginBottom: { default: "1.25em", ":last-child": 0 } },
+  paragraph: { marginTop: 0, marginBottom: { default: "1.1em", ":last-child": 0 } },
   heading: {
-    marginTop: { default: "1.7em", ":first-child": 0 },
+    marginTop: { default: "1.4em", ":first-child": 0 },
     marginBottom: "0.5em",
-    fontFamily: font.quote,
-    fontSize: "1.45em",
-    fontWeight: 400,
+    fontFamily: font.display,
+    fontSize: "1.16em",
+    fontWeight: 600,
     lineHeight: 1.3,
-    color: itemColor.writingInk,
+    letterSpacing: "-0.01em",
+    color: color.inkStrong,
   },
-  list: { marginTop: 0, marginBottom: "1.25em", paddingLeft: "22px" },
+  list: { marginTop: 0, marginBottom: "1.1em", paddingLeft: "22px" },
   listItem: { marginBlock: "4px" },
-  taskList: { marginTop: 0, marginBottom: "1.25em", paddingLeft: 0, listStyleType: "none" },
+  taskList: { marginTop: 0, marginBottom: "1.1em", paddingLeft: 0, listStyleType: "none" },
   taskItem: {
     display: "flex",
     alignItems: "baseline",
-    gap: space.s2,
+    gap: space.s3,
     marginBlock: "4px",
     accentColor: color.accent,
   },
