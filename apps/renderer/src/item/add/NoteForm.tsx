@@ -7,7 +7,7 @@ export function NoteForm() {
   const page = useAddPage();
   return (
     <NoteEditor
-      kicker="New note"
+      title={null}
       initialMarkdown={drafts.note}
       placeholder="A thought, a small beginning…"
       saveLabel="Save to library"
