@@ -66,18 +66,85 @@ const SafeEmbed = Schema.Struct({
   embedUrl: Text,
   title: Schema.optional(Text),
 });
-const XPost = Schema.Struct({
+const XVerified = Schema.Literals(["blue", "business", "government"]);
+/** A span of a post's text in UTF-16 code units, so a renderer can slice it directly. */
+const XPostEntity = Schema.Struct({
+  kind: Schema.Literals(["url", "mention", "hashtag", "cashtag"]),
+  start: Schema.Number,
+  end: Schema.Number,
+  url: Schema.optional(Text),
+});
+/** A photo, or a video's or GIF's poster. `path` is the library's copy once downloaded. */
+const XPostMedia = Schema.Struct({
+  kind: Schema.Literals(["photo", "video", "gif"]),
+  url: Text,
+  width: Schema.Number,
+  height: Schema.Number,
+  alt: Schema.optional(Text),
+  durationSeconds: Schema.optional(Schema.Number),
+  path: Schema.optional(Text),
+});
+const XPostAuthor = {
+  authorName: Schema.optional(Text),
+  authorHandle: Schema.optional(Text),
+  verified: Schema.optional(XVerified),
+  avatarUrl: Schema.optional(Text),
+  avatarPath: Schema.optional(Text),
+  squareAvatar: Schema.optional(Schema.Boolean),
+};
+const XQuotedPost = Schema.Struct({
+  postId: Text,
+  postUrl: Text,
+  ...XPostAuthor,
+  text: Text,
+  entities: Schema.optional(Schema.Array(XPostEntity)),
+  media: Schema.optional(Schema.Array(XPostMedia)),
+  publishedDate: Schema.optional(Schema.NullOr(Text)),
+});
+const XPostLinkCard = Schema.Struct({
+  url: Text,
+  domain: Schema.optional(Text),
+  title: Schema.optional(Text),
+  description: Schema.optional(Text),
+  imageUrl: Schema.optional(Text),
+  imageWidth: Schema.optional(Schema.Number),
+  imageHeight: Schema.optional(Schema.Number),
+  imagePath: Schema.optional(Text),
+  // summary_large_image: the picture spans the card instead of sitting beside its text.
+  large: Schema.Boolean,
+});
+const XPostPoll = Schema.Struct({
+  choices: Schema.Array(Schema.Struct({ label: Text, votes: Schema.optional(Schema.Number) })),
+  endsAt: Schema.optional(Text),
+  final: Schema.Boolean,
+});
+// Everything after `width` comes from the post's own page, and is absent when only oEmbed answered.
+export const XPost = Schema.Struct({
   provider: Schema.Literal("x"),
   postUrl: Text,
   postId: Text,
   embedHtml: Schema.optional(Text),
-  authorName: Schema.optional(Text),
   authorUrl: Schema.optional(Text),
-  authorHandle: Schema.optional(Text),
   text: Schema.optional(Text),
   publishedDate: Schema.optional(Schema.NullOr(Text)),
   width: Schema.optional(Schema.NullOr(Schema.Number)),
+  ...XPostAuthor,
+  entities: Schema.optional(Schema.Array(XPostEntity)),
+  media: Schema.optional(Schema.Array(XPostMedia)),
+  quote: Schema.optional(XQuotedPost),
+  linkCard: Schema.optional(XPostLinkCard),
+  poll: Schema.optional(XPostPoll),
+  replyTo: Schema.optional(
+    Schema.Struct({ postId: Schema.optional(Text), handle: Schema.optional(Text) }),
+  ),
 });
+export type XPost = typeof XPost.Type;
+export type XPostEntity = typeof XPostEntity.Type;
+export type XPostMedia = typeof XPostMedia.Type;
+export type XQuotedPost = typeof XQuotedPost.Type;
+export type XPostLinkCard = typeof XPostLinkCard.Type;
+export type XPostPoll = typeof XPostPoll.Type;
+export type XVerified = typeof XVerified.Type;
 
 export const UrlArticle = Schema.Struct({
   sourceUrl: Text,
@@ -125,6 +192,8 @@ export const WorkerRpcs = RpcGroup.make(
   // Never downloads models: a search must not wait on, or cause, network use.
   call("embedQuery", { text: Text }, Schema.Array(Schema.Number)),
   call("extractUrl", { url: Text }, UrlArticle),
+  // Only X's image CDN; null when it answers without an image, so the job does not retry it.
+  call("downloadXMedia", { url: Text }, Schema.NullOr(Schema.Uint8Array)),
 );
 
 // Windows and macOS posters come from the shell thumbnailer, which only main can reach,

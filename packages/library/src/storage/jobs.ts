@@ -12,11 +12,13 @@ export const IMAGE_PALETTE_JOB = "image_palette";
 export const IMAGE_THUMBNAIL_JOB = "image_thumbnail";
 export const VIDEO_POSTER_JOB = "video_poster";
 export const URL_ENRICHMENT_JOB = "enrich_url";
+export const X_POST_MEDIA_JOB = "x_post_media";
 const SILENT_JOB_KINDS = new Set([
   PDF_THUMBNAIL_JOB,
   IMAGE_PALETTE_JOB,
   IMAGE_THUMBNAIL_JOB,
   VIDEO_POSTER_JOB,
+  X_POST_MEDIA_JOB,
 ]);
 const silentKindsSql = [...SILENT_JOB_KINDS].map((kind) => `'${kind}'`).join(", ");
 

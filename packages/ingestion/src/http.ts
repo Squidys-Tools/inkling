@@ -20,7 +20,12 @@ export type RequestLimits = {
   lookupHost?: LookupHost;
 };
 
-type PageRequest = RequestLimits & { allowPrivateNetwork?: boolean };
+type PageRequest = RequestLimits & {
+  allowPrivateNetwork?: boolean;
+  userAgent?: string;
+  // Checked on every hop, so a redirect cannot carry the request to another host.
+  allowedHosts?: ReadonlySet<string>;
+};
 
 // Rate limits, gateway errors, and dropped connections get two more tries inside
 // the caller's time budget. A Retry-After header sets the shortest wait before the next.
@@ -57,7 +62,11 @@ function isRedirectStatus(status: number) {
 }
 
 // Stops reading, and cancels the body, as soon as it passes the limit.
-const readText = (response: HttpClientResponse.HttpClientResponse, maxBytes: number, url: string) =>
+const readBytes = (
+  response: HttpClientResponse.HttpClientResponse,
+  maxBytes: number,
+  url: string,
+) =>
   response.stream.pipe(
     Stream.runFoldEffect(
       () => ({ total: 0, chunks: [] as Uint8Array[] }),
@@ -75,9 +84,12 @@ const readText = (response: HttpClientResponse.HttpClientResponse, maxBytes: num
         bytes.set(chunk, offset);
         offset += chunk.byteLength;
       }
-      return new TextDecoder().decode(bytes);
+      return bytes;
     }),
   );
+
+const readText = (response: HttpClientResponse.HttpClientResponse, maxBytes: number, url: string) =>
+  readBytes(response, maxBytes, url).pipe(Effect.map((bytes) => new TextDecoder().decode(bytes)));
 
 const parseUrl = (url: string, allowPrivateNetwork?: boolean) =>
   Effect.try({
@@ -86,18 +98,20 @@ const parseUrl = (url: string, allowPrivateNetwork?: boolean) =>
   });
 
 const checkHost = (url: string, request: PageRequest) =>
-  request.allowPrivateNetwork
-    ? Effect.void
-    : Effect.tryPromise({
-        try: () => assertPublicHost(url, request.lookupHost),
-        catch: (error) =>
-          error instanceof UrlIngestionError
-            ? error
-            : new UrlIngestionError("network-error", "The address could not be checked.", {
-                cause: error,
-                url,
-              }),
-      });
+  request.allowedHosts && !request.allowedHosts.has(new URL(url).hostname)
+    ? fail("invalid-url", "The address is not on this request's host list.", { url })
+    : request.allowPrivateNetwork
+      ? Effect.void
+      : Effect.tryPromise({
+          try: () => assertPublicHost(url, request.lookupHost),
+          catch: (error) =>
+            error instanceof UrlIngestionError
+              ? error
+              : new UrlIngestionError("network-error", "The address could not be checked.", {
+                  cause: error,
+                  url,
+                }),
+        });
 
 // Each hop is checked, by name and by resolved address, before it is requested,
 // so fetch must not follow redirects on its own. Closing each hop's scope aborts
@@ -118,7 +132,9 @@ const requestFollowingRedirects = <A, E>(
           // codeql[js/request-forgery,javascript/ssrf]: This local-first desktop pipeline intentionally fetches user-selected public URLs. parseHttpUrl rejects non-HTTP(S), credentialed, and private-network destinations and checkHost refuses hosts that resolve to private addresses before this boundary, for every redirect hop.
           const response = yield* client
             .execute(
-              HttpClientRequest.get(url, { headers: { Accept: accept, "User-Agent": USER_AGENT } }),
+              HttpClientRequest.get(url, {
+                headers: { Accept: accept, "User-Agent": request.userAgent ?? USER_AGENT },
+              }),
             )
             .pipe(
               Effect.mapError(
@@ -185,6 +201,26 @@ export const downloadPage = (sourceUrl: string, request: PageRequest) =>
         );
         return { fetchedUrl, contentType, html };
       }),
+  );
+
+/** An image's bytes, or null when the server answers without one. Network failures still fail. */
+export const downloadImage = (url: string, request: PageRequest) =>
+  requestFollowingRedirects(url, request, "image/*", (response, fetchedUrl) =>
+    Effect.gen(function* () {
+      if (response.status < 200 || response.status >= 300) return null;
+      const contentType = response.headers["content-type"]?.toLowerCase() ?? "";
+      if (!contentType.startsWith("image/")) return null;
+      return yield* readBytes(response, request.maxBytes, fetchedUrl).pipe(
+        Effect.mapError((error) =>
+          error instanceof UrlIngestionError
+            ? error
+            : new UrlIngestionError("network-error", "The image could not be read.", {
+                cause: error,
+                url: fetchedUrl,
+              }),
+        ),
+      );
+    }),
   );
 
 // Provider metadata is enrichment only: any failure, including a slow or
