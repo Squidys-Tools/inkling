@@ -127,7 +127,15 @@ export function OpenContextMenu({ menu }: { menu: Open }) {
               keyboardClose.current && menu.returnFocus?.isConnected ? menu.returnFocus : false
             }
             onFocus={(event) => {
-              if (event.target === event.currentTarget)
+              // Only on opening: Base UI also focuses the popup when the pointer crosses a
+              // separator or disabled item, and moving to the first item then jumps the highlight.
+              if (
+                event.target === event.currentTarget &&
+                !(
+                  event.relatedTarget instanceof Node &&
+                  event.currentTarget.contains(event.relatedTarget)
+                )
+              )
                 event.currentTarget
                   .querySelector<HTMLElement>(
                     '[role="menuitem"]:not([aria-disabled="true"]):not([data-disabled])',

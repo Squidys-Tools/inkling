@@ -7,9 +7,12 @@ import type { CardLayout } from "../cards/CardMedia.tsx";
 import { GradualBlur } from "./GradualBlur.tsx";
 import { relayoutLanes } from "./masonryLanes.ts";
 import { warmCards } from "../library/cards.ts";
-import { useAppearance } from "../settings/appearance.ts";
+import { platform } from "../desktop.ts";
+import { setAppearance, useAppearance } from "../settings/appearance.ts";
+import { modal } from "../shell/useCommands.ts";
 import { AddTile } from "./AddTile.tsx";
 import { animateArrival } from "./cardArrival.ts";
+import { accumulateWheel, nextColumns, type ZoomStep, zoomKey } from "./gridZoom.ts";
 
 const gap = 12;
 const sidePadding = 14;
@@ -27,9 +30,11 @@ const loadAhead = 1600;
 const warmAhead = 12;
 // No item id has this shape, so the add tile's cell never takes a card's cached size or lane.
 const addTileKey = "add-tile:";
+const editable = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
 
 /** Virtualized masonry fills the moving frame. The column count is the user's Appearance
- * choice and never follows the width: CSS scales the cells as the frame resizes.
+ * choice and never follows the width: CSS scales the cells as the frame resizes. Ctrl or
+ * Cmd with +, - or the wheel steps through that choice, as zoom would.
  */
 export function Grid({
   ids: cardIds,
@@ -48,7 +53,8 @@ export function Grid({
   const ids = useMemo(() => (addTile ? [addTileKey, ...cardIds] : cardIds), [addTile, cardIds]);
   const scroller = useRef<HTMLDivElement>(null);
   const cells = useRef<HTMLDivElement>(null);
-  const columns = columnCount(Number(useAppearance().gridColumns), layout);
+  const { gridColumns } = useAppearance();
+  const columns = columnCount(Number(gridColumns), layout);
   const [, render] = useReducer((count: number) => count + 1, 0);
   const itemKey = useCallback((index: number) => ids[index], [ids]);
   // Sizes are cached by item id, so a list that changes anywhere keeps every measured card.
@@ -105,6 +111,38 @@ export function Grid({
     observer.observe(element);
     return () => observer.disconnect();
   }, [columns, layout]);
+
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element) return;
+    const zoom = (step: ZoomStep) => {
+      const next = nextColumns(gridColumns, step);
+      if (next !== gridColumns) setAppearance("gridColumns", next);
+    };
+    let travel = 0;
+    // Ctrl is also what a trackpad pinch sends. Non-passive, or the browser zooms the page too.
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      const result = accumulateWheel(travel, event);
+      travel = result.travel;
+      if (result.step) zoom(result.step);
+    };
+    // A page over the library makes it inert; a field keeps its own keys.
+    const onKeyDown = (event: KeyboardEvent) => {
+      const step = zoomKey(event, platform);
+      if (!step || event.defaultPrevented || element.closest("[inert]")) return;
+      if (document.activeElement?.closest(editable) || document.querySelector(modal)) return;
+      event.preventDefault();
+      zoom(step);
+    };
+    element.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      element.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [gridColumns]);
 
   useEffect(() => {
     warmCards(

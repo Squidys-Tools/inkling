@@ -8,7 +8,7 @@ import { runHandledCommand } from "./commands.ts";
 // Mod resolves from the same platform that picked the bindings, not from the user agent.
 const hotkeyPlatform = { darwin: "mac", win32: "windows", linux: "linux" } as const;
 
-const modal =
+export const modal =
   '[role="dialog"]:not([aria-modal="false"]), [role="alertdialog"]:not([aria-modal="false"])';
 
 function run(router: ReturnType<typeof useRouter>, command: Command) {
