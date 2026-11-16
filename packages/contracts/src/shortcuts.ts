@@ -8,7 +8,6 @@ export type Command =
   | "search"
   | "addNote"
   | "addQuote"
-  | "addLink"
   | "addFile"
   | "toggleSidebar"
   | "showShortcuts"
@@ -32,7 +31,6 @@ export const shortcuts: Record<Command, Shortcut> = {
   search: { label: "Search", ...same({ key: "k", mod: true }, { key: "/" }) },
   addNote: { label: "New note", ...same({ key: "n", mod: true }, { key: "n" }) },
   addQuote: { label: "New quote", ...same({ key: "n", mod: true, shift: true }) },
-  addLink: { label: "Save a link", ...same({ key: "l", mod: true, shift: true }) },
   addFile: { label: "Add files", ...same({ key: "o", mod: true }) },
   toggleSidebar: { label: "Show or hide the sidebar", ...same({ key: "\\", mod: true }) },
   showShortcuts: { label: "Keyboard shortcuts", ...same({ key: "/", mod: true }, { key: "?" }) },

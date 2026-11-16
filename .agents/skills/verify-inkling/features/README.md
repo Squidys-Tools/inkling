@@ -32,7 +32,7 @@ Every feature was executed end to end with agent-desktop on 2026-11-13 unless it
 - [Capture a note](./capture-note.md): Add > Note > Save to library, Ctrl+Enter.
 - [Edit a note](./edit-note.md): item view > Edit note > Save note.
 - [Capture a quote](./capture-quote.md): Add > Quote.
-- [Capture a link](./capture-link.md): Add > Link (uses the network for the URL you type).
+- [Capture a link](./capture-link.md): a URL in the add tile (uses the network for the URL you type).
 - [Capture by deep link](./capture-deep-link.md): `inkling://capture?url=...` as a launch argument, no GUI.
 - [Capture by the extension receiver](./capture-extension.md): POST to the loopback receiver, no GUI.
 - [Search](./search.md): `Search your mind`, Ctrl+K, empty state, Clear search, Save as Space.

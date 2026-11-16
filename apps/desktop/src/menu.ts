@@ -43,7 +43,6 @@ export function installMenu(send: (command: Command) => void) {
         submenu: [
           item("addNote"),
           item("addQuote"),
-          item("addLink"),
           { ...item("addFile"), label: "Add Files…" },
           { type: "separator" },
           { role: "close" },
