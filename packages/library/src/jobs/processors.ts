@@ -7,13 +7,20 @@ import {
   PDF_THUMBNAIL_JOB,
   URL_ENRICHMENT_JOB,
   VIDEO_POSTER_JOB,
+  X_POST_MEDIA_JOB,
 } from "../storage/jobs.ts";
 import { Library } from "../storage/library.ts";
 import type { Processor } from "../storage/worker.ts";
 import { generateEmbedding } from "./embedding-jobs.ts";
 import { createBackfill } from "./job-backfill.ts";
 import { assetPath, reportProgress, requireItem } from "./job-items.ts";
-import { imagePalette, imageThumbnail, pdfThumbnail, videoPoster } from "./media-jobs.ts";
+import {
+  imagePalette,
+  imageThumbnail,
+  pdfThumbnail,
+  videoPoster,
+  xPostMedia,
+} from "./media-jobs.ts";
 import { type JobsWorker, workerClient } from "./worker-client.ts";
 
 type Services = Library | JobQueue | JobsWorker;
@@ -27,6 +34,7 @@ export const jobTimeouts = {
   [VIDEO_POSTER_JOB]: Duration.minutes(2),
   [PDF_THUMBNAIL_JOB]: Duration.minutes(2),
   [IMAGE_PALETTE_JOB]: Duration.minutes(2),
+  [X_POST_MEDIA_JOB]: Duration.minutes(2),
   ocr_image: Duration.minutes(40),
   ocr_pdf_page: Duration.minutes(90),
   generate_embedding: Duration.minutes(30),
@@ -111,6 +119,7 @@ export function createJobProcessors() {
   const thumbnailProcessors: Record<string, Processor<Services>> = {
     [IMAGE_THUMBNAIL_JOB]: imageThumbnail,
     [VIDEO_POSTER_JOB]: videoPoster,
+    [X_POST_MEDIA_JOB]: xPostMedia,
   };
 
   return { processors, thumbnailProcessors, onIdle: backfill.onIdle };
