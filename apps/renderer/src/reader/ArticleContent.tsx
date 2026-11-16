@@ -3,6 +3,7 @@ import { color, font, itemColor } from "@inkling/ui/tokens.stylex";
 import { createElement, type ReactNode } from "react";
 import { ArticleEmbed } from "./ArticleEmbed.tsx";
 import type { ArticleElement, ArticleNode, ArticleTag } from "./articleTree.ts";
+import type { TextSize } from "./fontSets.ts";
 import { reader } from "./readerTheme.stylex.ts";
 
 // Each tag carries its own style, chosen here from its parent and its previous
@@ -51,13 +52,15 @@ function renderElement(node: ArticleElement, context: Context, afterLede: boolea
 export function ArticleContent({
   nodes,
   uprightQuotes,
+  textSize,
 }: {
   nodes: readonly ArticleNode[];
   uprightQuotes: boolean;
+  textSize: TextSize;
 }) {
   return createElement(
     "div",
-    stylex.props(styles.content),
+    stylex.props(styles.content, sizes[textSize]),
     ...renderNodes(nodes, { parent: null, uprightQuotes }),
   );
 }
@@ -152,10 +155,11 @@ const styles = stylex.create({
   },
   iframe: { width: "100%", aspectRatio: "16 / 9", borderWidth: 0, backgroundColor: color.raised },
   audio: { display: "block", width: "100%", marginBlock: "1.6em" },
+  // Figures reach past the text column where the reader has room either side (see ReaderView).
   figure: {
     marginTop: { default: "1.6em", ":first-child": 0 },
     marginBottom: "1.6em",
-    marginInline: 0,
+    marginInline: { default: 0, "@container reader (min-width: 900px)": "-70px" },
   },
   figcaption: {
     marginTop: "0.6em",
@@ -216,6 +220,15 @@ const styles = stylex.create({
   caption: { fontFamily: reader.meta, fontSize: "12px", color: color.muted },
   dt: { fontWeight: 600 },
   dd: { marginLeft: "1.5em" },
+});
+
+const sizes = stylex.create({
+  80: { fontSize: `calc(${reader.bodySize} * 0.8)` },
+  90: { fontSize: `calc(${reader.bodySize} * 0.9)` },
+  100: { fontSize: reader.bodySize },
+  110: { fontSize: `calc(${reader.bodySize} * 1.1)` },
+  120: { fontSize: `calc(${reader.bodySize} * 1.2)` },
+  135: { fontSize: `calc(${reader.bodySize} * 1.35)` },
 });
 
 const tagStyles: Partial<Record<ArticleTag, stylex.StyleXStyles>> = {
