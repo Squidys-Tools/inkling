@@ -1,6 +1,6 @@
 # Tags
 
-The item view's Info panel lists the Regular Spaces an item is filed in (`In` and a swatch per Space), then one `Tags` field: each tag is a token with a remove button, and you type new ones into the field. Typing suggests tags already in the library, most used first. Status: recipe rewritten for the one-field box in Nov 2026; the earlier `Add tag` flow was driven on 2026-11-15.
+The item view's Info panel lists the Regular Spaces an item is filed in (`In` and a swatch per Space), then one `Tags` field: each tag is a token with a remove button, and you type new ones into the field. Typing suggests tags already in the library: prefix matches first, then substring matches, most-used first inside each group. Status: **driven** on 2026-11-17 (add, cancel, remove; suggestions source-audited, not driven). Tag writes also reindex FTS and enqueue `generate_embedding`.
 
 ## Sub-features
 
@@ -27,6 +27,6 @@ Preconditions: seeded library, Everything shown. Item `5` (`Post: The first post
 
 - The stored tag is trimmed, lowercased and stripped of leading `#`s (`##x` saves as `x`), so `  MiXeD Case  ` saves as `mixed case` and the remove button's name is `Remove tag launch`, not `#Launch`. A tag the item already has is silently ignored.
 - Blurring the field with a draft (clicking away, Tab) commits it as a tag, so a driver that clicks away mid-edit ends up with an extra tag. Escape first to clear.
-- Enter adds what was typed, not the first suggestion; a suggestion is used only once it is highlighted with the arrows or clicked.
+- Enter adds what was typed, not the first suggestion — but a suggestion arms three ways: arrow keys, a click, and the pointer resting over it (`onPointerEnter`). With the cursor parked on an option, Enter adds that option, not the typed text; move the mouse off the list first.
 - With the field blurred, a further Escape closes the item view as usual.
 - In bash, escape the `$` in `'$.tags'` when the query sits in double quotes.
