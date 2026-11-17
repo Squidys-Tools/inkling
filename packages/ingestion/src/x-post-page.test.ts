@@ -382,10 +382,18 @@ test("a business account keeps its badge and square avatar, merged from a slim c
     details: { full_text: "Spring catalogue is out" },
     profile_image_shape: "Square",
   };
+  // regression: a page's own `__proto__` key must not reach Object.prototype through the merge.
+  const hostile = {
+    __typename: "Tweet",
+    rest_id: "109",
+    details: { full_text: "Spring catalogue is out" },
+    core: { user_results: { result: JSON.parse('{"__proto__": {"polluted": "yes"}}') } },
+  };
   const other = tweet("110", "Unrelated post in the same page");
-  const html = page(slim, rich, other);
+  const html = page(slim, rich, hostile, other);
   expect(extractXPostPayloads(html).map((payload) => payload.rest_id)).toEqual(["109", "110"]);
   const post = xPostFromPage(html, "109");
+  expect(Object.prototype).not.toHaveProperty("polluted");
   expect(post).toMatchObject({
     authorName: "Field Notes & Co",
     verified: "business",

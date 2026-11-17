@@ -116,6 +116,8 @@ function richness(payload: Json) {
 
 function fillMissing(into: Record<string, Json>, from: Record<string, Json>) {
   for (const [key, value] of Object.entries(from)) {
+    // The page is untrusted JSON: its `__proto__` key would otherwise merge into Object.prototype.
+    if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
     const existing = into[key];
     if (existing === undefined || existing === null) into[key] = value;
     else if (isObject(existing) && isObject(value)) fillMissing(existing, value);
