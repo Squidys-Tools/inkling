@@ -9,7 +9,7 @@ Spaces are named collections in the sidebar: Smart (a saved search) or Regular (
 - `space-rename` renames a Space.
 - `space-file` files an item into a Regular Space through the **Keep in a Space** menu (an in-app DOM menu that still surfaces through `--surface menu`).
 - `space-delete` deletes a Space (populated Regular Spaces ask in an in-app dialog) and keeps the items.
-- `space-color` cycles a row's color through `Change color of <name>` or the row menu's `Change color`.
+- `space-color` cycles a row's color through the row menu's `Change color`.
 - `space-move` reorders rows through the row menu's `Move up`/`Move down`.
 
 ## How to get to it (user POV)
