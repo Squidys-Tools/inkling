@@ -195,6 +195,8 @@ export const cardColor = stylex.defineVars({
   postLink: "#1d9bf0",
   postBar: "rgba(231, 233, 234, 0.08)",
   postBarWin: "rgba(29, 155, 240, 0.32)",
+  // The paper of X's dark embed, its blue "Dim" theme; XPostFrame blends it out to postPaper.
+  xDimPaper: "#15202b",
   verifiedBlue: "#1d9bf0",
   verifiedGold: "#c9a54e",
   verifiedCheck: "#ffffff",
