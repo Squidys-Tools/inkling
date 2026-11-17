@@ -248,6 +248,7 @@ const flowLabels = stylex.create({
 
 const flow = stylex.create({
   row: {
+    containerType: "inline-size",
     display: "flex",
     alignItems: "flex-start",
     paddingInline: "28px",
@@ -257,8 +258,7 @@ const flow = stylex.create({
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    flexShrink: 0,
-    width: "160px",
+    flex: "0 1 160px",
     minWidth: 0,
     textAlign: "center",
   },
@@ -309,15 +309,19 @@ const flow = stylex.create({
   linkLabel: {
     position: "absolute",
     left: "50%",
-    top: "-22px",
+    bottom: "10px",
     transform: "translateX(-50%)",
+    // The label may reach past the line into the nodes, but not over their 56px icons: a node is
+    // (row - 60px line) / 2 wide while it shrinks, else 160px. Past that it wraps upward.
+    width: "max-content",
+    maxWidth: "calc(100% + clamp(0px, 50cqw - 90px, 90px))",
+    textAlign: "center",
     paddingInline: "6px",
     backgroundColor: color.surface,
     fontFamily: font.mono,
     fontSize: text.xs,
     lineHeight: "14px",
     fontWeight: 500,
-    whiteSpace: "nowrap",
   },
 });
 
@@ -449,6 +453,7 @@ const styles = stylex.create({
   cardRow: {
     display: "flex",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: space.s4,
     minHeight: "62px",
     paddingInline: space.s4,
@@ -486,7 +491,7 @@ const styles = stylex.create({
   actionIconPrimary: { color: color.onAccent },
   rowText: {
     display: "flex",
-    flex: "1 1 auto",
+    flex: "1 1 200px",
     flexDirection: "column",
     gap: space.s1,
     minWidth: 0,

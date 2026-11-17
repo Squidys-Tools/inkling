@@ -175,7 +175,7 @@ const linkTone = {
 } as const;
 
 const styles = stylex.create({
-  actions: { display: "flex", flexShrink: 0, gap: space.s2 },
+  actions: { display: "flex", flexWrap: "wrap", gap: space.s2 },
   failed: {
     margin: 0,
     fontFamily: font.body,
