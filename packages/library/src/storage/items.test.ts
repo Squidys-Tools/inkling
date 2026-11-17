@@ -223,3 +223,29 @@ test("deleting the archive deletes only archived items, and their Space membersh
   expect(ids(await library.listSpaceItems(filed.id))).toEqual([kept.id]);
   expect(await library.deleteArchived()).toEqual([]);
 });
+
+test("tag counts ignore case and archived items, and keep the most used spelling", async () => {
+  const { library } = await temporaryLibrary();
+  const notes = await Promise.all(
+    ["one", "two", "three", "four"].map((body) => library.createNote({ body })),
+  );
+  const tag = (index: number, addTag: string) =>
+    library.updateItem({ id: notes[index].id, addTag });
+  await tag(0, "Bench");
+  await tag(1, "bench");
+  await tag(2, "bench");
+  await tag(2, "diy");
+  await tag(3, "diy");
+  await tag(3, "archived-only");
+  await library.archiveItem(notes[3].id);
+  library.db
+    .prepare(
+      "INSERT INTO items (id,kind,title,metadata,created_at,updated_at) VALUES ('bad','note','x','not json',1,1)",
+    )
+    .run();
+
+  expect(await library.tagCounts()).toEqual([
+    { tag: "bench", count: 3 },
+    { tag: "diy", count: 1 },
+  ]);
+});
