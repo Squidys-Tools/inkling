@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
+import { railRow } from "./railRow.stylex.ts";
 
 type RowLook = { active?: boolean; tone?: "nav" | "footer"; compact: boolean };
 
@@ -118,20 +119,21 @@ export function NavButton({
 }
 
 // A rail control keeps the column's full click but draws its fill as a square, like a Space's cover:
-// transparent side borders take the width, and each corner is wider by the same 8px to stay round.
+// transparent side borders take the 52px column down to the 40px row, and each corner is wider by
+// the same 6px to stay round.
 export const { railSquare } = stylex.create({
   railSquare: {
-    borderLeftWidth: "8px",
-    borderRightWidth: "8px",
+    borderLeftWidth: "6px",
+    borderRightWidth: "6px",
     borderLeftStyle: "solid",
     borderRightStyle: "solid",
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
     backgroundClip: "padding-box",
-    borderTopLeftRadius: `calc(${radius.control} + 8px) ${radius.control}`,
-    borderTopRightRadius: `calc(${radius.control} + 8px) ${radius.control}`,
-    borderBottomLeftRadius: `calc(${radius.control} + 8px) ${radius.control}`,
-    borderBottomRightRadius: `calc(${radius.control} + 8px) ${radius.control}`,
+    borderTopLeftRadius: `calc(${radius.control} + 6px) ${radius.control}`,
+    borderTopRightRadius: `calc(${radius.control} + 6px) ${radius.control}`,
+    borderBottomLeftRadius: `calc(${radius.control} + 6px) ${radius.control}`,
+    borderBottomRightRadius: `calc(${radius.control} + 6px) ${radius.control}`,
   },
 });
 
@@ -141,7 +143,7 @@ const styles = stylex.create({
     alignItems: "center",
     gap: "10px",
     // Every rail control is the column's width and this tall, so each takes the same click.
-    height: "36px",
+    height: railRow.height,
     minWidth: 0,
     flexGrow: 1,
     paddingLeft: "18px",
