@@ -2,11 +2,11 @@ import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { Button, Glass, IconButton } from "@inkling/ui";
-import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
+import { color, font, itemColor, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useHotkeys } from "@tanstack/react-hotkeys";
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { ScrollArea } from "../reader/ScrollArea.tsx";
 import { SizeStepper } from "./SizeStepper.tsx";
 
@@ -27,6 +27,10 @@ const PAD_TOP = 24;
 const PAD_X = 32;
 const GAP = 18;
 const THUMB_WIDTH = 40;
+// How far the current-page ring stands off its thumbnail.
+const RING_INSET = 4;
+const glide = (): ScrollBehavior =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 const clampZoom = (value: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 const failure = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
@@ -52,6 +56,9 @@ export function PdfViewer({
   const [rail, setRail] = useState<HTMLElement | null>(null);
   // Where the reader is, as a page and how far into it, so a zoom keeps them there.
   const anchor = useRef<{ index: number; within: number } | null>(null);
+  // The page a smooth jump is heading to, until its scroll ends.
+  const target = useRef<number | null>(null);
+  const [ring, setRing] = useState<{ top: number; height: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,18 +113,37 @@ export function PdfViewer({
 
   const follow = () => {
     if (!scroller || pageCount === 0) return;
-    const line = scroller.scrollTop + scroller.clientHeight / 3;
+    // The middle line agrees with goTo, which centres a page that fits the view.
+    const line = scroller.scrollTop + scroller.clientHeight / 2;
     let index = 0;
     while (index + 1 < pageCount && tops[index + 1]! <= line) index++;
     // A short last page never reaches the line, so the bottom of the scroll is the last page.
     const atEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
     if (scroller.scrollTop > 0 && atEnd) index = pageCount - 1;
-    setCurrent(index + 1);
+    if (scroller.scrollTop <= 0) index = 0;
     anchor.current = {
       index,
       within: (scroller.scrollTop - tops[index]!) / Math.max(1, heights[index]!),
     };
+    // While a jump glides past other pages, the rail and count stay on where it is going.
+    if (target.current === null) setCurrent(index + 1);
   };
+
+  const settle = useEffectEvent(() => {
+    target.current = null;
+    follow();
+  });
+  useEffect(() => {
+    if (!scroller) return;
+    // A wheel mid-jump takes the scroll back, so the count follows the reader again.
+    const release = () => (target.current = null);
+    scroller.addEventListener("scrollend", settle);
+    scroller.addEventListener("wheel", release, { passive: true });
+    return () => {
+      scroller.removeEventListener("scrollend", settle);
+      scroller.removeEventListener("wheel", release);
+    };
+  }, [scroller]);
 
   // A new scale moves every page, so put the reader back where they were.
   useLayoutEffect(() => {
@@ -131,15 +157,30 @@ export function PdfViewer({
   useEffect(() => {
     const thumb = rail?.querySelector<HTMLElement>(`[data-page="${current}"]`);
     if (!rail || !thumb) return;
-    if (thumb.offsetTop < rail.scrollTop) rail.scrollTop = thumb.offsetTop - GAP;
-    else if (thumb.offsetTop + thumb.offsetHeight > rail.scrollTop + rail.clientHeight)
-      rail.scrollTop = thumb.offsetTop + thumb.offsetHeight - rail.clientHeight + GAP;
-  }, [current, rail]);
+    setRing({ top: thumb.offsetTop - RING_INSET, height: thumb.offsetHeight + RING_INSET * 2 });
+    const hidden =
+      thumb.offsetTop - GAP < rail.scrollTop ||
+      thumb.offsetTop + thumb.offsetHeight + GAP > rail.scrollTop + rail.clientHeight;
+    if (hidden)
+      rail.scrollTo({
+        top: thumb.offsetTop + thumb.offsetHeight / 2 - rail.clientHeight / 2,
+        behavior: glide(),
+      });
+  }, [current, rail, pageCount]);
 
   const goTo = (page: number) => {
     const next = Math.min(Math.max(1, page), Math.max(1, pageCount));
-    if (scroller && tops[next - 1] !== undefined)
-      scroller.scrollTop = tops[next - 1]! - PAD_TOP / 2;
+    const top = tops[next - 1];
+    const height = heights[next - 1];
+    if (!scroller || top === undefined || height === undefined) return;
+    const view = scroller.clientHeight;
+    // A page that fits lands centred; a taller one lands with its top in view.
+    const wanted = height + PAD_TOP <= view ? top + height / 2 - view / 2 : top - PAD_TOP / 2;
+    const dest = Math.max(0, Math.min(scroller.scrollHeight - view, wanted));
+    if (Math.abs(dest - scroller.scrollTop) >= 1) {
+      target.current = next;
+      scroller.scrollTo({ top: dest, behavior: glide() });
+    }
     setCurrent(next);
   };
   // Arrow keys a focused field uses stay with it.
@@ -184,6 +225,12 @@ export function PdfViewer({
               />
             </button>
           ))}
+          {ring && (
+            <span
+              aria-hidden="true"
+              {...stylex.props(styles.indicator, styles.place(ring.top, ring.height))}
+            />
+          )}
         </nav>
       )}
       <ScrollArea
@@ -222,28 +269,31 @@ export function PdfViewer({
       </ScrollArea>
       {pdf && (
         <>
-          <Glass style={[styles.pill, styles.controls]}>
-            <SizeStepper
-              label="Zoom"
-              percent={Math.round(scale * 100)}
-              canShrink={scale > MIN_ZOOM}
-              canGrow={scale < MAX_ZOOM}
-              onShrink={() => resize(scale - ZOOM_STEP)}
-              onGrow={() => resize(scale + ZOOM_STEP)}
-            />
-            {zoom !== null && (
-              <Button style={styles.fit} onClick={() => setZoom(null)}>
-                Fit
-              </Button>
-            )}
-            <span aria-hidden="true" {...stylex.props(styles.divider)} />
-            <IconButton
-              label="Close PDF"
-              icon={<HugeiconsIcon icon={Cancel01Icon} size={14} />}
-              style={styles.round}
-              onClick={onClose}
-            />
-          </Glass>
+          <div {...stylex.props(styles.controls)}>
+            <Glass style={[styles.pill, styles.zoom]}>
+              <SizeStepper
+                label="Zoom"
+                percent={Math.round(scale * 100)}
+                canShrink={scale > MIN_ZOOM}
+                canGrow={scale < MAX_ZOOM}
+                onShrink={() => resize(scale - ZOOM_STEP)}
+                onGrow={() => resize(scale + ZOOM_STEP)}
+              />
+              {zoom !== null && (
+                <Button style={styles.fit} onClick={() => setZoom(null)}>
+                  Fit
+                </Button>
+              )}
+            </Glass>
+            <Glass style={[styles.pill, styles.closeGlass]}>
+              <IconButton
+                label="Close PDF (Esc)"
+                icon={<HugeiconsIcon icon={Cancel01Icon} size={14} />}
+                style={styles.round}
+                onClick={onClose}
+              />
+            </Glass>
+          </div>
           <Glass
             aria-hidden="true"
             style={[styles.pill, styles.count, railed && styles.countBesideRail]}
@@ -367,12 +417,7 @@ const styles = stylex.create({
     transitionProperty: "opacity",
     transitionDuration: "120ms",
   },
-  thumbCurrent: {
-    opacity: { default: 1, ":hover": 1 },
-    outlineWidth: 2,
-    outlineColor: color.accentStrong,
-    outlineOffset: "2px",
-  },
+  thumbCurrent: { opacity: { default: 1, ":hover": 1 } },
   scroller: { position: "absolute", inset: 0, height: "auto" },
   viewport: { overflowX: "auto", outline: "none" },
   besideRail: { left: RAIL },
@@ -416,15 +461,39 @@ const styles = stylex.create({
     alignItems: "center",
     borderRadius: radius.round,
   },
-  controls: { top: space.s4, right: space.s4, gap: "2px", padding: space.s1 },
-  fit: { height: "28px", paddingInline: "10px", borderRadius: radius.round, fontSize: text.sm },
-  divider: {
-    width: "1px",
-    height: "16px",
-    marginInline: "4px",
-    backgroundColor: color.glassRim,
+  controls: {
+    position: "absolute",
+    zIndex: 1,
+    top: space.s4,
+    right: space.s4,
+    display: "flex",
+    alignItems: "center",
+    gap: space.s2,
   },
+  zoom: { position: "static", gap: "2px", padding: space.s1 },
+  closeGlass: { position: "static", padding: space.s1 },
+  fit: { height: "28px", paddingInline: "10px", borderRadius: radius.round, fontSize: text.sm },
   round: { width: "28px", height: "28px", borderRadius: radius.round },
+  indicator: {
+    position: "absolute",
+    top: 0,
+    left: "50%",
+    width: `${THUMB_WIDTH + 8}px`,
+    boxSizing: "border-box",
+    marginLeft: `${-(THUMB_WIDTH + 8) / 2}px`,
+    borderWidth: 2,
+    borderStyle: "solid",
+    borderColor: color.accentStrong,
+    borderRadius: "5px",
+    pointerEvents: "none",
+    transitionProperty: "transform, height",
+    transitionDuration: motion.layout,
+    transitionTimingFunction: motion.enter,
+  },
+  place: (top: number, height: number) => ({
+    transform: `translateY(${top}px)`,
+    height: `${height}px`,
+  }),
   count: {
     bottom: space.s4,
     left: "50%",
