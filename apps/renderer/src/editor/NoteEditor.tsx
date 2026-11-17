@@ -71,14 +71,17 @@ export function NoteEditor({
   onChange?: (markdown: string, changed: boolean) => void;
 }) {
   const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  // A note not saved yet is unsaved from its first word, a restored draft included.
+  const [dirty, setDirty] = useState(
+    () => title === null && normalizeNoteBody(initialMarkdown) !== "",
+  );
   const [error, setError] = useState<string | null>(null);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [origin, setOrigin] = useState<HTMLDivElement | null>(null);
   const [slashCursor, setSlashCursor] = useState({ key: "", index: 0 });
   const [dismissed, setDismissed] = useState<number | null>(null);
-  const [changes] = useState(noteChanges);
+  const [changes] = useState(() => noteChanges(title === null ? "" : null));
   // The editor's key handler is fixed when it is created; this follows each render.
   const keys = useRef<(event: KeyboardEvent) => boolean>(() => false);
   const editor = useEditor({
@@ -123,7 +126,9 @@ export function NoteEditor({
       await onSave({ markdown, text: editor.getText().trim() });
       // Typing that landed during the save stays unsaved.
       changes.save(markdown);
-      setDirty(normalizeNoteBody(editor.getMarkdown()) !== markdown);
+      const current = normalizeNoteBody(editor.getMarkdown());
+      setDirty(current !== markdown);
+      onChange?.(current, current !== markdown);
     } catch (saveError) {
       setError(errorMessage(saveError));
     } finally {

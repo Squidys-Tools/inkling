@@ -73,7 +73,6 @@ export function FocusEditor({ id }: { id: string }) {
         saving.current = true;
         try {
           showWrittenCard(await (await libraryClient()).updateItem({ id, body, bodyFormat: "md" }));
-          dirty.current = false;
         } finally {
           saving.current = false;
         }

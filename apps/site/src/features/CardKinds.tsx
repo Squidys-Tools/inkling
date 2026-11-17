@@ -12,7 +12,7 @@ const kinds: { kind: ItemKind; id?: string; caption: string }[] = [
   },
   { kind: "Image", caption: "Images and screenshots show as themselves, in their own shape." },
   { kind: "Quote", caption: "Quotes keep who said them and where you found them." },
-  { kind: "Note", caption: "Notes are Markdown, with a Focus Mode for longer writing." },
+  { kind: "Note", caption: "Notes are Markdown, and open into a full page for longer writing." },
   { kind: "Post", id: "5", caption: "Posts from X keep their author, date and text." },
   { kind: "Video", caption: "YouTube and Vimeo links play inside inkling." },
   { kind: "PDF", caption: "PDFs open in a page viewer, and scanned pages get read too." },

@@ -11,8 +11,8 @@ export function NoteForm() {
       initialMarkdown={drafts.note}
       placeholder="A thought, a small beginning…"
       saveLabel="Save to library"
-      onChange={(markdown) => {
-        drafts.note = markdown;
+      onChange={(markdown, changed) => {
+        drafts.note = changed ? markdown : "";
       }}
       onCancel={page.leave}
       onSave={async ({ markdown, text }) => {

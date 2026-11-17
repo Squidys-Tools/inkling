@@ -79,11 +79,10 @@ export function noteExtensions(classes?: NoteClasses): Extensions {
 }
 
 /**
- * Whether the note differs, after each edit, from the text it opened with or was
- * last saved as, both as the editor writes them.
+ * Whether the note differs, after each edit, from the text it opened with (or
+ * `saved`, when given) or was last saved as, both as the editor writes them.
  */
-export function noteChanges() {
-  let saved: string | null = null;
+export function noteChanges(saved: string | null = null) {
   return {
     update: ({ editor, transaction }: EditorEvents["update"]) => {
       const write = (doc: typeof transaction.before) =>
