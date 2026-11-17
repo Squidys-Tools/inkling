@@ -313,7 +313,7 @@ const styles = stylex.create({
   cover: { position: "absolute", left: "14px", top: "6px" },
   // The rail row's cover and its center, so the swap to that row at the end of closing moves
   // nothing. The open row takes this larger cover as soon as it starts closing.
-  railCover: { left: "11px", top: "5px", width: "30px", height: "30px" },
+  railCover: { left: "11px", top: "7px", width: "30px", height: "30px" },
   lifted: {
     zIndex: 1,
     backgroundColor: { default: color.hover, ":hover": color.hover },

@@ -292,7 +292,7 @@ export function Sidebar({
 }
 
 // The rail's rows are taller, so each control's highlight square has room around its icon or cover.
-const railRows = stylex.createTheme(railRow, { height: "40px" });
+const railRows = stylex.createTheme(railRow, { height: "44px" });
 
 const styles = stylex.create({
   sidebar: {
