@@ -3,7 +3,8 @@ import * as stylex from "@stylexjs/stylex";
 import { Link } from "@tanstack/react-router";
 import { color, motion, radius } from "@inkling/ui/tokens.stylex";
 import { search } from "../library/search.ts";
-import { SelectionFill } from "./NavRow.tsx";
+import { railRow } from "./railRow.stylex.ts";
+import { railSquare, SelectionFill } from "./NavRow.tsx";
 import { SpaceCover } from "./SpaceCover.tsx";
 import { opensMenu, openSpaceMenu, type SpaceActions } from "./spaceMenu.ts";
 
@@ -37,22 +38,24 @@ export function CompactSpaceRow({
       onKeyDown={(event) => {
         if (opensMenu(event)) void openSpaceMenu(event, space.name, can, actions);
       }}
-      {...stylex.props(styles.row, selected && styles.selected)}
+      {...stylex.props(styles.row, railSquare, selected && styles.selected)}
     >
       {selected && <SelectionFill />}
-      <SpaceCover space={space} thumbs={thumbs} style={styles.cover} />
+      <SpaceCover space={space} thumbs={thumbs} glide={`cover ${space.id}`} style={styles.cover} />
     </Link>
   );
 }
 
 const styles = stylex.create({
+  // Centered in the square with 7px around it; the open row's rail cover sits at the same spot.
+  cover: { width: "30px", height: "30px" },
   row: {
     position: "relative",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    height: "36px",
+    height: railRow.height,
     borderRadius: radius.control,
     textDecoration: "none",
     backgroundColor: {
@@ -66,8 +69,6 @@ const styles = stylex.create({
     transitionDuration: motion.micro,
     outline: "none",
   },
-  // The open row's height and cover spot, so closing the sidebar only crops each row.
-  cover: { position: "absolute", left: "14px", top: "6px" },
   selected: {
     isolation: "isolate",
     backgroundColor: { default: "transparent", ":hover": "transparent" },

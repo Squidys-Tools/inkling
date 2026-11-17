@@ -22,7 +22,8 @@ import { useAppearance } from "../settings/appearance.ts";
 import { AddMenu } from "./AddMenu.tsx";
 import { IndexingRing } from "./IndexingRing.tsx";
 import { NavButton, NavLink } from "./NavRow.tsx";
-import { sidebarCompact, sidebarExpanded, stripAddBeside } from "./sidebarGeometry.ts";
+import { railRow } from "./railRow.stylex.ts";
+import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
 import { SpacesSection } from "./SpacesSection.tsx";
 import { UpdateRow } from "./UpdateRow.tsx";
 import { useSelectionGlide } from "./useSelectionGlide.ts";
@@ -181,6 +182,7 @@ export function Sidebar({
         {...stylex.props(
           styles.sidebar,
           styles.width(width),
+          rail && railRows,
           narrow && styles.narrow,
           chrome.controls === "custom-right" && styles.unifiedHeader,
           chrome.controls === "native-left" && styles.belowLights,
@@ -213,6 +215,7 @@ export function Sidebar({
               <span data-sidebar-label {...stylex.props(styles.wordmark)}>
                 inkling
               </span>
+              {!rail && <AddMenu compact={false} />}
               <button
                 type="button"
                 ref={reopenButton}
@@ -230,6 +233,12 @@ export function Sidebar({
             </>
           )}
         </div>
+        {/* Closing, Add glides from the top bar to its spot under the mascot. */}
+        {rail && (
+          <div {...stylex.props(styles.railAdd)}>
+            <AddMenu compact />
+          </div>
+        )}
         <div ref={track} {...stylex.props(styles.track, strip && styles.stripTrack)}>
           <nav aria-label="Main navigation" {...stylex.props(styles.rows)}>
             {strip ? (
@@ -250,82 +259,40 @@ export function Sidebar({
               />
             )}
           </nav>
-          <SpacesSection
-            compact={compact}
-            rail={rail}
-            strip={strip}
-            onExpand={() => setSidebarOpen(true)}
-          />
+          <SpacesSection compact={compact} rail={rail} strip={strip} />
         </div>
-        {strip ? (
-          <div {...stylex.props(styles.footer, styles.stripFooter)}>
-            <UpdateRow compact={false} />
-            <div {...stylex.props(styles.stripRow)}>
-              <AddMenu compact={false} beside={stripAddBeside} />
-              <Link
-                to="/archive"
-                draggable={false}
-                data-sidebar-label
-                data-glide="archive"
-                data-sidebar-nav
-                aria-label="Archive"
-                title="Archive"
-                aria-current={shown === "Archived" ? "page" : undefined}
-                onClick={() => search.clear()}
-                {...stylex.props(styles.square, shown === "Archived" && styles.squareActive)}
-              >
-                <HugeiconsIcon icon={Archive01Icon} size={16} />
-              </Link>
-              <button
-                type="button"
-                data-sidebar-label
-                data-glide="settings"
-                aria-label="Settings"
-                title="Settings"
-                aria-expanded={settingsOpen}
-                aria-controls="settings-sheet"
-                onClick={openSettings}
-                {...stylex.props(styles.square, settingsOpen && styles.squareActive)}
-              >
-                <HugeiconsIcon icon={Settings01Icon} size={16} />
-              </button>
-            </div>
+        <div {...stylex.props(styles.footer, strip && styles.stripFooter)}>
+          <UpdateRow compact={compact} />
+          <NavLink
+            to="/archive"
+            tone="footer"
+            glide="archive"
+            compact={compact}
+            active={shown === "Archived"}
+            icon={<HugeiconsIcon icon={Archive01Icon} size={15} />}
+            label="Archive"
+            onClick={() => search.clear()}
+          />
+          <div data-glide="settings">
+            <NavButton
+              tone="footer"
+              active={settingsOpen}
+              expanded={settingsOpen}
+              controls="settings-sheet"
+              compact={compact}
+              icon={<HugeiconsIcon icon={Settings01Icon} size={15} />}
+              label="Settings"
+              onClick={openSettings}
+            />
           </div>
-        ) : (
-          <div {...stylex.props(styles.footer)}>
-            <AddMenu compact={compact} />
-            <UpdateRow compact={compact} />
-            <div {...stylex.props(styles.lastRow, rail && styles.lastRowCompact)}>
-              <NavLink
-                to="/archive"
-                tone="footer"
-                glide="archive"
-                compact={compact}
-                active={shown === "Archived"}
-                icon={<HugeiconsIcon icon={Archive01Icon} size={15} />}
-                label="Archive"
-                onClick={() => search.clear()}
-              />
-              {/* Expanded, Settings ends the Archive row; closing, it glides to its rail spot below. */}
-              <div data-glide="settings" {...stylex.props(styles.gear, rail && styles.railGear)}>
-                <NavButton
-                  tone="footer"
-                  active={settingsOpen}
-                  expanded={settingsOpen}
-                  controls="settings-sheet"
-                  compact
-                  icon={<HugeiconsIcon icon={Settings01Icon} size={15} />}
-                  label="Settings"
-                  onClick={openSettings}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
       </aside>
     </>
   );
 }
+
+// The rail's rows are taller, so each control's highlight square has room around its icon or cover.
+const railRows = stylex.createTheme(railRow, { height: "44px" });
 
 const styles = stylex.create({
   sidebar: {
@@ -391,6 +358,7 @@ const styles = stylex.create({
   },
   wordmark: {
     marginLeft: "-4px",
+    marginRight: "auto",
     fontFamily: font.quote,
     fontSize: "20px",
     lineHeight: 1,
@@ -405,7 +373,6 @@ const styles = stylex.create({
     placeItems: "center",
     width: "30px",
     height: "30px",
-    marginLeft: "auto",
     flexShrink: 0,
     padding: 0,
     borderWidth: 0,
@@ -487,39 +454,13 @@ const styles = stylex.create({
     borderTopStyle: "solid",
     borderTopColor: color.border,
   },
-  stripFooter: { gap: "8px", paddingTop: "6px", borderTopWidth: 0 },
-  stripRow: { display: "flex", alignItems: "center", gap: "6px", minWidth: 0 },
-  square: {
-    display: "grid",
-    placeItems: "center",
-    width: "40px",
-    height: "40px",
+  stripFooter: { paddingTop: "6px", borderTopWidth: 0 },
+  // The rail's 52px column, so Add centers under the mascot while the edge is still moving.
+  railAdd: {
+    display: "flex",
+    justifyContent: "center",
+    width: "52px",
     flexShrink: 0,
-    padding: 0,
-    borderWidth: 0,
-    borderRadius: radius.tile,
-    backgroundColor: {
-      default: color.raised,
-      ":hover": color.hover,
-      ":focus-visible": color.hover,
-    },
-    color: { default: color.muted, ":hover": color.ink, ":focus-visible": color.ink },
-    cursor: "pointer",
-    transform: { default: "none", ":active": "scale(0.94)" },
-    transitionProperty: "color, background-color, transform",
-    transitionDuration: motion.micro,
-    transitionTimingFunction: motion.enter,
-    outline: "none",
+    marginBottom: "-6px",
   },
-  squareActive: {
-    backgroundColor: { default: color.hover, ":hover": color.hover },
-    boxShadow: `inset 0 0 0 1px ${color.borderStrong}`,
-    color: { default: color.accentStrong, ":hover": color.accentStrong },
-  },
-  lastRow: { display: "flex", alignItems: "center", gap: "2px", minWidth: 0 },
-  lastRowCompact: { flexDirection: "column", alignItems: "stretch" },
-  // 36px wide, so the gear centers under the Spaces header's plus and each row's menu button.
-  gear: { width: "36px", flexShrink: 0 },
-  // Centered in the rail's 52px row; the same width keeps the glide from resizing it.
-  railGear: { marginLeft: "8px" },
 });

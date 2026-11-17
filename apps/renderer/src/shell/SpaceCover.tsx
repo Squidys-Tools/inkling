@@ -11,14 +11,21 @@ export function SpaceCover({
   space,
   thumbs,
   style,
+  glide,
 }: {
   space: Pick<Space, "kind" | "color">;
   thumbs: readonly string[];
   style?: stylex.StyleXStyles;
+  /** Grows or shrinks to a new size over the sidebar's layout glide. */
+  glide?: string;
 }) {
   if (space.kind === "regular")
     return (
-      <span aria-hidden="true" {...stylex.props(styles.slot, tints[space.color], style)}>
+      <span
+        aria-hidden="true"
+        data-glide-scale={glide}
+        {...stylex.props(styles.slot, tints[space.color], style)}
+      >
         {thumbs[0] && (
           <img
             key={thumbs[0]}
@@ -31,7 +38,11 @@ export function SpaceCover({
       </span>
     );
   return (
-    <span aria-hidden="true" {...stylex.props(styles.split, tints[space.color], style)}>
+    <span
+      aria-hidden="true"
+      data-glide-scale={glide}
+      {...stylex.props(styles.split, tints[space.color], style)}
+    >
       {thumbs[0] && (
         <img
           key={thumbs[0]}
@@ -134,9 +145,9 @@ const tints = stylex.create({
 const styles = stylex.create({
   // Border-box: the dashes sit inside the same 24px as a Smart cover.
   slot: {
+    position: "relative",
     boxSizing: "border-box",
-    display: "grid",
-    placeItems: "center",
+    display: "block",
     width: "24px",
     height: "24px",
     flexShrink: 0,
@@ -147,10 +158,13 @@ const styles = stylex.create({
     pointerEvents: "none",
   },
   // Fills the outline, a 1px gap short of its dashes so they stay readable over any picture.
+  // Pinned to the outline: sized as a grid or flex item, a tall picture overflowed its height.
   inner: {
+    position: "absolute",
+    inset: "1px",
     display: "block",
-    width: "19px",
-    height: "19px",
+    width: "calc(100% - 2px)",
+    height: "calc(100% - 2px)",
     borderRadius: "4.5px",
     objectFit: "cover",
   },

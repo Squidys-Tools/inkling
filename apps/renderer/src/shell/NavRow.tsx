@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
+import { railRow } from "./railRow.stylex.ts";
 
 type RowLook = { active?: boolean; tone?: "nav" | "footer"; compact: boolean };
 
@@ -47,6 +48,7 @@ export function NavLink({
         styles.row,
         styles[tone],
         compact && styles.compact,
+        compact && railSquare,
         active && styles.active,
         active && slides && styles.slid,
       )}
@@ -102,6 +104,7 @@ export function NavButton({
         styles.button,
         styles[tone],
         compact && styles.compact,
+        compact && railSquare,
         active && styles.active,
       )}
     >
@@ -115,12 +118,32 @@ export function NavButton({
   );
 }
 
+// A rail control keeps the column's full click but draws its fill as a square, like a Space's cover:
+// transparent side borders take the 52px column down to the 44px row, and each corner is wider by
+// the same 4px to stay round.
+export const { railSquare } = stylex.create({
+  railSquare: {
+    borderLeftWidth: "4px",
+    borderRightWidth: "4px",
+    borderLeftStyle: "solid",
+    borderRightStyle: "solid",
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    backgroundClip: "padding-box",
+    borderTopLeftRadius: `calc(${radius.control} + 4px) ${radius.control}`,
+    borderTopRightRadius: `calc(${radius.control} + 4px) ${radius.control}`,
+    borderBottomLeftRadius: `calc(${radius.control} + 4px) ${radius.control}`,
+    borderBottomRightRadius: `calc(${radius.control} + 4px) ${radius.control}`,
+  },
+});
+
 const styles = stylex.create({
   row: {
     display: "flex",
     alignItems: "center",
     gap: "10px",
-    height: "32px",
+    // Every rail control is the column's width and this tall, so each takes the same click.
+    height: railRow.height,
     minWidth: 0,
     flexGrow: 1,
     paddingLeft: "18px",
@@ -160,7 +183,7 @@ const styles = stylex.create({
     position: "absolute",
     inset: 0,
     zIndex: -1,
-    borderRadius: "inherit",
+    borderRadius: radius.control,
     backgroundColor: color.overlayActive,
     pointerEvents: "none",
   },

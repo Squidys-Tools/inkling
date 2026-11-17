@@ -10,6 +10,7 @@ import { useSpaceThumbs } from "../library/spaceThumbs.ts";
 import { deleteSpace, moveSpace, recolorSpace, renameSpace } from "../library/spaces.ts";
 import { spaceRowMarker } from "../markers.stylex.ts";
 import { CompactSpaceRow } from "./CompactSpaceRow.tsx";
+import { railRow } from "./railRow.stylex.ts";
 import { confirm } from "./confirm.ts";
 import { setSidebarOpen } from "../libraryView/viewState.ts";
 import { SelectionFill } from "./NavRow.tsx";
@@ -34,6 +35,7 @@ export function SpaceRow({
   selected,
   count,
   compact,
+  rail,
   strip,
   index,
   lastIndex,
@@ -42,6 +44,8 @@ export function SpaceRow({
   selected: boolean;
   count: number | undefined;
   compact: boolean;
+  /** Laid out for the rail: while the sidebar closes, and once it is closed. */
+  rail: boolean;
   /** The Strip look: the name over the four newest pictures. Otherwise the newest is the cover. */
   strip: boolean;
   index: number;
@@ -173,7 +177,14 @@ export function SpaceRow({
       )}
     >
       {selected && !strip && <SelectionFill />}
-      {!strip && <SpaceCover space={space} thumbs={thumbs} style={styles.cover} />}
+      {!strip && (
+        <SpaceCover
+          space={space}
+          thumbs={thumbs}
+          glide={`cover ${space.id}`}
+          style={[styles.cover, rail && styles.railCover]}
+        />
+      )}
       {renaming !== null ? (
         <input
           // oxlint-disable-next-line jsx-a11y/no-autofocus -- The field appears because the user asked to rename; typing goes straight into it.
@@ -267,7 +278,7 @@ const styles = stylex.create({
     transitionProperty: "color, background-color, box-shadow",
     transitionDuration: motion.micro,
   },
-  coverRow: { height: "36px" },
+  coverRow: { height: railRow.height },
   selected: {
     isolation: "isolate",
     fontWeight: 600,
@@ -300,6 +311,9 @@ const styles = stylex.create({
   },
   // Under the link, which covers the whole row, so a click on the picture opens the Space.
   cover: { position: "absolute", left: "14px", top: "6px" },
+  // The rail row's cover and its center, so the swap to that row at the end of closing moves
+  // nothing. The open row takes this larger cover as soon as it starts closing.
+  railCover: { left: "11px", top: "7px", width: "30px", height: "30px" },
   lifted: {
     zIndex: 1,
     backgroundColor: { default: color.hover, ":hover": color.hover },

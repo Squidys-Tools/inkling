@@ -38,8 +38,8 @@ export function AddChoices({
       <Menu.Trigger {...trigger}>{children}</Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner
-          side="top"
-          align="center"
+          side="bottom"
+          align="start"
           sideOffset={6}
           {...stylex.props(styles.positioner)}
         >
@@ -69,7 +69,7 @@ export function AddChoices({
 }
 
 const open = stylex.keyframes({
-  from: { opacity: 0, transform: "translateY(12px) scale(0.94)" },
+  from: { opacity: 0, transform: "translateY(-8px) scale(0.96)" },
   to: { opacity: 1, transform: "none" },
 });
 
@@ -84,7 +84,7 @@ const styles = stylex.create({
     borderRadius: "18px",
     backgroundColor: color.raised,
     boxShadow: `0 18px 44px ${color.shadow}`,
-    transformOrigin: "bottom center",
+    transformOrigin: "var(--transform-origin)",
     animationName: open,
     animationDuration: motion.micro,
     animationTimingFunction: motion.enter,
