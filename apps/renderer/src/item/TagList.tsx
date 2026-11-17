@@ -1,14 +1,17 @@
+/* oxlint-disable jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- A click on the field's padding focuses its input, which has the keyboard already. */
 import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import PlusSignIcon from "@hugeicons/core-free-icons/PlusSignIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
-import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
-import { useRef, useState } from "react";
+import { color, font, itemColor, radius, text } from "@inkling/ui/tokens.stylex";
+import { useId, useRef, useState } from "react";
 import { tagMarker } from "../markers.stylex.ts";
 import { SpaceSwatch } from "../shell/SpaceCover.tsx";
+import { useTagCounts } from "./queries.ts";
 
-/** The Regular Spaces the item is filed in as chips, then its tags as text, and a field to add more. */
+const maxSuggestions = 5;
+
+/** The Regular Spaces the item is filed in, then one field holding its tags that you type into. */
 export function TagList({
   tags,
   spaces,
@@ -20,156 +23,229 @@ export function TagList({
   onAddTag: (tag: string) => void;
   onRemoveTag: (tag: string) => void;
 }) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const addButton = useRef<HTMLButtonElement>(null);
-  // Enter and Escape unmount the field, and Chromium may then send it a blur.
-  const closed = useRef(false);
-  const returnFocus = useRef(false);
+  const [draft, setDraft] = useState("");
+  const [focused, setFocused] = useState(false);
+  const [active, setActive] = useState(-1);
+  const input = useRef<HTMLInputElement>(null);
+  const listId = useId();
+  const counts = useTagCounts(focused);
 
-  const add = (value: string) => {
-    const tag = value.trim().replace(/^#+/u, "").trim();
-    if (tag && !tags.some((existing) => existing.toLowerCase() === tag.toLowerCase()))
-      onAddTag(tag);
-  };
-  const close = (toButton: boolean) => {
-    closed.current = true;
-    returnFocus.current = toButton;
-    setDraft(null);
+  const typed = draft.trim().replace(/^#+/u, "").trim();
+  const has = (tag: string) =>
+    tags.some((existing) => existing.toLowerCase() === tag.toLowerCase());
+  const suggestions = typed ? suggest(counts.data ?? [], typed, has) : [];
+  const open = focused && suggestions.length > 0;
+
+  const add = (tag: string) => {
+    if (tag && !has(tag)) onAddTag(tag);
+    setDraft("");
+    setActive(-1);
   };
 
   return (
-    <ul aria-label="Spaces and tags" {...stylex.props(styles.list)}>
-      {spaces.map((filed) => (
-        <li key={filed.id} {...stylex.props(styles.filed)}>
-          <SpaceSwatch space={filed} />
-          <span {...stylex.props(styles.name)}>{filed.name}</span>
-        </li>
-      ))}
-      {tags.map((tag) => (
-        <li key={tag} {...stylex.props(styles.tag)}>
-          <span {...stylex.props(styles.name)}>
-            <span aria-hidden="true" {...stylex.props(styles.hash)}>
-              #
+    <div {...stylex.props(styles.stack)}>
+      {spaces.length > 0 && (
+        <p {...stylex.props(styles.spaces)}>
+          <span {...stylex.props(styles.inLabel)}>In</span>
+          {spaces.map((filed) => (
+            <span key={filed.id} {...stylex.props(styles.space)}>
+              <SpaceSwatch space={filed} />
+              <span {...stylex.props(styles.name)}>{filed.name}</span>
             </span>
-            {tag}
+          ))}
+        </p>
+      )}
+      <div
+        role="group"
+        aria-label="Tags"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) input.current?.focus();
+        }}
+        {...stylex.props(styles.field)}
+      >
+        {tags.map((tag) => (
+          <span key={tag} {...stylex.props(styles.token)}>
+            <span {...stylex.props(styles.name)}>
+              <span aria-hidden="true" {...stylex.props(styles.hash)}>
+                #
+              </span>
+              {tag}
+            </span>
+            <button
+              type="button"
+              aria-label={`Remove tag ${tag}`}
+              title="Remove tag"
+              onClick={() => {
+                onRemoveTag(tag);
+                // The button is about to go; keep the keyboard in the field.
+                input.current?.focus();
+              }}
+              {...stylex.props(styles.remove, tagMarker)}
+            >
+              <HugeiconsIcon icon={Cancel01Icon} size={10} strokeWidth={2.4} />
+            </button>
           </span>
-          <button
-            type="button"
-            aria-label={`Remove tag ${tag}`}
-            title="Remove tag"
-            onClick={() => {
-              onRemoveTag(tag);
-              // The button is about to go; keep the keyboard's place in the row.
-              addButton.current?.focus();
-            }}
-            {...stylex.props(styles.remove, tagMarker)}
-          >
-            <HugeiconsIcon icon={Cancel01Icon} size={10} strokeWidth={2.4} />
-          </button>
-        </li>
-      ))}
-      <li {...stylex.props(styles.item)}>
-        {draft === null ? (
-          <button
-            ref={(node) => {
-              addButton.current = node;
-              if (node && returnFocus.current) node.focus();
-              returnFocus.current = false;
-            }}
-            type="button"
-            onClick={() => {
-              closed.current = false;
-              setDraft("");
-            }}
-            {...stylex.props(styles.add)}
-          >
-            <HugeiconsIcon icon={PlusSignIcon} size={11} />
-            Add tag
-          </button>
-        ) : (
-          <input
-            // oxlint-disable-next-line jsx-a11y/no-autofocus -- the field replaces the add button the user just pressed.
-            autoFocus
-            value={draft}
-            spellCheck={false}
-            placeholder="Tag name"
-            aria-label="New tag name"
-            onChange={(event) => setDraft(event.currentTarget.value)}
-            onBlur={() => {
-              if (closed.current) return;
-              add(draft);
-              close(false);
-            }}
-            onKeyDown={(event) => {
-              if (event.nativeEvent.isComposing) return;
-              if (event.key !== "Enter" && event.key !== "Escape") return;
-              // Escape here cancels the edit, not the page.
+        ))}
+        <input
+          ref={input}
+          value={draft}
+          spellCheck={false}
+          placeholder="Add a tag…"
+          aria-label="Add a tag"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            add(typed);
+          }}
+          onChange={(event) => {
+            setDraft(event.currentTarget.value);
+            setActive(-1);
+          }}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
+            if (open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
               event.preventDefault();
-              if (event.key === "Escape" || !draft.trim()) return close(true);
-              // Enter keeps the field open for the next tag.
-              add(draft);
-              setDraft("");
-            }}
-            {...stylex.props(styles.input)}
-          />
-        )}
-      </li>
-    </ul>
+              const step = event.key === "ArrowDown" ? 1 : -1;
+              setActive((current) =>
+                Math.max(-1, Math.min(suggestions.length - 1, current + step)),
+              );
+            } else if (event.key === "Enter") {
+              // What was typed is the tag; a suggestion is used only when picked.
+              event.preventDefault();
+              add(open && active >= 0 ? suggestions[active].tag : typed);
+            } else if (event.key === "Escape") {
+              // Escape here clears or leaves the field, not the page.
+              event.preventDefault();
+              if (draft) {
+                setDraft("");
+                setActive(-1);
+              } else input.current?.blur();
+            }
+          }}
+          {...stylex.props(styles.input)}
+        />
+      </div>
+      {open && (
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label="Tags you use"
+          // Picking a suggestion must not blur the field first, which would add the draft.
+          onPointerDown={(event) => event.preventDefault()}
+          {...stylex.props(styles.suggestions)}
+        >
+          {suggestions.map((suggestion, index) => (
+            <li
+              key={suggestion.tag}
+              id={`${listId}-${index}`}
+              role="option"
+              aria-selected={index === active}
+              onClick={() => add(suggestion.tag)}
+              onPointerEnter={() => setActive(index)}
+              {...stylex.props(styles.option, index === active && styles.optionActive)}
+            >
+              <span {...stylex.props(styles.name)}>
+                <span aria-hidden="true" {...stylex.props(styles.hash)}>
+                  #
+                </span>
+                {suggestion.tag}
+              </span>
+              <span {...stylex.props(styles.count)}>{suggestion.count}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
-const focusRing = { default: "none", ":focus-visible": `2px solid ${color.accent}` };
+/** Tags that start with what was typed, then ones that contain it, leaving out the item's own. */
+function suggest(
+  counts: readonly { tag: string; count: number }[],
+  typed: string,
+  has: (tag: string) => boolean,
+) {
+  const wanted = typed.toLowerCase();
+  const matches = counts.filter(
+    (entry) => !has(entry.tag) && entry.tag.toLowerCase().includes(wanted),
+  );
+  const starts = matches.filter((entry) => entry.tag.toLowerCase().startsWith(wanted));
+  return [...starts, ...matches.filter((entry) => !starts.includes(entry))].slice(
+    0,
+    maxSuggestions,
+  );
+}
+
 const styles = stylex.create({
-  list: {
+  stack: { position: "relative", display: "flex", flexDirection: "column", gap: "8px" },
+  spaces: {
     display: "flex",
     flexWrap: "wrap",
     alignItems: "center",
-    columnGap: "12px",
-    rowGap: "6px",
+    gap: "4px 10px",
     margin: 0,
-    padding: 0,
-    listStyleType: "none",
     fontFamily: font.body,
-    fontSize: text.md,
+    fontSize: text.sm,
     lineHeight: "16px",
+    color: color.inkSoft,
   },
-  item: { display: "flex", maxWidth: "100%" },
-  filed: {
-    boxSizing: "border-box",
+  inLabel: { color: color.muted },
+  space: {
     display: "inline-flex",
     alignItems: "center",
     gap: "6px",
+    minWidth: 0,
     maxWidth: "100%",
-    height: "26px",
-    paddingLeft: "8px",
-    paddingRight: "10px",
-    borderRadius: radius.round,
-    backgroundColor: color.raised,
-    fontSize: text.sm,
-    color: color.ink,
   },
-  // A tag is plain text so a long list stays light. Keyboard focus on its remove
-  // button washes the whole tag; the margins cancel the padding that wash needs.
-  tag: {
+  field: {
+    boxSizing: "border-box",
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: "5px",
+    minHeight: "38px",
+    padding: "6px",
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: {
+      default: color.border,
+      ":hover": color.borderStrong,
+      ":focus-within": color.focusRing,
+    },
+    borderRadius: "10px",
+    backgroundColor: color.sunken,
+    cursor: "text",
+    fontFamily: font.body,
+    fontSize: text.sm,
+    lineHeight: "16px",
+    transitionProperty: "border-color",
+    transitionDuration: "120ms",
+  },
+  // Keyboard focus on a tag's remove button washes the whole token.
+  token: {
+    boxSizing: "border-box",
     display: "inline-flex",
     alignItems: "center",
-    gap: "2px",
+    gap: "3px",
     maxWidth: "100%",
-    paddingBlock: "3px",
-    paddingLeft: "7px",
-    paddingRight: "3px",
-    marginBlock: "-3px",
-    marginLeft: "-7px",
-    marginRight: "-3px",
-    borderRadius: radius.round,
+    height: "24px",
+    paddingLeft: "8px",
+    paddingRight: "4px",
+    borderRadius: "6px",
     backgroundColor: {
-      default: "transparent",
+      default: color.raised,
       [stylex.when.descendant(":focus-visible", tagMarker)]: color.hover,
     },
     color: {
       default: itemColor.tagInk,
       [stylex.when.descendant(":focus-visible", tagMarker)]: color.ink,
     },
+    cursor: "default",
   },
   name: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   hash: { color: color.faint },
@@ -187,36 +263,48 @@ const styles = stylex.create({
     cursor: "pointer",
     outline: "none",
   },
-  add: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: space.s1,
-    padding: 0,
+  input: {
+    flex: "1 1 80px",
+    minWidth: "80px",
+    height: "24px",
+    padding: "0 4px",
     borderWidth: 0,
-    borderRadius: "4px",
     backgroundColor: "transparent",
     fontFamily: "inherit",
     fontSize: "inherit",
-    lineHeight: "inherit",
-    color: { default: color.muted, ":hover": color.ink },
-    cursor: "pointer",
-    outline: focusRing,
-    outlineOffset: "3px",
-  },
-  input: {
-    boxSizing: "border-box",
-    width: "132px",
-    height: "26px",
-    paddingInline: "10px",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: color.focusRing,
-    borderRadius: radius.round,
-    backgroundColor: color.sunken,
-    fontFamily: "inherit",
-    fontSize: text.sm,
     color: color.ink,
     outline: "none",
     "::placeholder": { color: color.faint },
   },
+  suggestions: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    left: 0,
+    right: 0,
+    zIndex: 5,
+    margin: 0,
+    padding: "4px",
+    listStyleType: "none",
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: color.border,
+    borderRadius: "10px",
+    backgroundColor: color.raised,
+    boxShadow: `0 10px 24px ${color.shadow}`,
+    fontFamily: font.body,
+    fontSize: text.sm,
+    lineHeight: "16px",
+  },
+  option: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "12px",
+    paddingBlock: "6px",
+    paddingInline: "8px",
+    borderRadius: "6px",
+    color: color.inkSoft,
+    cursor: "pointer",
+  },
+  optionActive: { backgroundColor: color.hover, color: color.ink },
+  count: { flexShrink: 0, fontFamily: font.mono, fontSize: "11px", color: color.faint },
 });

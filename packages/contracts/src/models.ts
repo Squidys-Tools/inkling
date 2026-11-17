@@ -126,6 +126,9 @@ export const KindCount = Schema.Struct({
 });
 export type KindCount = typeof KindCount.Type;
 
+export const TagCount = Schema.Struct({ tag: Text, count: Schema.Number });
+export type TagCount = typeof TagCount.Type;
+
 export const ExportReport = Schema.Struct({
   directory: Text,
   items: Schema.Number,

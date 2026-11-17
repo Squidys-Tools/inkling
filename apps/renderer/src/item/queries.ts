@@ -13,6 +13,17 @@ export const useItem = (id: string) =>
 export const useArticleHtml = (id: string) =>
   useQuery(libraryQuery(["article", id], (client) => client.articleHtml({ id }), touches(id)));
 
+/** Every tag in the library and how many items hold it, read only while `enabled`. */
+export const useTagCounts = (enabled: boolean) =>
+  useQuery({
+    ...libraryQuery(
+      ["tagCounts"],
+      (client) => client.tagCounts({}),
+      (change) => change._tag === "ItemsChanged" || change._tag === "ItemsRemoved",
+    ),
+    enabled,
+  });
+
 /** The ids of the Regular Spaces the item is filed in. */
 export const useMemberships = (id: string) =>
   useQuery(

@@ -118,7 +118,9 @@ export function InfoPanel({
       {processing && (
         <ProcessingRows processing={processing} onPaper={false} onRetry={retryProcessing} />
       )}
-      <TagList tags={item.tags} spaces={filedIn} onAddTag={onAddTag} onRemoveTag={onRemoveTag} />
+      <section aria-label="Spaces and tags">
+        <TagList tags={item.tags} spaces={filedIn} onAddTag={onAddTag} onRemoveTag={onRemoveTag} />
+      </section>
       <section>
         <h3 {...stylex.props(styles.sectionTitle)}>Details</h3>
         <dl {...stylex.props(styles.details)}>
