@@ -124,7 +124,7 @@ function ItemBody({
   // Not the card menu's deleteForever: a failure here also shows in the Info panel.
   const deleteForever = async (title: string) => {
     if ((await confirmDeleteForever(title)) && (await act((client) => client.deleteItem({ id }))))
-      notify("Deleted permanently");
+      notify("Deleted permanently", { description: title });
   };
 
   useEffect(() => {

@@ -3,7 +3,7 @@ import type { useNavigate } from "@tanstack/react-router";
 import { desktop } from "../desktop.ts";
 import { prepareItemOpen } from "../item/itemFlight.ts";
 import { hostname } from "../library/assets.ts";
-import type { CardView } from "../library/cardModel.ts";
+import { type CardView, toCardView } from "../library/cardModel.ts";
 import { libraryClient } from "../library/connection.ts";
 import { loadScope, shownScope } from "../library/cards.ts";
 import { retryJob } from "../library/jobs.ts";
@@ -13,7 +13,7 @@ import { showWrittenCard } from "../library/writes.ts";
 import { showContextMenu } from "../menu/contextMenu.tsx";
 import { confirm } from "../shell/confirm.ts";
 import { dismissActionError, reportActionError } from "./actionError.ts";
-import { notify } from "../notifications/toasts.ts";
+import { itemSubject, notify } from "../notifications/toasts.ts";
 
 type Navigate = ReturnType<typeof useNavigate>;
 
@@ -57,9 +57,13 @@ async function run(failure: string, action: () => Promise<unknown>) {
 
 export const setArchived = (id: string, archived: boolean) =>
   run(archived ? "Couldn’t archive this" : "Couldn’t restore this", async () => {
-    showWrittenCard(await (await libraryClient()).setArchived({ id, archived }));
+    const written = await (await libraryClient()).setArchived({ id, archived });
+    showWrittenCard(written);
+    const view = toCardView(written);
     notify(archived ? "Archived" : "Restored to library", {
       id: `archive:${id}`,
+      description: view.title,
+      subject: itemSubject(view),
       action: {
         label: "Undo",
         run: async () => {
@@ -83,7 +87,7 @@ export async function deleteForever(view: CardView) {
   if (await confirmDeleteForever(view.title))
     await run("Couldn’t delete this", async () => {
       await (await libraryClient()).deleteItem({ id: view.id });
-      notify("Deleted permanently");
+      notify("Deleted permanently", { description: view.title });
     });
 }
 
@@ -146,7 +150,12 @@ export async function openCardMenu(
       );
       add("copy", "Copy link", () =>
         navigator.clipboard.writeText(url).then(
-          () => notify("Link copied", { id: "copy-link" }),
+          () =>
+            notify("Link copied", {
+              id: "copy-link",
+              description: hostname(url) ?? url,
+              subject: itemSubject(view),
+            }),
           () => reportActionError("Couldn’t copy the link."),
         ),
       );
@@ -159,6 +168,8 @@ export async function openCardMenu(
             const { scaled } = await bridge.copyItemImage(view.id);
             notify(scaled ? "Image copied at a smaller size" : "Image copied", {
               id: "copy-image",
+              description: view.title,
+              subject: itemSubject(view),
             });
           }),
         );

@@ -77,7 +77,10 @@ export function createSpace(name: string, kind: SpaceKind, queryText: string) {
       ...state,
       spaces: ordered([...state.spaces.filter((space) => space.id !== created.id), created]),
     }));
-    notify("Space created", { description: created.name });
+    notify("Space created", {
+      description: created.name,
+      subject: { _tag: "Space", space: created },
+    });
     return created;
   });
 }
@@ -97,7 +100,10 @@ export async function renameSpace(space: Space, name: string) {
   );
   if (updated) {
     replace(updated);
-    notify("Space renamed", { description: updated.name });
+    notify("Space renamed", {
+      description: updated.name,
+      subject: { _tag: "Space", space: updated },
+    });
   }
   return updated !== null;
 }
@@ -146,7 +152,8 @@ export async function deleteSpace(space: Space) {
   let restored = false;
   notify("Space deleted", {
     id: `space-deleted ${space.id}`,
-    description: "Its items are still in your library.",
+    description: `${space.name}. Its items are still in your library.`,
+    subject: { _tag: "Space", space },
     action: {
       label: "Undo",
       run: async () => {
@@ -173,8 +180,11 @@ export async function setInSpace(spaceId: string, itemId: string, filed: boolean
       const client = await libraryClient();
       if (filed) await client.addToSpace({ spaceId, itemId });
       else await client.removeFromSpace({ spaceId, itemId });
-      const name = spacesStore.get().spaces.find((space) => space.id === spaceId)?.name ?? "Space";
-      notify(filed ? `Added to ${name}` : `Removed from ${name}`);
+      const space = spacesStore.get().spaces.find((candidate) => candidate.id === spaceId);
+      const name = space?.name ?? "Space";
+      notify(filed ? `Added to ${name}` : `Removed from ${name}`, {
+        subject: space && { _tag: "Space", space },
+      });
       return true;
     },
   );

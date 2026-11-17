@@ -28,6 +28,7 @@ test("repeated keyed outcomes update one notice and excess notices release retai
     events.filter((event) => event.action === "add" && event.options.id === "copy"),
   ).toHaveLength(2);
   expect(events.find((event) => event.options.title === "Saved")?.options.timeout).toBe(5000);
+  expect(events.find((event) => event.options.title === "Archived")?.options.timeout).toBe(8000);
   expect(events.find((event) => event.options.title === "Could not copy")?.options.timeout).toBe(0);
   stop();
 });
