@@ -10,6 +10,7 @@ import { ProcessingRows } from "../cards/Processing.tsx";
 import { quoteArtworkText } from "../cards/QuoteArtwork.tsx";
 import { hostname } from "../library/assets.ts";
 import { useProcessing } from "../library/jobs.ts";
+import { ScrollArea } from "../reader/ScrollArea.tsx";
 import { dayMonthYear } from "../format.ts";
 import type { DescribedItem } from "./model.ts";
 import { TagList } from "./TagList.tsx";
@@ -113,7 +114,11 @@ export function InfoPanel({
   return (
     <>
       {item.kind !== "Note" && !quote && item.description && (
-        <p {...stylex.props(styles.box)}>{item.description}</p>
+        <div {...stylex.props(styles.box)}>
+          <ScrollArea viewportStyle={styles.boxViewport}>
+            <p {...stylex.props(styles.boxText)}>{item.description}</p>
+          </ScrollArea>
+        </div>
       )}
       {processing && (
         <ProcessingRows processing={processing} onPaper={false} onRetry={retryProcessing} />
@@ -195,19 +200,25 @@ const styles = stylex.create({
     color: color.muted,
   },
   box: {
-    margin: 0,
-    minHeight: "72px",
-    maxHeight: "240px",
-    overflowY: "auto",
-    whiteSpace: "pre-wrap",
-    userSelect: "text",
-    paddingBlock: "11px",
-    paddingInline: space.s3,
+    boxSizing: "border-box",
+    minHeight: "96px",
+    overflow: "hidden",
     borderRadius: "10px",
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: color.border,
     backgroundColor: color.surface,
+  },
+  boxViewport: {
+    boxSizing: "border-box",
+    maxHeight: "262px",
+    paddingBlock: "11px",
+    paddingInline: space.s3,
+  },
+  boxText: {
+    margin: 0,
+    whiteSpace: "pre-wrap",
+    userSelect: "text",
     fontSize: text.md,
     lineHeight: "20px",
     color: color.inkSoft,
