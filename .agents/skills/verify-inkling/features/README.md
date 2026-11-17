@@ -38,7 +38,7 @@ Every feature was executed end to end with agent-desktop on 2026-11-15 unless it
 - [Search](./search.md): `Search your mind`, Ctrl+K, empty state, Clear search, Save as Space.
 - [Spaces](./spaces.md): create Smart and Regular, rename, file an item (in-app menu), delete (in-app confirm).
 - [Archive and restore](./archive-restore.md): item Archive, Archive view, Restore.
-- [Tags](./tags.md): item view > Add tag, Enter, Escape, Remove tag.
+- [Tags](./tags.md): item view > `Add a tag` field, Enter, suggestions, Escape, Remove tag.
 - [Similar items](./item-similar.md): item view > Similar, empty state and populated tiles.
 - [Rename an item's title](./item-title.md): item view > title > inline field > Enter.
 - [Reader](./item-reader.md): card or item view > Read > TYPEFACE > ESC.
@@ -57,5 +57,5 @@ Every feature was executed end to end with agent-desktop on 2026-11-15 unless it
 - Item-view media wheel zoom and pan (`ZoomableMedia`): needs `--headed` wheel input.
 - The Post item view's `Load post from X` (`XPostFrame`; reloads the embed from x.com over the network): not driven.
 - The sidebar update row (`apps/renderer/src/shell/UpdateRow.tsx`): only an installed release build with an `app-update.yml` feed can update, so an unpackaged run never shows it.
-- The compact sidebar rail (collapsed sidebar): Space rows become their covers, whose context menu is the expanded rows' `Actions for <name>` menu. It opens only by right-click or Shift+F10, so the rail's menu is not driven.
+- The compact sidebar rail (collapsed sidebar): Space rows become blots whose context menu is the expanded rows' `Actions for <name>` menu. It opens only by right-click or Shift+F10, so the rail's menu is not driven.
 - Custom window controls (`Minimize`, `Maximize window`, `Close window` buttons) and toast notifications (the `Notifications` group; archive/restore toasts carry Undo): visible in the tree, not driven.
