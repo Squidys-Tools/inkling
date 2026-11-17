@@ -149,6 +149,8 @@ export const LibraryRpcs = RpcGroup.make(
   call("updateItem", UpdateItemInput.fields, LibraryCard),
   call("setArchived", { id: Text, archived: Schema.Boolean }, LibraryCard),
   call("deleteItem", ById, Schema.Void),
+  /** Deletes every archived item, and answers the ids it deleted. */
+  call("deleteArchived", {}, Schema.Array(Text)),
 
   call("spaces", {}, Schema.Array(Space)),
   call("createSpace", CreateSpaceInput.fields, Space),

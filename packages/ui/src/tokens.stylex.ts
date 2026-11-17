@@ -201,7 +201,6 @@ export const cardColor = stylex.defineVars({
   verifiedCheck: "#ffffff",
   hoverShadow: "rgba(0, 0, 0, 0.4)",
   controlEdge: "#4a4842",
-  tileMeta: "#6f685f",
   tileButton: "rgba(12, 12, 11, 0.72)",
   deleteHover: "#3a251d",
   deleteInkHover: "#f0b095",

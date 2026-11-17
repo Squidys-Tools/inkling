@@ -4,7 +4,6 @@ import * as stylex from "@stylexjs/stylex";
 // without descendant selectors. Each hover group gets its own, so a card inside
 // the sidebar's hover area cannot react to the wrong one.
 export const cardMarker = stylex.defineMarker();
-export const tileMarker = stylex.defineMarker();
 export const spaceRowMarker = stylex.defineMarker();
 export const tagMarker = stylex.defineMarker();
 export const scrollAreaMarker = stylex.defineMarker();

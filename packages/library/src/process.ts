@@ -178,6 +178,11 @@ const handlers = LibraryRpcs.toLayer(
           Effect.tap(() => publish({ _tag: "ItemsRemoved", ids: [id] })),
           Effect.tap(() => publish({ _tag: "SpacesChanged" })),
         ),
+      deleteArchived: () =>
+        answer(library.deleteArchived()).pipe(
+          Effect.tap((ids) => publish({ _tag: "ItemsRemoved", ids })),
+          Effect.tap(() => publish({ _tag: "SpacesChanged" })),
+        ),
       spaces: () => answer(library.listSpaces()),
       createSpace: (input) =>
         answer(library.createSpace(input)).pipe(

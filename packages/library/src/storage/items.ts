@@ -214,6 +214,17 @@ export function makeItems(ctx: StorageContext) {
     if (removal) yield* attempt(() => rm(removal, { recursive: true, force: true }));
   });
 
+  // An item that fails, or was restored after the list was read, stays in the archive.
+  const deleteArchived = Effect.fnUntraced(function* () {
+    const rows = yield* sql<{ id: string }>`SELECT id FROM items WHERE archived = 1`;
+    const deleted: string[] = [];
+    for (const { id } of rows) {
+      const exit = yield* Effect.exit(deleteItem(id));
+      if (exit._tag === "Success") deleted.push(id);
+    }
+    return deleted;
+  });
+
   // Only articles can turn out to be video links, so only they keep their URL in the grouping.
   const kindCounts = Effect.fnUntraced(function* () {
     const rows = yield* sql<{
@@ -271,5 +282,6 @@ export function makeItems(ctx: StorageContext) {
     updateItem,
     archiveItem,
     deleteItem,
+    deleteArchived,
   };
 }

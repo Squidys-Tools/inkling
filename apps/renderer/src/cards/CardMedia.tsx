@@ -11,8 +11,6 @@ import { QuoteArtwork } from "./QuoteArtwork.tsx";
 import { TypedArtworkFor } from "./TypedArtwork.tsx";
 import { hasThumbnail, retainThumbnail, takeThumbnail } from "./thumbnailCache.ts";
 
-export type CardLayout = "grid" | "archive";
-
 /**
  * Every card image goes through here. The library keeps one thumbnail per
  * item, so a card loads that (or, until it exists, the original) and lets the
@@ -94,23 +92,17 @@ function ArticleArtwork({ view }: { view: CardView }) {
 
 export function CardMedia({
   view,
-  layout,
   priority,
   waiting,
 }: {
   view: CardView;
-  layout: CardLayout;
   priority: boolean;
   waiting?: boolean;
 }) {
   switch (view.media) {
     case "x-post":
       if (!view.post) return null;
-      return layout === "grid" ? (
-        <PostArtwork post={view.post} />
-      ) : (
-        <PostArtwork post={view.post} layout="compact" style={styles.fill} />
-      );
+      return <PostArtwork post={view.post} />;
     case "image":
     case "video":
       return (
@@ -122,8 +114,7 @@ export function CardMedia({
     case "paper":
       break;
   }
-  if (view.kind === "Quote")
-    return <QuoteArtwork view={view} layout={layout === "grid" ? "grid" : "fill"} />;
+  if (view.kind === "Quote") return <QuoteArtwork view={view} layout="grid" />;
   const article = view.kind === "Article";
   return (
     <div

@@ -1,6 +1,6 @@
 /* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-noninteractive-element-interactions -- A card holds its own buttons, so the article cannot be a button; Enter and Space open the focused card. */
 import * as stylex from "@stylexjs/stylex";
-import type { DragEvent, KeyboardEvent, MouseEvent } from "react";
+import type { DragEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { cardColor, color, motion, radius } from "@inkling/ui/tokens.stylex";
 import type { CardView } from "../library/cardModel.ts";
 import type { Processing } from "../library/jobs.ts";
@@ -23,6 +23,8 @@ export function CardFace({
   onMenu,
   onRetry,
   onDragStart,
+  dimmed = false,
+  children,
 }: {
   view: CardView;
   index: number;
@@ -32,6 +34,10 @@ export function CardFace({
   onMenu: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => void;
   onRetry: (jobId: string) => void;
   onDragStart?: (event: DragEvent<HTMLElement>) => void;
+  /** Drawn faded until hovered or focused, as the archive draws its items. */
+  dimmed?: boolean;
+  /** Laid over the card, outside the article so it can hold its own buttons. */
+  children?: ReactNode;
 }) {
   const article = view.treatment === "article";
 
@@ -53,6 +59,7 @@ export function CardFace({
           shapes[view.treatment],
           view.treatment === "media" && styles.ratio(view.aspectRatio),
           view.kind === "Article" ? styles.paper : styles.surface,
+          dimmed && styles.dimmed,
         )}
       >
         {article ? (
@@ -63,17 +70,13 @@ export function CardFace({
           )
         ) : (
           <div {...stylex.props(view.treatment === "quote" && styles.quoteMedia)}>
-            <CardMedia
-              view={view}
-              layout="grid"
-              priority={index < priorityCount}
-              waiting={processing?.active}
-            />
+            <CardMedia view={view} priority={index < priorityCount} waiting={processing?.active} />
           </div>
         )}
         {article && <CardText view={view} onRead={onRead} onOpen={onOpen} />}
         <CardState view={view} processing={processing} onRetry={onRetry} />
       </article>
+      {children}
     </div>
   );
 }
@@ -132,6 +135,19 @@ const styles = stylex.create({
     transitionTimingFunction: motion.standard,
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "3px",
+  },
+  dimmed: {
+    opacity: {
+      default: 0.5,
+      [stylex.when.ancestor(":hover", cardMarker)]: 1,
+      [stylex.when.ancestor(":focus-within", cardMarker)]: 1,
+    },
+    filter: {
+      default: "grayscale(0.6)",
+      [stylex.when.ancestor(":hover", cardMarker)]: "none",
+      [stylex.when.ancestor(":focus-within", cardMarker)]: "none",
+    },
+    transitionProperty: "transform, opacity, filter",
   },
   ratio: (ratio: number) => ({ aspectRatio: ratio }),
   surface: { backgroundColor: color.surface },

@@ -1,9 +1,16 @@
 import * as stylex from "@stylexjs/stylex";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { flushSync } from "react-dom";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from "react";
 import { GridCell } from "../cards/Card.tsx";
-import type { CardLayout } from "../cards/CardMedia.tsx";
 import { GradualBlur } from "./GradualBlur.tsx";
 import { relayoutLanes } from "./masonryLanes.ts";
 import { warmCards } from "../library/cards.ts";
@@ -17,12 +24,11 @@ import { accumulateWheel, nextColumns, type ZoomStep, zoomKey } from "./gridZoom
 const gap = 12;
 const sidePadding = 14;
 // Below this width a card's contents no longer fit, so the whole card is drawn smaller instead.
-const designWidth: Record<CardLayout, number> = { grid: 220, archive: 160 };
-const estimatedHeight: Record<CardLayout, number> = { grid: 300, archive: 190 };
-
-// Archive tiles are smaller than cards, so the archive shows two more columns than the library.
-const columnCount = (gridColumns: number, layout: CardLayout) =>
-  layout === "archive" ? gridColumns + 2 : gridColumns;
+const designWidth = 220;
+const estimatedHeight = 300;
+// The first row starts below the floating search bar, and below a header when there is one.
+const barHeight = 70;
+const headerHeight = 84;
 
 // Rows are loaded a page at a time; the next page is asked for while this many
 // pixels of cards are still below the fold.
@@ -38,13 +44,14 @@ const editable = 'input, textarea, select, [contenteditable]:not([contenteditabl
  */
 export function Grid({
   ids: cardIds,
-  layout,
+  header,
   addTile = false,
   pinnedOffset,
   onNearEnd,
 }: {
   ids: readonly string[];
-  layout: CardLayout;
+  /** Scrolls with the cards, above the first row, at most headerHeight tall. */
+  header?: ReactNode;
   /** Everything opens with a tile for typing a note or pasting a link. */
   addTile?: boolean;
   pinnedOffset: boolean;
@@ -54,7 +61,7 @@ export function Grid({
   const scroller = useRef<HTMLDivElement>(null);
   const cells = useRef<HTMLDivElement>(null);
   const { gridColumns } = useAppearance();
-  const columns = columnCount(Number(gridColumns), layout);
+  const columns = Number(gridColumns);
   const [, render] = useReducer((count: number) => count + 1, 0);
   const itemKey = useCallback((index: number) => ids[index], [ids]);
   // Sizes are cached by item id, so a list that changes anywhere keeps every measured card.
@@ -62,13 +69,13 @@ export function Grid({
   const virtualizer = useVirtualizer({
     count: ids.length,
     getScrollElement: () => scroller.current,
-    estimateSize: () => estimatedHeight[layout],
+    estimateSize: () => estimatedHeight,
     getItemKey: itemKey,
     lanes: columns,
     // A card takes the shortest column once its real height is known, not by its estimate.
     laneAssignmentMode: "measured",
-    // The first row starts below the floating search bar. A pinned search has its own row under the bar.
-    paddingStart: pinnedOffset ? 136 : 70,
+    // A pinned search has its own row under the bar.
+    paddingStart: pinnedOffset ? 136 : header ? barHeight + headerHeight : barHeight,
     paddingEnd: 72,
     overscan: 2,
     // A cell's new height arrives in a ResizeObserver callback, whose update React renders
@@ -105,12 +112,12 @@ export function Grid({
     if (!element) return;
     const observer = new ResizeObserver(([entry]) => {
       const width = (entry.contentRect.width + gap) / columns - gap;
-      const zoom = Math.min(1, width / designWidth[layout]);
+      const zoom = Math.min(1, width / designWidth);
       element.style.setProperty("--card-zoom", String(zoom > 0 ? zoom : 1));
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [columns, layout]);
+  }, [columns]);
 
   useEffect(() => {
     const element = scroller.current;
@@ -164,6 +171,7 @@ export function Grid({
     <div {...stylex.props(styles.frame)}>
       <div ref={scroller} data-bench="grid" {...stylex.props(styles.scroller)}>
         <div ref={cells} {...stylex.props(styles.cells(virtualizer.getTotalSize()))}>
+          {header && <div {...stylex.props(styles.header)}>{header}</div>}
           {items.map((item) => (
             <div
               key={item.key}
@@ -175,11 +183,7 @@ export function Grid({
                 {item.key === addTileKey ? (
                   <AddTile />
                 ) : (
-                  <GridCell
-                    id={ids[item.index]}
-                    index={item.index - (addTile ? 1 : 0)}
-                    layout={layout}
-                  />
+                  <GridCell id={ids[item.index]} index={item.index - (addTile ? 1 : 0)} />
                 )}
               </div>
             </div>
@@ -208,10 +212,17 @@ const styles = stylex.create({
     paddingInline: `${sidePadding}px`,
     scrollbarWidth: "none",
     // Keeps the z-indexes inside cards below the search bar and the blur; without it an
-    // archive tile's Restore button sits over the search pill and takes its clicks.
+    // archived card's Restore button sits over the search pill and takes its clicks.
     isolation: "isolate",
   },
   cells: (height: number) => ({ position: "relative", width: "100%", height: `${height}px` }),
+  header: {
+    position: "absolute",
+    top: `${barHeight}px`,
+    left: 0,
+    right: 0,
+    height: `${headerHeight}px`,
+  },
   zoomed: { zoom: "var(--card-zoom, 1)" },
   cell: (lane: number, columns: number, top: number) => ({
     position: "absolute",
