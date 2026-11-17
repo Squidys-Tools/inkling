@@ -34,6 +34,7 @@ export const color = stylex.defineVars({
   onCaptionClose: "#ffffff",
   success: "#7fa08d",
   successStrong: "#a5c3b1",
+  successSoft: "rgba(127, 160, 141, 0.15)",
 
   paperYellow: "#3a3524",
 

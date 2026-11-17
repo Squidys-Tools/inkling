@@ -1,9 +1,9 @@
 import * as stylex from "@stylexjs/stylex";
 import { mascotColor } from "@inkling/ui/tokens.stylex";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { drawEyes, drawFigure, EYES_VIEW } from "./draw.ts";
 import { type MascotMood, poseFor } from "./mood.ts";
-import { browserMotion, useReducedMotion } from "./motion.ts";
+import { browserMotion, type MotionEnvironment, useReducedMotion } from "./motion.ts";
 import { MascotPlayer } from "./player.ts";
 import { useMascotCanvas } from "./useMascotCanvas.ts";
 
@@ -42,6 +42,26 @@ export function Mascot({
       // At rest the figure holds still; a pointer over it wakes it up.
       onPointerEnter={() => live.wake()}
       onPointerMove={() => live.wake()}
+      {...stylex.props(styles.canvas, styles.size(size, size))}
+    />
+  );
+}
+
+// Reduced motion stops the clock, so a still figure paints once and runs no frame loop.
+const stillMotion: MotionEnvironment = { ...browserMotion, reducedMotion: () => true };
+
+/** The mascot at rest, as a picture: its own engine, painted once, never moving. */
+export function MascotStill({ size }: { size: number }) {
+  const [player] = useState(
+    () => new MascotPlayer(stillMotion, { state: "inkling-drift", expression: "neutre" }),
+  );
+  const ref = useMascotCanvas(player, size, size, true, (ctx, layer, frame) =>
+    drawFigure(ctx, layer, frame, paint),
+  );
+  return (
+    <canvas
+      ref={ref}
+      aria-hidden="true"
       {...stylex.props(styles.canvas, styles.size(size, size))}
     />
   );

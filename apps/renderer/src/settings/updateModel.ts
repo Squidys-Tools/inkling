@@ -6,6 +6,14 @@ import type {
 } from "@inkling/contracts/desktop";
 import { errorMessage } from "../library/errors.ts";
 
+export const channelOptions: readonly { value: UpdateChannel; label: string }[] = [
+  { value: "latest", label: "Alpha" },
+  { value: "nightly", label: "Nightly" },
+];
+
+export const channelName = (channel: UpdateChannel) =>
+  channelOptions.find(({ value }) => value === channel)?.label ?? channel;
+
 export type UpdateAction = "check" | "channel" | "download" | "install";
 
 export type UpdateSnapshot = {

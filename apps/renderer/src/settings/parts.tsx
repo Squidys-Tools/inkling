@@ -3,7 +3,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Button } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
-import type { ComponentProps, ReactNode } from "react";
+import { type ComponentProps, type ReactNode, useId } from "react";
 
 /** One settings section: a header with the close button, then a scrolling body. */
 export function Panel({
@@ -52,34 +52,6 @@ export function PanelBody({ children }: { children: ReactNode }) {
   return <div {...stylex.props(styles.body)}>{children}</div>;
 }
 
-export function Row({
-  icon,
-  title,
-  description,
-  action,
-  children,
-}: {
-  icon: IconSvgElement;
-  title: string;
-  description?: string;
-  action?: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <div {...stylex.props(styles.row)}>
-      <span aria-hidden="true" {...stylex.props(styles.rowIcon)}>
-        <HugeiconsIcon icon={icon} size={17} />
-      </span>
-      <div {...stylex.props(styles.rowText)}>
-        <h3 {...stylex.props(styles.rowTitle)}>{title}</h3>
-        {description && <p {...stylex.props(styles.rowDescription)}>{description}</p>}
-        {children}
-      </div>
-      {action}
-    </div>
-  );
-}
-
 /** Stands in for a section that needs the desktop app. */
 export function EmptyState({
   icon,
@@ -101,21 +73,115 @@ export function EmptyState({
   );
 }
 
-type SquareButtonProps = Omit<ComponentProps<typeof Button>, "variant" | "style"> & {
-  look?: "plain" | "solid" | "danger";
+/** A labeled group of settings on one card, like the details panel's Spaces & tags. */
+export function Section({ label, children }: { label: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <section aria-labelledby={id} {...stylex.props(styles.section)}>
+      <h3 id={id} {...stylex.props(styles.sectionLabel)}>
+        {label}
+      </h3>
+      <Card>{children}</Card>
+    </section>
+  );
+}
+
+export function Card({ children }: { children: ReactNode }) {
+  return <div {...stylex.props(styles.card)}>{children}</div>;
+}
+
+/** One setting on a Section's card: its name and what it does, then its control. */
+export function CardRow({
+  title,
+  description,
+  action,
+  children,
+}: {
+  title: string;
+  description?: ReactNode;
+  action?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div {...stylex.props(styles.cardRow)}>
+      <div {...stylex.props(styles.rowText)}>
+        <h4 {...stylex.props(styles.cardRowTitle)}>{title}</h4>
+        {description && <p {...stylex.props(styles.cardRowDescription)}>{description}</p>}
+        {children}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+type ActionButtonProps = Omit<ComponentProps<typeof Button>, "variant" | "style" | "icon"> & {
+  icon?: IconSvgElement;
+  look?: "plain" | "primary" | "danger";
 };
 
-/**
- * A settings button: a soft inset tile with mono text that lights up on hover. Solid marks a
- * row's main action; danger fills with the danger color on hover.
- */
-export function SquareButton({ look = "plain", ...props }: SquareButtonProps) {
+/** A card row's button: sans words after a muted icon. Primary marks the one step to take next. */
+export function ActionButton({ icon, look = "plain", ...props }: ActionButtonProps) {
   return (
     <Button
-      variant="outline"
+      variant={look === "primary" ? "primary" : "outline"}
       {...props}
-      style={[styles.square, look !== "plain" && squareLooks[look]]}
+      icon={
+        icon && (
+          <span
+            aria-hidden="true"
+            {...stylex.props(
+              styles.actionIcon,
+              look === "danger" && styles.actionIconDanger,
+              look === "primary" && styles.actionIconPrimary,
+            )}
+          >
+            <HugeiconsIcon icon={icon} size={14} />
+          </span>
+        )
+      }
+      style={[styles.action, look !== "plain" && actionLooks[look]]}
     />
+  );
+}
+
+/** A hero diagram on a card: where things come from, the line they travel, and inkling. */
+export function Flow({ children }: { children: ReactNode }) {
+  return <div {...stylex.props(flow.row)}>{children}</div>;
+}
+
+export function FlowNode({
+  icon,
+  title,
+  detail,
+  mono,
+  strong,
+}: {
+  icon: IconSvgElement;
+  title: string;
+  detail: string;
+  mono?: boolean;
+  strong?: boolean;
+}) {
+  return (
+    <div {...stylex.props(flow.node)}>
+      <span aria-hidden="true" {...stylex.props(flow.icon, strong && flow.iconStrong)}>
+        <HugeiconsIcon icon={icon} size={26} />
+      </span>
+      <span {...stylex.props(flow.title)}>{title}</span>
+      <span title={detail} {...stylex.props(flow.detail, mono && flow.detailMono)}>
+        {detail}
+      </span>
+    </div>
+  );
+}
+
+export function FlowLink({ tone, label }: { tone: keyof typeof flowTones; label: string }) {
+  return (
+    <div {...stylex.props(flow.link, flowTones[tone])}>
+      <span role="status" {...stylex.props(flow.linkLabel, flowLabels[tone])}>
+        {label}
+      </span>
+    </div>
   );
 }
 
@@ -149,18 +215,113 @@ export const settingsText = stylex.create({
   },
 });
 
-const squareLooks = stylex.create({
-  solid: {
-    borderColor: color.ink,
-    backgroundColor: { default: color.ink, ":hover": color.inkStrong },
-    color: color.surface,
-    fontWeight: 600,
-    boxShadow: "none",
+const actionLooks = stylex.create({
+  primary: { borderColor: color.accent },
+  danger: {
+    color: color.danger,
+    backgroundColor: { default: color.raised, ":hover": color.dangerSoft },
+  },
+});
+
+const flowTones = stylex.create({
+  muted: {
+    backgroundImage: `repeating-linear-gradient(90deg, ${color.borderStrong} 0 6px, transparent 6px 11px)`,
+  },
+  success: {
+    backgroundImage: `repeating-linear-gradient(90deg, ${color.success} 0 6px, transparent 6px 11px)`,
   },
   danger: {
-    color: { default: color.danger, ":hover": color.onAccent },
-    borderColor: { default: color.glassEdge, ":hover": color.danger },
-    backgroundColor: { default: color.surface, ":hover": color.danger },
+    backgroundImage: `repeating-linear-gradient(90deg, ${color.danger} 0 6px, transparent 6px 11px)`,
+    opacity: 0.6,
+  },
+  accent: {
+    backgroundImage: `repeating-linear-gradient(90deg, ${color.accent} 0 6px, transparent 6px 11px)`,
+  },
+});
+
+const flowLabels = stylex.create({
+  muted: { color: color.muted },
+  success: { color: color.success },
+  danger: { color: color.danger },
+  accent: { color: color.accentStrong },
+});
+
+const flow = stylex.create({
+  row: {
+    containerType: "inline-size",
+    display: "flex",
+    alignItems: "flex-start",
+    paddingInline: "28px",
+    paddingBlock: "26px",
+  },
+  node: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    flex: "0 1 160px",
+    minWidth: 0,
+    textAlign: "center",
+  },
+  icon: {
+    display: "grid",
+    placeItems: "center",
+    width: "56px",
+    height: "56px",
+    marginBottom: space.s2,
+    borderRadius: radius.frame,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: color.borderStrong,
+    backgroundColor: color.raised,
+    color: color.inkSoft,
+  },
+  iconStrong: { color: color.ink },
+  title: {
+    maxWidth: "100%",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    fontFamily: font.body,
+    fontSize: "12.5px",
+    lineHeight: "17px",
+    fontWeight: 500,
+    color: color.ink,
+  },
+  detail: {
+    maxWidth: "100%",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    fontFamily: font.body,
+    fontSize: "11.5px",
+    lineHeight: "16px",
+    color: color.muted,
+  },
+  detailMono: { fontFamily: font.mono },
+  link: {
+    position: "relative",
+    flex: "1 1 auto",
+    minWidth: "60px",
+    height: "2px",
+    // Level with the middle of the 56px node icons.
+    marginTop: "27px",
+  },
+  linkLabel: {
+    position: "absolute",
+    left: "50%",
+    bottom: "10px",
+    transform: "translateX(-50%)",
+    // The label may reach past the line into the nodes, but not over their 56px icons: a node is
+    // (row - 60px line) / 2 wide while it shrinks, else 160px. Past that it wraps upward.
+    width: "max-content",
+    maxWidth: "calc(100% + clamp(0px, 50cqw - 90px, 90px))",
+    textAlign: "center",
+    paddingInline: "6px",
+    backgroundColor: color.surface,
+    fontFamily: font.mono,
+    fontSize: text.xs,
+    lineHeight: "14px",
+    fontWeight: 500,
   },
 });
 
@@ -174,6 +335,8 @@ export const inset = stylex.create({
     backgroundColor: color.surface,
     boxShadow: `inset 0 1px 0 ${color.glassEdge}`,
   },
+  // A Section's card is already the surface color, so a capsule on it sinks below it instead.
+  onCard: { borderColor: color.border, backgroundColor: color.sunken },
 });
 
 const narrow = "@media (max-width: 700px)";
@@ -259,48 +422,79 @@ const styles = stylex.create({
     scrollbarWidth: "thin",
     scrollbarColor: `${color.borderStrong} transparent`,
   },
-  row: {
+  section: {
+    display: "flex",
+    flexDirection: "column",
+    flexShrink: 0,
+    marginTop: { default: "26px", ":first-child": 0 },
+  },
+  sectionLabel: {
+    marginTop: 0,
+    marginBottom: space.s2,
+    marginInline: "2px",
+    fontFamily: font.body,
+    fontSize: text.xs,
+    lineHeight: "14px",
+    fontWeight: 600,
+    letterSpacing: "0.07em",
+    textTransform: "uppercase",
+    color: color.muted,
+  },
+  card: {
     display: "flex",
     flexShrink: 0,
-    alignItems: "center",
-    gap: "18px",
-    paddingInline: "2px",
-    paddingBlock: space.s5,
-    borderBottomStyle: "solid",
-    borderBottomColor: color.border,
-    borderBottomWidth: { default: 1, ":last-of-type": 0 },
+    flexDirection: "column",
+    borderRadius: radius.tile,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: color.border,
+    backgroundColor: color.surface,
   },
-  rowIcon: {
-    display: "grid",
-    placeItems: "center",
-    width: "36px",
-    height: "36px",
-    flex: "none",
-    borderRadius: "11px",
-    backgroundColor: color.raised,
+  cardRow: {
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: space.s4,
+    minHeight: "62px",
+    paddingInline: space.s4,
+    paddingBlock: "14px",
+    borderTopStyle: "solid",
+    borderTopColor: color.border,
+    borderTopWidth: { default: 1, ":first-child": 0 },
+  },
+  cardRowTitle: {
+    margin: 0,
+    fontFamily: font.body,
+    fontSize: "13.5px",
+    lineHeight: "18px",
+    fontWeight: 500,
     color: color.ink,
   },
+  cardRowDescription: {
+    margin: 0,
+    fontFamily: font.body,
+    fontSize: "12.5px",
+    lineHeight: "17px",
+    color: color.muted,
+  },
+  action: {
+    flexShrink: 0,
+    gap: "6px",
+    height: "30px",
+    paddingInline: space.s3,
+    borderColor: color.borderStrong,
+    backgroundColor: { default: color.raised, ":hover": color.hover },
+    fontSize: "12.5px",
+  },
+  actionIcon: { display: "inline-flex", color: color.muted },
+  actionIconDanger: { color: color.danger },
+  actionIconPrimary: { color: color.onAccent },
   rowText: {
     display: "flex",
-    flex: "1 1 auto",
+    flex: "1 1 200px",
     flexDirection: "column",
     gap: space.s1,
     minWidth: 0,
-  },
-  rowTitle: {
-    margin: 0,
-    fontFamily: font.body,
-    fontSize: text.lg,
-    lineHeight: "20px",
-    fontWeight: 600,
-    color: color.ink,
-  },
-  rowDescription: {
-    margin: 0,
-    fontFamily: font.body,
-    fontSize: text.md,
-    lineHeight: "19px",
-    color: color.muted,
   },
   empty: {
     display: "grid",
@@ -341,22 +535,6 @@ const styles = stylex.create({
     fontSize: text.md,
     lineHeight: "19px",
     color: color.muted,
-  },
-  square: {
-    height: "32px",
-    paddingInline: space.s3,
-    borderRadius: radius.control,
-    borderColor: { default: color.glassEdge, ":hover": color.borderStrong },
-    backgroundColor: {
-      default: color.surface,
-      ":hover": color.hover,
-      ":active": color.raised,
-    },
-    boxShadow: `inset 0 1px 0 ${color.glassEdge}`,
-    fontFamily: font.mono,
-    fontSize: text.sm,
-    fontWeight: 500,
-    flexShrink: 0,
   },
   textAction: {
     height: "auto",
