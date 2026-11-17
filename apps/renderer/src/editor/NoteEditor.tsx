@@ -71,6 +71,8 @@ export function NoteEditor({
   onChange?: (markdown: string, changed: boolean) => void;
 }) {
   const [saving, setSaving] = useState(false);
+  // A second Ctrl+Enter can land before `saving` re-renders; marking the note saved then would drop its draft.
+  const busy = useRef(false);
   // A note not saved yet is unsaved from its first word, a restored draft included.
   const [dirty, setDirty] = useState(
     () => title === null && normalizeNoteBody(initialMarkdown) !== "",
@@ -114,12 +116,13 @@ export function NoteEditor({
   const menuOpen = slash !== null && options.length > 0;
 
   async function save() {
-    if (saving) return;
+    if (busy.current) return;
     const markdown = normalizeNoteBody(editor.getMarkdown());
     if (!markdown) {
       setError("A note needs some text before it can be saved.");
       return;
     }
+    busy.current = true;
     setSaving(true);
     setError(null);
     try {
@@ -132,6 +135,7 @@ export function NoteEditor({
     } catch (saveError) {
       setError(errorMessage(saveError));
     } finally {
+      busy.current = false;
       setSaving(false);
     }
   }
