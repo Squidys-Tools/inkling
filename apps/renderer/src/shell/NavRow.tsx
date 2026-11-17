@@ -119,21 +119,21 @@ export function NavButton({
 }
 
 // A rail control keeps the column's full click but draws its fill as a square, like a Space's cover:
-// transparent side borders take the 52px column down to the 40px row, and each corner is wider by
-// the same 6px to stay round.
+// transparent side borders take the 52px column down to the 44px row, and each corner is wider by
+// the same 4px to stay round.
 export const { railSquare } = stylex.create({
   railSquare: {
-    borderLeftWidth: "6px",
-    borderRightWidth: "6px",
+    borderLeftWidth: "4px",
+    borderRightWidth: "4px",
     borderLeftStyle: "solid",
     borderRightStyle: "solid",
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
     backgroundClip: "padding-box",
-    borderTopLeftRadius: `calc(${radius.control} + 6px) ${radius.control}`,
-    borderTopRightRadius: `calc(${radius.control} + 6px) ${radius.control}`,
-    borderBottomLeftRadius: `calc(${radius.control} + 6px) ${radius.control}`,
-    borderBottomRightRadius: `calc(${radius.control} + 6px) ${radius.control}`,
+    borderTopLeftRadius: `calc(${radius.control} + 4px) ${radius.control}`,
+    borderTopRightRadius: `calc(${radius.control} + 4px) ${radius.control}`,
+    borderBottomLeftRadius: `calc(${radius.control} + 4px) ${radius.control}`,
+    borderBottomRightRadius: `calc(${radius.control} + 4px) ${radius.control}`,
   },
 });
 

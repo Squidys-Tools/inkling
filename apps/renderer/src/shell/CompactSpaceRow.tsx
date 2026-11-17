@@ -47,7 +47,7 @@ export function CompactSpaceRow({
 }
 
 const styles = stylex.create({
-  // Centered in the square with 5px around it; the open row's rail cover sits at the same spot.
+  // Centered in the square with 7px around it; the open row's rail cover sits at the same spot.
   cover: { width: "30px", height: "30px" },
   row: {
     position: "relative",
