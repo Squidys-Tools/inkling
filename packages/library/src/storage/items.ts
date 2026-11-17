@@ -10,6 +10,7 @@ import type {
 } from "@inkling/contracts";
 import { ITEM_KINDS, itemKind } from "@inkling/ingestion/item-kind";
 import { markdownToPlainText } from "@inkling/ingestion/markdown-text";
+import { countTags } from "@inkling/ingestion/tag-counts";
 import type { StorageContext } from "./context.ts";
 import { pageCards, readItem, selectCards, writtenItem } from "./rows.ts";
 import {
@@ -214,6 +215,26 @@ export function makeItems(ctx: StorageContext) {
     if (removal) yield* attempt(() => rm(removal, { recursive: true, force: true }));
   });
 
+  // An item that fails, or was restored after the list was read, stays in the archive.
+  const deleteArchived = Effect.fnUntraced(function* () {
+    const rows = yield* sql<{ id: string }>`SELECT id FROM items WHERE archived = 1`;
+    const deleted: string[] = [];
+    for (const { id } of rows) {
+      const exit = yield* Effect.exit(deleteItem(id));
+      if (exit._tag === "Success") deleted.push(id);
+    }
+    return deleted;
+  });
+
+  // SQLite's lower() folds ASCII only, so countTags groups them in JavaScript.
+  const tagCounts = Effect.fnUntraced(function* () {
+    const rows = yield* sql<{ id: string; tag: string }>`SELECT i.id, t.value AS tag
+      FROM items i, json_each(CASE WHEN json_valid(i.metadata) THEN i.metadata ELSE '{}' END,
+        '$.tags') t
+      WHERE i.archived = 0 AND t.type = 'text'`;
+    return countTags(rows);
+  });
+
   // Only articles can turn out to be video links, so only they keep their URL in the grouping.
   const kindCounts = Effect.fnUntraced(function* () {
     const rows = yield* sql<{
@@ -248,6 +269,7 @@ export function makeItems(ctx: StorageContext) {
 
   return {
     kindCounts,
+    tagCounts,
     listActiveItems: () => selectCards(ctx, sql`archived = 0`),
     listArchivedItems: () => selectCards(ctx, sql`archived = 1`),
     cardsPage: (archived: boolean, cursor: string | null, limit: number) =>
@@ -271,5 +293,6 @@ export function makeItems(ctx: StorageContext) {
     updateItem,
     archiveItem,
     deleteItem,
+    deleteArchived,
   };
 }

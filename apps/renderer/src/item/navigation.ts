@@ -44,3 +44,23 @@ export function useStepBack() {
     else fallback();
   };
 }
+
+// Reader and note pages opened from their item's page. Details steps back to that
+// page from these instead of stacking a second copy of it on the history.
+const openedFromItem = new Set<string>();
+
+export function useReaderNavigation() {
+  const router = useRouter();
+  return {
+    openFromItem: (id: string, to: "/item/$id/read" | "/item/$id/write" = "/item/$id/read") =>
+      void router.navigate({ to, params: { id } }).then(() => {
+        const key = router.state.location.state.__TSR_key;
+        if (key) openedFromItem.add(key);
+      }),
+    showDetails: (id: string) => {
+      const key = router.state.location.state.__TSR_key;
+      if (key && openedFromItem.has(key)) router.history.back();
+      else void router.navigate({ to: "/item/$id", params: { id }, replace: true });
+    },
+  };
+}

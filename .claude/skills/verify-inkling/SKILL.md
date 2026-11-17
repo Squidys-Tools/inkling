@@ -13,7 +13,7 @@ Launches `bun run dev:app`'s app (build + Electron) against a scratch library, d
 - One instance per worktree. Cleanup deletes the whole `.dev`, so a second concurrent run would lose its state. `launch` refuses while one is live.
 - Never drive an app you did not launch with `launch`: other inkling windows (the user's, other worktrees') are also `electron.exe`. `cleanup` never touches `.dev-library/` (the plain `dev:app` library); the worktree's settle action does delete it, with the other generated scratch.
 - Never kill by process name or path pattern. The helpers stop only the pids `launch` recorded, after confirming each pid's command line still names our `.dev` path.
-- Drive through visible controls. `set-value` is an accessibility ValuePattern write on a text field, not an internal setter; say so in the report. Key combos use `ad press <combo> --window-id '{window}'` (headless, no focus change). Never add `--headed` (physical cursor/keyboard, takes the user's focus) without the user's say-so.
+- Drive through visible controls. `set-value` is an accessibility ValuePattern write on a text field, not an internal setter; say so in the report. Key combos use `ad press <combo> --window-id '{window}'` (headless, no focus change); for combos `ad press` cannot name (punctuation like `,` `/` `?` `\` `-` `=` `+`) use `$I press <combo>`, the SendKeys fallback. SendKeys types into the focused element, so for a bare-key shortcut (`n`, `?`, `/`) first move focus somewhere non-editable — click a nav link — or the app rightly drops it as typing (`ignoreInputs`); a stray search field can hold `??n` after a failed try, so clear it. Never add `--headed` (physical cursor/keyboard, takes the user's focus) without the user's say-so.
 - What cannot be reached (file pickers, paste, drag and drop, card right-click) is listed in `features/README.md`; report it as unverified. Before calling a path unreachable, check whether the app has its own intake for it: the deep link and the extension receiver are driven without the GUI.
 - The scratch library is seeded, not captured. `seedLibrary` (`tools/dev/seeded-library.ts`) writes `items` rows straight into SQLite: no ingestion, no OCR text, no `item_embeddings`, and one failed thumbnail job. Its FTS row comes from a trigger, so text search works on it. A claim that depends on the pipeline (OCR, embeddings, enrichment, job states) needs a real capture through an entry point, and the proof must name that entry point. Put fixtures in through the seed before `launch`. Never write to the scratch library while the app runs: the library utility process owns the SQLite file.
 
@@ -29,7 +29,7 @@ Launches `bun run dev:app`'s app (build + Electron) against a scratch library, d
 ## Launch
 
 ```sh
-bun .claude/skills/verify-inkling/scripts/instance.ts launch            # seeded demo library (32 items, 3 Spaces)
+bun .claude/skills/verify-inkling/scripts/instance.ts launch            # seeded demo library (42 items, 3 Spaces)
 bun .claude/skills/verify-inkling/scripts/instance.ts launch --empty    # empty library: opens on Welcome, no seed
 bun .claude/skills/verify-inkling/scripts/instance.ts launch --skip-build   # reuse dist/ when you know it is current
 bun .claude/skills/verify-inkling/scripts/instance.ts launch --link "inkling://capture?url=https://example.com/"   # the app saves the link at startup
@@ -70,6 +70,7 @@ $I ad expand '@<snapshot>:e<N>'
 $I window                                 # prints the main window id
 $I windows                                # all our windows; a native dialog shows up as `other`
 $I ad press ctrl+k --window-id '{window}' # key combo to our window, no focus change (result is delivered_unverified: check the effect)
+$I press ctrl+comma                       # SendKeys fallback for combos `ad press` cannot name (`,`, `/`, `?`, `\`, `-`, `=`, `+`); activates our window by pid first
 $I capture https://example.org/          # POSTs to the extension receiver with this run's token, no GUI (features/capture-extension.md)
 ```
 
@@ -77,11 +78,11 @@ Loop: `ref` (or `tree`) → act on the returned ref → `tree`/`find` again to v
 
 Handles that hold in this app (from the live run):
 
-- Sidebar: link `Everything <count>`, links per Space (`Design references`, `Read later`, `Weekend reading <n>`), per-Space button `Change color of <name>` and menubutton `Actions for <name>` (see features/spaces.md), menubutton `Add a Space` (a `<button>` with `aria-expanded`; Windows maps it `menubutton`, other platforms may say `button`), menubutton `Add`, link `Archive`, menubutton `Settings`, menubutton `Close sidebar`.
-- The `Add` menubutton opens its menu only through `expand` (a semantic `click` does nothing). Then `tree --surface menu` or `find --role menuitem --name Note --exact`; menu items: Note, Link, Quote, File, Screenshot.
-- Cards are groups named `<Kind>: <title>` (`Note: Untitled note`, `Image: …`, `Article: …`, `Post: …`); search box is textfield `Search your mind`; switches `Grid view`/`List view`.
+- Sidebar: link `Everything <count>`, links per Space (`Design references`, `Read later`, `Weekend reading <n>`), per-Space menubutton `Actions for <name>` (see features/spaces.md), menubutton `Add a Space` (a `<button>` with `aria-expanded`; Windows maps it `menubutton`, other platforms may say `button`), menubutton `Add` (in the top bar beside `Close sidebar`; under the mascot in the rail), link `Archive`, menubutton `Settings` (the row under Archive), menubutton `Close sidebar`. Everything's first grid cell is textbox `Add a note or a link`: Enter saves a note, or a link when the text is one URL; Shift+Enter adds a line.
+- The `Add` menubutton opens its menu only through `expand` (a semantic `click` does nothing). Then `tree --surface menu` or `find --role menuitem --name Note --exact`; menu items: Note, Quote, File, Screenshot (a link goes in the add tile).
+- Cards are groups named `<Kind>: <title>` (`Note: Untitled note`, `Image: …`, `Article: …`, `Post: …`); search box is textfield `Search your mind`.
 - Routes show as link/document values: `app://local/index.html#/`, `#/add/note`, `#/space/<id>`, `#/archive`.
-- A note's body is a textfield named `Note` (contenteditable, `set-value` works); buttons `Save to library`, `Save note`, `Cancel`, `Edit note`, `Archive`, `Keep in a Space`.
+- A note's body is a textfield named `Note` (contenteditable, `set-value` works). A note card opens `#/item/<id>/write` directly: `Back`/`Details` buttons, `Discard`/`Save` only while dirty (`Save to library` exists only on the new-note form). `Details` reaches the item view, which carries `Edit note`, `Archive`, `Keep in a Space`.
 - In-app DOM menus (base-ui popups like the `Item actions` menu behind `Keep in a Space`, and the card context menu) appear via `$I tree --surface menu` with role `menu`/`menuitem`; the native `Menu.popup` bridge exists but no renderer calls it. Confirmations (delete a populated Space, delete forever, discard note edits, install an update) are in-app: an `alertdialog` named by its question in the main window's tree, with `Cancel` focused and a button for the action (`$I ref button 'Delete Space'`). Escape cancels. Radio `Regular` in the Add-a-Space form cannot be clicked; use keyboard (see features/spaces.md).
 
 Retries: a snapshot or find can fail with `atomic replace failed ... os error 1175` and `disposition: {delivery: not_delivered, retry: safe}`. A fresh snapshot/find is the fix — `ref` and `tree` already retry it a few times, so re-run the command when it still fails, and read `db` before repeating any action that may have gone through (just after a save the app is busy enough for `ref` to fail twice). `doctor`'s snapshot check does not retry, so a healthy run can report a transient FAIL there; re-run `doctor` before relaunching. Never repeat an action whose `disposition.retry` is `unsafe` (all successful click/set-value results say so): read state instead. With several `electron.exe` windows only the id from `$I window` is ours.
@@ -113,7 +114,7 @@ The settle action (`tools/repo/clean-worktree.ts`, see the operational requireme
 
 | Script | What |
 |---|---|
-| `scripts/instance.ts` | `launch [--empty] [--skip-build] [--link <inkling:// link>]`, `launch --installer [--fail]`, `progress`, `doctor`, `window`, `windows`, `ref <role> <name> [--contains] [--in <ref>]`, `tree [snapshot args]`, `ad <agent-desktop args>`, `shot <name>`, `db "<SELECT>"`, `capture <url>`, `cleanup` |
+| `scripts/instance.ts` | `launch [--empty] [--skip-build] [--link <inkling:// link>]`, `launch --installer [--fail]`, `progress`, `doctor`, `window`, `windows`, `ref <role> <name> [--contains] [--in <ref>]`, `tree [snapshot args]`, `ad <agent-desktop args>`, `press <combo>` (Windows SendKeys fallback for punctuation keys), `shot <name>`, `db "<SELECT>"`, `capture <url>`, `cleanup` |
 | `scripts/clean-dev.ts` | Library, no CLI: stop the run's recorded processes, keep their logs, delete `.dev`; shared guards and process logic for `cleanup` and the settle action |
 | `../../../tools/repo/clean-worktree.ts` | The worktree settle action (`Clean up worktree` in `t3.json`): the `.dev` cleanup, then `.dev-library/`, `dist/` and every `node_modules` |
 

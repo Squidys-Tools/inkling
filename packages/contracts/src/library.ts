@@ -8,6 +8,7 @@ import {
   ItemDetail,
   Job,
   KindCount,
+  TagCount,
   LastExport,
   LibraryCard,
   LibraryChange,
@@ -120,6 +121,8 @@ export const LibraryRpcs = RpcGroup.make(
   call("status", {}, LibraryStatus),
   // Unarchived items per card kind, largest first, kinds with none left out.
   call("kindCounts", {}, Schema.Array(KindCount)),
+  // Unarchived items per tag, ignoring case, most used first, each in its most used spelling.
+  call("tagCounts", {}, Schema.Array(TagCount)),
   call("cards", { scope: CardScope, cursor: Schema.NullOr(Text), limit: Schema.Number }, CardPage),
   // Archived cards too: each card says which scope it belongs to. Deleted ids are absent.
   call("cardsById", Ids, Schema.Array(LibraryCard)),
@@ -149,11 +152,15 @@ export const LibraryRpcs = RpcGroup.make(
   call("updateItem", UpdateItemInput.fields, LibraryCard),
   call("setArchived", { id: Text, archived: Schema.Boolean }, LibraryCard),
   call("deleteItem", ById, Schema.Void),
+  /** Deletes every archived item, and answers the ids it deleted. */
+  call("deleteArchived", {}, Schema.Array(Text)),
 
   call("spaces", {}, Schema.Array(Space)),
   call("createSpace", CreateSpaceInput.fields, Space),
   call("updateSpace", UpdateSpaceInput.fields, Space),
   call("deleteSpace", ById, Schema.Void),
+  /** Undoes a recent deleteSpace in this session, with the items and removals it held. */
+  call("restoreSpace", ById, Schema.Array(Space)),
   call("swapSpaces", { firstId: Text, secondId: Text }, Schema.Array(Space)),
   call("addToSpace", { spaceId: Text, itemId: Text }, Schema.Void),
   call("removeFromSpace", { spaceId: Text, itemId: Text }, Schema.Void),

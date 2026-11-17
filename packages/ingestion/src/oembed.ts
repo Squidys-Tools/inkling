@@ -1,7 +1,8 @@
-import { fetchJson, runHttp, type RequestLimits } from "./http.ts";
+import { downloadPage, fetchJson, runHttp, type RequestLimits } from "./http.ts";
 import { normalizeHttpUrl } from "./url.ts";
 import { providerLabel, type VideoLinkEmbed } from "./video-links.ts";
-import { normalizeXPostOEmbed, xPostOEmbedUrl } from "./x-post.ts";
+import { normalizeXPostOEmbed, parseXPostUrl, xPostOEmbedUrl } from "./x-post.ts";
+import { X_PAGE_USER_AGENT, xPostFromPage, xPostPageUrls, xPostSearchText } from "./x-post-page.ts";
 import type { NormalizedArticle, XPostMetadata } from "./types.ts";
 
 function trimmedString(value: unknown): string {
@@ -62,21 +63,62 @@ export async function ingestVideoLink(
   };
 }
 
-// X can block or rate-limit the oEmbed request. Without it, the normal page
+const X_PAGE_HOSTS: ReadonlySet<string> = new Set(["x.com", "www.x.com"]);
+const X_PAGE_TIMEOUT_MS = 8_000;
+
+// Logged out, X often answers its own page with a shell that has no post in it, or with a
+// rate limit. Either way the post keeps whatever oEmbed gave it.
+async function xPostPage(
+  postId: string,
+  handle: string | undefined,
+  fetch: typeof globalThis.fetch | undefined,
+  request: RequestLimits,
+) {
+  for (const url of xPostPageUrls(postId, handle)) {
+    const page = await runHttp(
+      downloadPage(url, {
+        ...request,
+        timeoutMs: Math.min(request.timeoutMs, X_PAGE_TIMEOUT_MS),
+        userAgent: X_PAGE_USER_AGENT,
+        allowedHosts: X_PAGE_HOSTS,
+      }),
+      fetch,
+    ).catch(() => null);
+    const rich = page?.html ? xPostFromPage(page.html, postId) : null;
+    if (rich) return rich;
+  }
+  return null;
+}
+
+const defined = <T extends object>(value: T) =>
+  Object.fromEntries(
+    Object.entries(value).filter(([, field]) => field !== undefined),
+  ) as Partial<T>;
+
+// X can block or rate-limit either request. With neither answering, the normal page
 // pipeline still has a chance to succeed, so this returns null.
 export async function ingestXPost(
   sourceUrl: string,
   fetch: typeof globalThis.fetch | undefined,
   request: RequestLimits,
 ): Promise<NormalizedArticle | null> {
-  const oEmbed = await runHttp(fetchJson(xPostOEmbedUrl(sourceUrl), request), fetch);
-  let xPost: XPostMetadata | null;
+  const parsed = parseXPostUrl(sourceUrl);
+  if (!parsed) return null;
+  const [oEmbed, rich] = await Promise.all([
+    runHttp(fetchJson(xPostOEmbedUrl(sourceUrl), request), fetch),
+    xPostPage(parsed.postId, parsed.authorHandle, fetch, request),
+  ]);
+  let embedded: XPostMetadata | null;
   try {
-    xPost = oEmbed ? normalizeXPostOEmbed(sourceUrl, oEmbed as Record<string, unknown>) : null;
+    embedded = oEmbed ? normalizeXPostOEmbed(sourceUrl, oEmbed as Record<string, unknown>) : null;
   } catch {
-    return null;
+    embedded = null;
   }
-  if (!xPost) return null;
+  if (!embedded && !rich) return null;
+  const xPost: XPostMetadata = {
+    ...(embedded ?? { provider: "x", postUrl: parsed.postUrl, postId: parsed.postId }),
+    ...(rich && defined(rich)),
+  };
 
   const text = xPost.text || `${xPost.authorName ?? "X"} post`;
   return {
@@ -88,7 +130,8 @@ export async function ingestXPost(
     author: xPost.authorName ?? "",
     publishedDate: xPost.publishedDate ?? null,
     html: xPost.embedHtml ?? "",
-    text,
+    // metadata.text is what search indexes, so it carries the quote, card, poll and alt text too.
+    text: xPostSearchText(xPost) || text,
     imageUrls: [],
     imageDimensions: [],
     safeEmbeds: [],

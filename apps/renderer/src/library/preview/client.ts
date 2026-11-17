@@ -9,6 +9,7 @@ import type {
 import { ITEM_KINDS, type ItemKind } from "@inkling/ingestion/item-kind";
 import { markdownToPlainText } from "@inkling/ingestion/markdown-text";
 import { mentionsSubject, smartSpaceSubjects } from "@inkling/ingestion/photo-subjects";
+import { countTags } from "@inkling/ingestion/tag-counts";
 import { displayKind, toCardView } from "../cardModel.ts";
 import type { LibraryClient } from "../connection.ts";
 import {
@@ -88,6 +89,10 @@ export function createPreviewClient(): LibraryClient {
   let spaces: Space[] = seedSpaces.map((space) => ({ ...space }));
   const membership = new Map(Object.entries(seedMembership).map(([id, ids]) => [id, new Set(ids)]));
   const exclusions = new Map<string, Set<string>>();
+  const deletedSpaces = new Map<
+    string,
+    { space: Space; members?: Set<string>; excluded?: Set<string> }
+  >();
   const jobs = new Map<string, Job>(
     seedJobs.map(({ itemId, status }) => [
       itemId,
@@ -216,6 +221,14 @@ export function createPreviewClient(): LibraryClient {
         return count ? [{ kind, count }] : [];
       }).sort((a, b) => b.count - a.count);
     },
+    tagCounts: async () =>
+      countTags(
+        ordered(false).flatMap(({ card }) =>
+          (Array.isArray(card.metadata.tags) ? card.metadata.tags : []).flatMap((tag) =>
+            typeof tag === "string" ? [{ id: card.id, tag }] : [],
+          ),
+        ),
+      ),
     cards: async ({ scope, cursor, limit }) => page(scope, cursor, limit),
     cardsById: async ({ ids }) =>
       ids.flatMap((id) => {
@@ -343,6 +356,15 @@ export function createPreviewClient(): LibraryClient {
       for (const ids of membership.values()) ids.delete(id);
       emit({ _tag: "ItemsRemoved", ids: [id] });
     },
+    deleteArchived: async () => {
+      const ids = [...items.values()]
+        .filter((found) => found.card.archived)
+        .map((found) => found.card.id);
+      for (const id of ids) items.delete(id);
+      for (const members of membership.values()) for (const id of ids) members.delete(id);
+      emit({ _tag: "ItemsRemoved", ids });
+      return ids;
+    },
 
     spaces: async () => withCounts(),
     createSpace: async ({ name, color, query, kind }) => {
@@ -373,9 +395,25 @@ export function createPreviewClient(): LibraryClient {
       return touchSpaces(updated);
     },
     deleteSpace: async ({ id }) => {
-      spaces = spaces.filter((space) => space.id !== id);
+      const space = spaceById(id);
+      deletedSpaces.set(id, { space, members: membership.get(id), excluded: exclusions.get(id) });
+      spaces = spaces.filter((candidate) => candidate.id !== id);
       membership.delete(id);
+      exclusions.delete(id);
       touchSpaces(undefined);
+    },
+    restoreSpace: async ({ id }) => {
+      const saved = deletedSpaces.get(id);
+      if (!saved) throw new Error("That Space no longer exists.");
+      deletedSpaces.delete(id);
+      const taken = spaces.some((space) => space.position === saved.space.position);
+      const position = taken
+        ? Math.max(...spaces.map((space) => space.position)) + 1
+        : saved.space.position;
+      spaces = [...spaces, { ...saved.space, position }];
+      if (saved.members) membership.set(id, saved.members);
+      if (saved.excluded) exclusions.set(id, saved.excluded);
+      return touchSpaces(withCounts());
     },
     swapSpaces: async ({ firstId, secondId }) => {
       const first = spaceById(firstId);

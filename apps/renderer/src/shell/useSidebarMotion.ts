@@ -15,7 +15,6 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
   const flight = useRef<Animation | null>(null);
   const edgeFlight = useRef<Animation | null>(null);
   const labelsFlight = useRef<Animation[]>([]);
-  const addFlights = useRef<Animation[]>([]);
   const [presentation, setPresentation] = useState({ requested: open, retained: open });
   if (presentation.requested !== open) {
     setPresentation({ requested: open, retained: open || presentation.retained });
@@ -40,26 +39,6 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
       : [];
     const labelOpacity = labels.map((node) => Number(getComputedStyle(node).opacity));
     const reversing = flight.current !== null;
-    const add = sidebar?.querySelector<HTMLElement>("[data-sidebar-add]");
-    const addLabel = add?.querySelector<HTMLElement>("[data-sidebar-add-label]");
-    // A reversal starts the Add button from its painted size, not its old endpoint.
-    const addMoving = addFlights.current.length > 0;
-    // Expanded, Shelf's Add shares its row; the compact rail's never does.
-    const beside = Number(add?.dataset.sidebarAddBeside ?? 0);
-    const fromAdd =
-      addMoving && add
-        ? add.getBoundingClientRect().width
-        : oldWidth - 16 - (old.open ? beside : 0);
-    const fromLabel =
-      addMoving && addLabel
-        ? addLabel.getBoundingClientRect().width
-        : old.open
-          ? (addLabel?.scrollWidth ?? 0)
-          : 0;
-    const fromGap =
-      addMoving && addLabel ? getComputedStyle(addLabel).marginLeft : old.open ? "0px" : "-7px";
-    addFlights.current.forEach((item) => item.cancel());
-    addFlights.current = [];
     flight.current?.cancel();
     edgeFlight.current?.cancel();
     labelsFlight.current.forEach((animation) => animation.cancel());
@@ -77,27 +56,6 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
       const clipAt = (edge: number) =>
         `inset(0px ${sidebarClip(edge + 8, width)}px 0px 0px round 0px ${radius} ${radius} 0px)`;
       const targetEdge = (open ? sidebarExpanded : sidebarCompact) - 8;
-      // Add keeps its rounded end inside the moving edge instead of being sliced by the clip.
-      if (add)
-        addFlights.current.push(
-          add.animate(
-            [{ width: `${fromAdd}px` }, { width: `${targetEdge - 16 - (open ? beside : 0)}px` }],
-            { ...options, fill: "both" },
-          ),
-        );
-      if (addLabel)
-        addFlights.current.push(
-          addLabel.animate(
-            [
-              { maxWidth: `${fromLabel}px`, marginLeft: fromGap },
-              {
-                maxWidth: `${open ? addLabel.scrollWidth : 0}px`,
-                marginLeft: open ? "0px" : "-7px",
-              },
-            ],
-            { ...options, fill: "both" },
-          ),
-        );
       edgeFlight.current = sidebar.animate(
         [{ clipPath: clipAt(fromEdge) }, { clipPath: clipAt(targetEdge) }],
         { ...options, fill: "both" },
@@ -120,8 +78,6 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
         if (flight.current !== animation) return;
         flight.current = null;
         if (open) {
-          addFlights.current.forEach((item) => item.cancel());
-          addFlights.current = [];
           labelsFlight.current.forEach((item) => item.cancel());
           labelsFlight.current = [];
           edgeFlight.current?.cancel();
@@ -137,8 +93,6 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
 
   useLayoutEffect(() => {
     if (!flight.current) {
-      addFlights.current.forEach((item) => item.cancel());
-      addFlights.current = [];
       edgeFlight.current?.cancel();
       edgeFlight.current = null;
       labelsFlight.current.forEach((item) => item.cancel());
@@ -151,7 +105,6 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
       flight.current?.cancel();
       edgeFlight.current?.cancel();
       labelsFlight.current.forEach((animation) => animation.cancel());
-      addFlights.current.forEach((animation) => animation.cancel());
     },
     [],
   );

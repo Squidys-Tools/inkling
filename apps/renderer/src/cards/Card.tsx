@@ -7,33 +7,28 @@ import { type CardView, cardView } from "../library/cardModel.ts";
 import { useProcessing } from "../library/jobs.ts";
 import { useLabelClock } from "../library/labelClock.ts";
 import { menuPoint } from "../menu/contextMenu.tsx";
-import { ArchiveTile } from "./ArchiveTile.tsx";
+import { ArchivedControls } from "./ArchivedControls.tsx";
 import { openCardMenu, openItem, openReader, retryProcessing } from "./cardActions.ts";
 import { CardFace } from "./CardFace.tsx";
-import type { CardLayout } from "./CardMedia.tsx";
 
 /** One cell of the masonry grid. It reads its card by id, so a change re-renders this cell only. */
-export function GridCell({ id, index, layout }: { id: string; index: number; layout: CardLayout }) {
+export function GridCell({ id, index }: { id: string; index: number }) {
   const card = useCard(id);
   const clock = useLabelClock();
   if (!card) return <div {...stylex.props(styles.gone)} />;
   const view = cardView(card, clock);
-  return layout === "archive" ? (
-    <ArchiveTile view={view} index={index} />
-  ) : (
-    <LibraryCard view={view} index={index} list={layout === "list"} />
-  );
+  return <LibraryCard view={view} index={index} />;
 }
 
-function LibraryCard({ view, index, list }: { view: CardView; index: number; list: boolean }) {
+function LibraryCard({ view, index }: { view: CardView; index: number }) {
   const navigate = useNavigate();
   const processing = useProcessing(view.id);
   return (
     <CardFace
       view={view}
       index={index}
-      list={list}
       processing={processing}
+      dimmed={view.archived}
       onOpen={() => openItem(view, navigate)}
       onRead={() => openReader(view, navigate)}
       onMenu={(event) => {
@@ -51,7 +46,9 @@ function LibraryCard({ view, index, list }: { view: CardView; index: number; lis
             }
           : undefined
       }
-    />
+    >
+      {view.archived && <ArchivedControls view={view} />}
+    </CardFace>
   );
 }
 

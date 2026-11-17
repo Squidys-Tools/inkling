@@ -39,6 +39,9 @@ type SpaceRow = {
   item_count?: number | null;
 };
 
+type Member = { item_id: string; at: number };
+type DeletedSpace = { space: SpaceRow; members: readonly Member[]; excluded: readonly Member[] };
+
 function spaceFromRow(row: SpaceRow): Space {
   return {
     id: row.id,
@@ -146,13 +149,47 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     return yield* writtenSpace(input.id);
   });
 
+  // What a delete removed, so Undo can put it back; memory only, newest few.
+  const deleted = new Map<string, DeletedSpace>();
+
   const deleteSpace = (id: string) =>
     sql.withTransaction(
       Effect.gen(function* () {
+        const [space] = yield* sql<SpaceRow>`SELECT * FROM spaces WHERE id = ${id}`;
+        if (!space) return yield* spaceNotFound(id);
+        const members = yield* sql<Member>`SELECT item_id, added_at AS at FROM space_items
+          WHERE space_id = ${id}`;
+        const excluded = yield* sql<Member>`SELECT item_id, excluded_at AS at
+          FROM space_exclusions WHERE space_id = ${id}`;
         yield* sql`DELETE FROM space_items WHERE space_id = ${id}`;
         yield* sql`DELETE FROM space_exclusions WHERE space_id = ${id}`;
-        const deleted = yield* sql`DELETE FROM spaces WHERE id = ${id}`.raw;
-        if (!changes(deleted)) return yield* spaceNotFound(id);
+        yield* sql`DELETE FROM spaces WHERE id = ${id}`;
+        deleted.set(id, { space, members, excluded });
+        while (deleted.size > 5) deleted.delete(deleted.keys().next().value!);
+      }),
+    );
+
+  const restoreSpace = (id: string) =>
+    sql.withTransaction(
+      Effect.gen(function* () {
+        const saved = deleted.get(id);
+        if (!saved) return yield* spaceNotFound(id);
+        const { space, members, excluded } = saved;
+        // A Space created since may hold the old position; equal positions cannot be swapped.
+        yield* sql`INSERT INTO spaces (id, name, color, query, kind, position, created_at, updated_at)
+          SELECT ${space.id}, ${space.name}, ${space.color}, ${space.query}, ${space.kind},
+          CASE WHEN EXISTS (SELECT 1 FROM spaces WHERE position = ${space.position})
+            THEN (SELECT MAX(position) + 1 FROM spaces) ELSE ${space.position} END,
+          ${space.created_at}, ${Date.now()}`;
+        // Items deleted since the Space was are left out.
+        yield* sql`INSERT INTO space_items (space_id, item_id, added_at)
+          SELECT ${id}, json_extract(m.value, '$.item_id'), json_extract(m.value, '$.at') FROM json_each(${JSON.stringify(members)}) m
+          JOIN items i ON i.id = json_extract(m.value, '$.item_id')`;
+        yield* sql`INSERT INTO space_exclusions (space_id, item_id, excluded_at)
+          SELECT ${id}, json_extract(m.value, '$.item_id'), json_extract(m.value, '$.at') FROM json_each(${JSON.stringify(excluded)}) m
+          JOIN items i ON i.id = json_extract(m.value, '$.item_id')`;
+        deleted.delete(id);
+        return yield* listSpaces();
       }),
     );
 
@@ -401,6 +438,7 @@ export function makeSpaces(ctx: StorageContext, search: ReturnType<typeof makeSe
     createSpace,
     updateSpace,
     deleteSpace,
+    restoreSpace,
     swapSpacePositions,
     spaceCardsPage,
     listSpaceItems,

@@ -1,6 +1,8 @@
 import { Effect, Option, Predicate, Schema } from "effect";
 import type { Fragment } from "effect/sql/Statement";
 import type { LibraryCard, ItemDetail } from "@inkling/contracts";
+import { XPost } from "@inkling/contracts/jobs";
+import { xPostCard } from "@inkling/ingestion/x-post-card";
 import type { StorageContext } from "./context.ts";
 import { invalidInput, itemNotFound } from "./errors.ts";
 import { type Metadata, parseJson } from "./shared.ts";
@@ -41,6 +43,11 @@ const cardMetadataFields = [
   "pdfPageCount",
 ];
 
+const decodeXPost = Schema.decodeUnknownOption(XPost);
+/** A post item's X metadata, or undefined for anything else. */
+export const xPostOf = (metadata: Record<string, unknown>) =>
+  Option.getOrUndefined(decodeXPost(metadata.social));
+
 export function itemFromRow(row: ItemRow): ItemDetail {
   const metadata = parseJson<unknown>(row.metadata, {});
   const fields = Predicate.isObject(metadata) ? metadata : {};
@@ -70,6 +77,8 @@ export function cardItem(item: ItemDetail): LibraryCard {
   for (const field of cardMetadataFields) {
     if (Object.hasOwn(metadata, field)) cardMetadata[field] = metadata[field];
   }
+  const post = xPostOf(metadata);
+  if (post) cardMetadata.social = xPostCard(post);
   return {
     id: item.id,
     kind: item.kind,

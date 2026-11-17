@@ -25,6 +25,7 @@ export type WorkerOptions = {
   embeddings?: Embeddings;
   extractPdf?: typeof extractPdfTextByPages;
   extractUrl?: (url: string) => Promise<NormalizedArticle>;
+  downloadXMedia?: (url: string) => Promise<Uint8Array | null>;
   shell?: ShellThumbnail;
   videoDecoderPath?: string | null;
 };
@@ -41,6 +42,7 @@ const read = (path: string) => attempt(() => readFile(path));
 // system font, which costs seconds and crashes under Electron's Linux fontconfig.
 const thumbnails = () => import("./thumbnail.ts");
 const pdf = () => import("./pdf.ts");
+const xPostMedia = () => import("@inkling/ingestion/x-post-media");
 
 async function cardThumbnail(image: Buffer) {
   const { bytes, width, height } = await (await thumbnails()).createImageThumbnail(image);
@@ -60,6 +62,7 @@ export const makeWorkerHandlers = Effect.fnUntraced(function* ({
   embeddings = createEmbeddingEngine(modelCacheDirectory, bundledModelDirectory),
   extractPdf,
   extractUrl = extractUrlOnThread,
+  downloadXMedia = async (url) => (await xPostMedia()).downloadXPostImage(url),
   shell,
   videoDecoderPath,
 }: WorkerOptions) {
@@ -134,6 +137,8 @@ export const makeWorkerHandlers = Effect.fnUntraced(function* ({
       ),
 
     extractUrl: ({ url }) => attempt(() => extractUrl(url)),
+
+    downloadXMedia: ({ url }) => attempt(() => downloadXMedia(url)),
   });
 });
 

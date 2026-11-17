@@ -3,21 +3,19 @@ import Bookmark01Icon from "@hugeicons/core-free-icons/Bookmark01Icon";
 import Camera01Icon from "@hugeicons/core-free-icons/Camera01Icon";
 import FileTextIcon from "@hugeicons/core-free-icons/FileTextIcon";
 import Image01Icon from "@hugeicons/core-free-icons/Image01Icon";
-import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import type { ComponentProps, ReactNode } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 
 export type Choice = {
-  id: "note" | "link" | "quote" | "file" | "screen";
+  id: "note" | "quote" | "file" | "screen";
   label: string;
   icon: IconSvgElement;
 };
 
 const choices: Choice[] = [
   { id: "note", label: "Note", icon: FileTextIcon },
-  { id: "link", label: "Link", icon: Link01Icon },
   { id: "quote", label: "Quote", icon: Bookmark01Icon },
   { id: "file", label: "File", icon: Image01Icon },
   { id: "screen", label: "Screen", icon: Camera01Icon },
@@ -38,8 +36,8 @@ export function AddChoices({
       <Menu.Trigger {...trigger}>{children}</Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner
-          side="top"
-          align="center"
+          side="bottom"
+          align="start"
           sideOffset={6}
           {...stylex.props(styles.positioner)}
         >
@@ -69,7 +67,7 @@ export function AddChoices({
 }
 
 const open = stylex.keyframes({
-  from: { opacity: 0, transform: "translateY(12px) scale(0.94)" },
+  from: { opacity: 0, transform: "translateY(-8px) scale(0.96)" },
   to: { opacity: 1, transform: "none" },
 });
 
@@ -84,7 +82,7 @@ const styles = stylex.create({
     borderRadius: "18px",
     backgroundColor: color.raised,
     boxShadow: `0 18px 44px ${color.shadow}`,
-    transformOrigin: "bottom center",
+    transformOrigin: "var(--transform-origin)",
     animationName: open,
     animationDuration: motion.micro,
     animationTimingFunction: motion.enter,
@@ -103,7 +101,7 @@ const styles = stylex.create({
   },
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     gap: "2px",
     padding: "6px",
     borderWidth: 1,

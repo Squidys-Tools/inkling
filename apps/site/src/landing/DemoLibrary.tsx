@@ -10,20 +10,37 @@ function syncRevealDocument(doc: Document | null | undefined, active: boolean, c
   root.dataset.reveal = active ? "open" : "masked";
 }
 
-// Hides the demo's search and view controls while the mask still covers them.
+// Hides the demo's search field while the mask still covers them.
 // The search field is hidden whole: its glass surface is a sibling of the label.
 function prepareRevealDocument(doc: Document | null | undefined): doc is Document {
   if (!doc?.head || new URL(doc.URL).pathname !== "/demo/") return false;
   if (!doc.getElementById("embedded-reveal-chrome")) {
     const style = doc.createElement("style");
     style.id = "embedded-reveal-chrome";
-    style.textContent = `div:has(>label input[type=search]),[aria-label="View options"]{transition:opacity 180ms ease-out}
-      html[data-reveal=masked] div:has(>label input[type=search]),html[data-reveal=masked] [aria-label="View options"]{opacity:0;pointer-events:none}
-      html[data-reveal-motion=calm] div:has(>label input[type=search]),html[data-reveal-motion=calm] [aria-label="View options"]{transition:none}
-      @media(prefers-reduced-motion:reduce){div:has(>label input[type=search]),[aria-label="View options"]{transition:none}}`;
+    style.textContent = `div:has(>label input[type=search]){transition:opacity 180ms ease-out}
+      html[data-reveal=masked] div:has(>label input[type=search]){opacity:0;pointer-events:none}
+      html[data-reveal-motion=calm] div:has(>label input[type=search]){transition:none}
+      @media(prefers-reduced-motion:reduce){div:has(>label input[type=search]){transition:none}}`;
     doc.head.appendChild(style);
   }
   return true;
+}
+
+const routedViews = new WeakSet<Window>();
+
+// The live demo scrolls its own grid, so without this a wheel over it stops the page
+// partway through the reveal and the grid rubber-bands under the half-open mask.
+function routeRevealWheel(doc: Document, onWheel: (event: WheelEvent) => boolean) {
+  const view = doc.defaultView;
+  if (!view || routedViews.has(view)) return;
+  routedViews.add(view);
+  view.addEventListener(
+    "wheel",
+    (event) => {
+      if (!event.ctrlKey && onWheel(event)) event.preventDefault();
+    },
+    { passive: false },
+  );
 }
 
 export function DemoLibrary({
@@ -31,19 +48,28 @@ export function DemoLibrary({
   calm,
   loaded,
   onLoad,
+  onWheel,
 }: {
   active: boolean;
   calm: boolean;
   loaded: boolean;
   onLoad: () => void;
+  onWheel: (event: WheelEvent) => boolean;
 }) {
   const frame = useRef<HTMLIFrameElement | null>(null);
+  const wheel = useRef(onWheel);
+  useEffect(() => {
+    wheel.current = onWheel;
+  }, [onWheel]);
   const attachFrame = useCallback(
     (node: HTMLIFrameElement | null) => {
       frame.current = node;
       const doc = node?.contentDocument;
       // A prerendered iframe may finish before React attaches its load handler.
-      if (doc?.readyState === "complete" && prepareRevealDocument(doc)) onLoad();
+      if (doc?.readyState === "complete" && prepareRevealDocument(doc)) {
+        routeRevealWheel(doc, (event) => wheel.current(event));
+        onLoad();
+      }
     },
     [onLoad],
   );
@@ -53,6 +79,7 @@ export function DemoLibrary({
   const ready = () => {
     const doc = frame.current?.contentDocument;
     if (!prepareRevealDocument(doc)) return;
+    routeRevealWheel(doc, (event) => wheel.current(event));
     syncRevealDocument(doc, active, calm);
     onLoad();
   };

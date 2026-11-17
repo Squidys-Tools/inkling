@@ -1,8 +1,8 @@
 import type { Space } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
-import { IconButton } from "@inkling/ui";
-import { color, space } from "@inkling/ui/tokens.stylex";
-import type { ReactNode } from "react";
+import { Button } from "@inkling/ui";
+import { color, space, text } from "@inkling/ui/tokens.stylex";
+import type { MouseEvent, ReactNode } from "react";
 import { desktop } from "../desktop.ts";
 import { reportActionError } from "../cards/actionError.ts";
 import { errorMessage } from "../library/errors.ts";
@@ -49,6 +49,33 @@ const glyphs = {
   ),
 };
 
+/** A short word on the bar; the full action stays its accessible name and tooltip. */
+function Action({
+  label,
+  word,
+  glyph,
+  style,
+  onClick,
+}: {
+  label: string;
+  word: string;
+  glyph: ReactNode;
+  style?: stylex.StyleXStyles;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <Button
+      aria-label={label}
+      title={label}
+      icon={<Glyph>{glyph}</Glyph>}
+      style={[styles.button, style]}
+      onClick={onClick}
+    >
+      {word}
+    </Button>
+  );
+}
+
 /** The item's actions: file in a Space, open the original, show the file, archive or restore, delete. */
 export function ActionBar({
   item,
@@ -87,18 +114,18 @@ export function ActionBar({
   return (
     <footer {...stylex.props(styles.bar)}>
       {!item.archived && spaces.length > 0 && (
-        <IconButton
+        <Action
           label="Keep in a Space"
-          icon={<Glyph>{glyphs.space}</Glyph>}
-          style={styles.button}
+          word="Space"
+          glyph={glyphs.space}
           onClick={(event) => void chooseSpace(menuPoint(event))}
         />
       )}
       {url && (
-        <IconButton
+        <Action
           label={openLabel}
-          icon={<Glyph>{glyphs.open}</Glyph>}
-          style={styles.button}
+          word="Open"
+          glyph={glyphs.open}
           onClick={() =>
             desktop
               ? void desktop.openExternal(url)
@@ -107,10 +134,10 @@ export function ActionBar({
         />
       )}
       {desktop && item.hasFile && (
-        <IconButton
+        <Action
           label="Show in folder"
-          icon={<Glyph>{glyphs.folder}</Glyph>}
-          style={styles.button}
+          word="Folder"
+          glyph={glyphs.folder}
           onClick={() =>
             void desktop
               ?.showItemInFolder(item.id)
@@ -122,24 +149,26 @@ export function ActionBar({
       )}
       {item.archived ? (
         <>
-          <IconButton
+          <Action
             label="Restore to library"
-            icon={<Glyph>{glyphs.restore}</Glyph>}
-            style={styles.button}
+            word="Restore"
+            glyph={glyphs.restore}
             onClick={onRestore}
           />
-          <IconButton
+          <Action
             label="Delete permanently"
-            icon={<Glyph>{glyphs.delete}</Glyph>}
-            style={[styles.button, styles.end, styles.danger]}
+            word="Delete"
+            glyph={glyphs.delete}
+            style={[styles.end, styles.danger]}
             onClick={onDelete}
           />
         </>
       ) : (
-        <IconButton
+        <Action
           label="Archive"
-          icon={<Glyph>{glyphs.archive}</Glyph>}
-          style={styles.button}
+          word="Archive"
+          glyph={glyphs.archive}
+          style={styles.end}
           onClick={onArchive}
         />
       )}
@@ -153,14 +182,23 @@ const styles = stylex.create({
     flexShrink: 0,
     display: "flex",
     alignItems: "center",
-    gap: space.s1,
     height: "44px",
     marginTop: space.s3,
     borderTopWidth: 1,
     borderTopStyle: "solid",
     borderTopColor: color.border,
   },
-  button: { color: { default: color.muted, ":hover": color.ink } },
+  button: {
+    gap: "6px",
+    height: "28px",
+    paddingInline: "6px",
+    fontSize: text.sm,
+    color: { default: color.muted, ":hover": color.ink },
+    // The end words line up with the panel's text, and their hover wash reaches into the gutter.
+    // Four labeled actions only just fit the 320px panel, so keep these tight.
+    marginLeft: { default: 0, ":first-child": "-6px" },
+    marginRight: { default: 0, ":last-child": "-6px" },
+  },
   end: { marginLeft: "auto" },
   danger: { color: { default: color.muted, ":hover": color.danger } },
 });

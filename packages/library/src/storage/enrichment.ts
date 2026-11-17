@@ -1,15 +1,23 @@
-import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import {
+  imageExtension,
+  missingXPostMedia,
+  withXPostMediaPaths,
+  X_MEDIA_SLOT,
+} from "@inkling/ingestion/x-post-media";
 import { Effect, Predicate } from "effect";
+import { isInside } from "../paths.ts";
 import type { StorageContext, Thumbnail } from "./context.ts";
-import { readItem } from "./rows.ts";
-import { changes, nonEmpty, normalizeHttpUrl, parseJson } from "./shared.ts";
+import { readItem, xPostOf } from "./rows.ts";
+import { changes, isSafeItemId, nonEmpty, normalizeHttpUrl, parseJson } from "./shared.ts";
 import { attempt, invalidInput, itemNotFound } from "./errors.ts";
 import {
   IMAGE_PALETTE_JOB,
   PDF_THUMBNAIL_JOB,
   URL_ENRICHMENT_JOB,
   VIDEO_POSTER_JOB,
+  X_POST_MEDIA_JOB,
 } from "./jobs.ts";
 
 export type UrlArticle = {
@@ -28,6 +36,9 @@ export type UrlArticle = {
 };
 
 type Candidate = { rowid: number; id: string };
+
+/** A downloaded picture for one of a saved post's slots, and the URL it came from. */
+export type XPostMediaFile = { slot: string; url: string; bytes: Uint8Array };
 
 const missingThumbnailCandidateSql = (kind: "pdf" | "video") => `SELECT rowid, id FROM items
   WHERE kind = '${kind}' AND rowid > ? AND thumbnail_path IS NULL AND local_asset_path != ''
@@ -107,6 +118,7 @@ export function makeEnrichment(ctx: StorageContext) {
           if (Array.isArray(values) && values.length > 0) metadata[key] = values;
         }
         if (article.social) metadata.social = article.social;
+        const social = xPostOf(metadata);
 
         yield* sql`UPDATE items SET
           title = ${shouldUseArticleTitle ? (articleTitle ?? item.title) : item.title},
@@ -115,8 +127,68 @@ export function makeEnrichment(ctx: StorageContext) {
           metadata = ${JSON.stringify(metadata)}, updated_at = ${Date.now()}
           WHERE id = ${item.id}`;
         yield* jobs.enqueue(item.id, "generate_embedding");
+        if (social && missingXPostMedia(social).length > 0)
+          yield* jobs.enqueue(item.id, X_POST_MEDIA_JOB);
         return true;
       }),
+    );
+  });
+
+  // Files land under fixed names in the item's own directory, so a retry overwrites its
+  // earlier copy and deleting or exporting the item takes them along.
+  const storeXPostMedia = Effect.fnUntraced(function* (
+    id: string,
+    files: ReadonlyArray<XPostMediaFile>,
+  ) {
+    const itemDirectory = resolve(ctx.assetsDirectory, id);
+    if (!isSafeItemId(id) || !isInside(itemDirectory, resolve(ctx.assetsDirectory)))
+      return yield* invalidInput("item id escaped the managed assets directory");
+    const named = files.flatMap((file) => {
+      const extension = imageExtension(file.bytes);
+      return extension && X_MEDIA_SLOT.test(file.slot)
+        ? [{ ...file, name: `x-${file.slot}.${extension}` }]
+        : [];
+    });
+    if (named.length === 0) return false;
+    const exists = sql`SELECT 1 FROM items WHERE id = ${id}`.pipe(
+      Effect.map((rows) => rows.length > 0),
+    );
+    if (!(yield* exists)) return false;
+    return yield* Effect.acquireUseRelease(
+      attempt(() => mkdtemp(join(dirname(ctx.databasePath), ".inkling-x-media-"))),
+      Effect.fnUntraced(function* (staging) {
+        for (const file of named)
+          yield* attempt(() => writeFile(join(staging, file.name), file.bytes));
+        if (!(yield* exists)) return false;
+        yield* attempt(() => mkdir(itemDirectory, { recursive: true }));
+        for (const file of named)
+          yield* attempt(() => rename(join(staging, file.name), join(itemDirectory, file.name)));
+        const stored = new Map(
+          named.map((file) => [
+            file.slot,
+            { url: file.url, path: `assets/items/${id}/${file.name}` },
+          ]),
+        );
+        const updated = yield* sql.withTransaction(
+          Effect.gen(function* () {
+            const item = yield* readItem(ctx, id);
+            const social = item && xPostOf(item.metadata);
+            if (!social) return false;
+            const next = withXPostMediaPaths(social, stored);
+            yield* sql`UPDATE items SET metadata = json_set(metadata, '$.social', json(${JSON.stringify(next)}))
+              WHERE id = ${id}`;
+            return true;
+          }),
+        );
+        // A permanent delete between the check and the rename leaves the files ownerless.
+        if (!updated)
+          yield* attempt(() =>
+            Promise.all(named.map((file) => rm(join(itemDirectory, file.name), { force: true }))),
+          );
+        else yield* jobs.notify(id);
+        return updated;
+      }),
+      (staging) => attempt(() => rm(staging, { recursive: true, force: true })).pipe(Effect.ignore),
     );
   });
 
@@ -192,5 +264,6 @@ export function makeEnrichment(ctx: StorageContext) {
     storeImageThumbnail: (id: string, thumbnail: Thumbnail) =>
       storeDerivedThumbnail(id, "image", thumbnail, true),
     storeImagePalette,
+    storeXPostMedia,
   };
 }

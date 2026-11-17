@@ -45,9 +45,11 @@ test("smart removals stay local, survive query changes and can be allowed again"
   await library.removeSpaceItem(first.id, note.id);
   await library.deleteSpace(first.id);
   expect(await library.listSpaceExclusions(note.id)).toEqual([]);
+  await library.restoreSpace(first.id);
+  expect(await library.listSpaceExclusions(note.id)).toEqual([first.id]);
 });
 
-test("photo subject matches honor local removal and regular Spaces never archive", async () => {
+test("photo subject matches honor local removal, and regular Spaces never archive and restore their picks", async () => {
   const { library } = await temporaryLibrary();
   const regular = await library.createSpace({ name: "Filed", kind: "regular" });
   expect((await library.listSpaces()).find((s) => s.id === regular.id)?.itemCount).toBe(0);
@@ -56,6 +58,18 @@ test("photo subject matches honor local removal and regular Spaces never archive
   await library.removeSpaceItem(regular.id, note.id);
   expect(await library.listSpaceItems(regular.id)).toEqual([]);
   expect((await library.getItem(note.id))?.archived).toBe(false);
+  const gone = await library.createNote({ body: "gone" });
+  await library.addSpaceItem(regular.id, note.id);
+  await library.addSpaceItem(regular.id, gone.id);
+  await library.deleteSpace(regular.id);
+  await library.archiveItem(gone.id);
+  await library.deleteItem(gone.id);
+  await library.createSpace({ name: "Made after the delete", kind: "regular" });
+  const restored = await library.restoreSpace(regular.id);
+  expect(new Set(restored.map((s) => s.position)).size).toBe(restored.length);
+  expect(restored.find((s) => s.id === regular.id)?.itemCount).toBe(1);
+  expect(ids(await library.listSpaceItems(regular.id))).toEqual([note.id]);
+  await expect(library.restoreSpace(regular.id)).rejects.toThrow();
   library.db
     .prepare(
       "INSERT INTO items (id,kind,title,created_at,updated_at) VALUES ('cat','image','cat.png',1,1)",

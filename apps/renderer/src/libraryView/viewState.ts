@@ -1,18 +1,13 @@
 import { createAtom, useSelector } from "@tanstack/react-store";
 
 type ViewState = {
-  list: boolean;
-  /** The grid↔list transition keeps new cards hidden while their entrance runs. */
-  entering: boolean;
   sidebarOpen: boolean;
   /** The mascot reads this to look attentive while search has focus. */
   searchFocused: boolean;
 };
 
-/** How the library is shown; it outlives any one page. */
-export const viewState = createAtom<ViewState>({
-  list: false,
-  entering: false,
+/** The shell around the library; it outlives any one page. */
+const viewState = createAtom<ViewState>({
   sidebarOpen: true,
   searchFocused: false,
 });
@@ -20,9 +15,6 @@ export const viewState = createAtom<ViewState>({
 export const useViewState = <Selected>(select: (state: ViewState) => Selected) =>
   useSelector(viewState, select);
 
-export const setListMode = (list: boolean) => viewState.set((state) => ({ ...state, list }));
-export const setEntering = (entering: boolean) =>
-  viewState.set((state) => (state.entering === entering ? state : { ...state, entering }));
 export const setSidebarOpen = (sidebarOpen: boolean) =>
   viewState.set((state) => ({ ...state, sidebarOpen }));
 export const toggleSidebar = () =>

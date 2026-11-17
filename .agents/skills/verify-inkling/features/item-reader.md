@@ -1,0 +1,28 @@
+# Item reader
+
+A `Read` control opens a clean reading view of a url item's extracted article at `/item/<id>/read` (`pages/ReaderPage.tsx`, `reader/`). The view shows the title, a `site · author · N min read` byline, the article body and a `Open the page in your browser` link, and a quiet top bar with `Back (Esc)`, `Details`, text-size buttons and a `Typeface` picker over the article text. Status: **driven** on 2026-11-17 (item-view `Read`, document view, typeface switch, Escape exit). Not driven: scroll position memory and the controls pill's fade on scroll-down, the `Open the page …` external navigation, the `group "Text size"` buttons (`Smaller (text size)`/`Larger (text size)`), and media embeds inside the article (a `Play "<title>" from YouTube` button renders for embedded videos; playing needs the network).
+
+## Sub-features
+
+- `reader-open` `Read` on a card or in the item view opens the reading view.
+- `reader-typeface` the `Typeface` combobox retypesets the article.
+- `reader-exit` Escape or `Back (Esc)` returns to the page under it.
+
+## How to get to it (user POV)
+
+- Hover or focus a link/article card and choose **Read**, or open the item and choose **Read** in its toolbar. Escape leaves.
+
+## Driving it with agent-desktop
+
+Preconditions: an item with readable content — the card's `Read` is `states=disabled` when there is nothing to read (seen on an unextracted seed article). A freshly captured link works once `enrich_url` has run.
+
+- **Open.** `$I ad click "$($I ref button Read)"` on the card or in the item view. The view is `document "<title>"` with `heading "<title>"`, a `site · author · N min read` byline and body paragraphs — there is no `Saved <date>` line (that lives on the item view's Details).
+- **Typeface.** `$I ad expand "$($I ref combobox Typeface)"` (the accessible name is `Typeface`, not `TYPEFACE`), then pick an `option "<name>"`. Options below the fold are `states=offscreen` and refuse a semantic click — the open list takes arrow keys: `ad press down …` then `ad press return --window-id '{window}'`. The picked `option` gains `selected`; `Quiet Classic` is the default. The full list: Quiet Classic, Bookplate, Print Shop, Bold Editorial, Statement, Web Standard, Casual Web.
+- **Exit.** `$I ad press escape --window-id '{window}'` returns to the page under it; the `Back (Esc)` button does the same.
+- **Proof.** The title/byline/body nodes plus `link "Open the page in your browser"` exist under `document`; the combobox `get`/`tree` value changes after a pick; `$I shot`. The choice persists in renderer `localStorage` (`reader-font-set`, `reader-text-size`) — not `app_settings` — so it survives reopening within the run.
+
+## Gotchas
+
+- The `Typeface` combobox opens on `click` (DoDefaultAction) or `expand` — `expand` on an open popup reports `AlreadyInState`/`not_delivered` with `retry:safe`, so re-snapshot rather than retry blindly.
+- On the card, `Read` is `states=disabled` when there is no extracted text; on the item view it is absent entirely — `ref button Read` on the item view means it will open.
+- `Escape`/`Back (Esc)` is a single `history.back()` — the same step `Alt+Left` takes: opened from a card it lands on the grid, opened from the item view it lands on the item view. `Details` in the top bar navigates to the item view instead of closing.

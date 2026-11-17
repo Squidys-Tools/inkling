@@ -98,6 +98,7 @@ const handlers = LibraryRpcs.toLayer(
           }),
         ),
       kindCounts: () => answer(library.kindCounts()),
+      tagCounts: () => answer(library.tagCounts()),
       cards: ({ scope, cursor, limit }) => {
         switch (scope._tag) {
           case "Active":
@@ -178,6 +179,11 @@ const handlers = LibraryRpcs.toLayer(
           Effect.tap(() => publish({ _tag: "ItemsRemoved", ids: [id] })),
           Effect.tap(() => publish({ _tag: "SpacesChanged" })),
         ),
+      deleteArchived: () =>
+        answer(library.deleteArchived()).pipe(
+          Effect.tap((ids) => publish({ _tag: "ItemsRemoved", ids })),
+          Effect.tap(() => publish({ _tag: "SpacesChanged" })),
+        ),
       spaces: () => answer(library.listSpaces()),
       createSpace: (input) =>
         answer(library.createSpace(input)).pipe(
@@ -189,6 +195,8 @@ const handlers = LibraryRpcs.toLayer(
         ),
       deleteSpace: ({ id }) =>
         answer(library.deleteSpace(id)).pipe(Effect.tap(() => publish({ _tag: "SpacesChanged" }))),
+      restoreSpace: ({ id }) =>
+        answer(library.restoreSpace(id)).pipe(Effect.tap(() => publish({ _tag: "SpacesChanged" }))),
       swapSpaces: ({ firstId, secondId }) =>
         answer(library.swapSpacePositions(firstId, secondId)).pipe(
           Effect.tap(() => publish({ _tag: "SpacesChanged" })),

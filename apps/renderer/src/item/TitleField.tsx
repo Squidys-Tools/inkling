@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { useLayoutEffect, useRef, useState } from "react";
 import { color, font, motion, radius, space } from "@inkling/ui/tokens.stylex";
+import { ScrollArea } from "../reader/ScrollArea.tsx";
 import { fitsTitleEdit, nameEnd, singleLine } from "./titleEdit.ts";
 
 // Keep a filename's date and time together in both the title and its editor.
@@ -205,24 +206,31 @@ export function TitleField({
   const [editing, setEditing] = useState<string | null>(null);
   return (
     <h2 {...stylex.props(styles.title)}>
-      {editing !== null ? (
-        <TitleEditor
-          title={editing}
-          finish={(value) => {
-            setEditing(null);
-            if (value && value !== editing) onRename(value);
-          }}
-        />
-      ) : (
-        <button
-          type="button"
-          title="Rename"
-          onClick={() => setEditing(title)}
-          {...stylex.props(styles.reset, styles.button)}
-        >
-          {keepNumbersTogether(title)}
-        </button>
-      )}
+      <ScrollArea
+        // A finished edit or another title starts scrolled to the top.
+        key={editing === null ? title : "editing"}
+        style={[styles.scroll, editing !== null && styles.scrollEditing]}
+        viewportStyle={styles.viewport}
+      >
+        {editing !== null ? (
+          <TitleEditor
+            title={editing}
+            finish={(value) => {
+              setEditing(null);
+              if (value && value !== editing) onRename(value);
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            title="Rename"
+            onClick={() => setEditing(title)}
+            {...stylex.props(styles.reset, styles.button)}
+          >
+            {keepNumbersTogether(title)}
+          </button>
+        )}
+      </ScrollArea>
     </h2>
   );
 }
@@ -230,28 +238,38 @@ export function TitleField({
 const styles = stylex.create({
   title: {
     margin: 0,
-    fontFamily: font.body,
-    fontSize: "26px",
-    lineHeight: "30px",
+    fontFamily: font.display,
+    fontSize: "28px",
+    lineHeight: "32px",
     fontWeight: 600,
-    letterSpacing: "-0.025em",
+    letterSpacing: "-0.02em",
     color: color.ink,
     overflowWrap: "anywhere",
   },
   nowrap: { whiteSpace: "nowrap" },
+  // The padding hangs into the gutter, so the words line up with the rest of the panel.
+  scroll: {
+    width: "fit-content",
+    maxWidth: `calc(100% + 2 * ${space.s2})`,
+    minWidth: "min(96px, 100%)",
+    height: "auto",
+    marginInline: `calc(-1 * ${space.s2})`,
+    marginBlock: "-8px",
+    borderRadius: radius.control,
+  },
+  // The ring sits on the scroll area, so it stays put while a long title scrolls under it.
+  scrollEditing: {
+    backgroundColor: color.sunken,
+    outline: `1px solid ${color.focusRing}`,
+    outlineOffset: "-1px",
+  },
+  viewport: { height: "auto", maxHeight: "136px" },
   reset: {
     display: "block",
     boxSizing: "border-box",
-    width: "fit-content",
-    maxWidth: "calc(100% - 2px)",
-    maxHeight: "136px",
-    overflowY: "auto",
-    scrollbarWidth: "thin",
-    minWidth: "min(96px, 100%)",
+    width: "100%",
     paddingInline: space.s2,
     paddingBlock: space.s2,
-    marginInline: "1px",
-    marginBlock: "-8px",
     transformOrigin: "left center",
     transitionDuration: motion.micro,
     transitionTimingFunction: motion.standard,
@@ -269,14 +287,13 @@ const styles = stylex.create({
     cursor: "text",
     borderRadius: radius.control,
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-    outlineOffset: "3px",
+    outlineOffset: "-2px",
   },
   editor: {
     minHeight: "46px",
     borderRadius: radius.control,
     backgroundColor: color.sunken,
     outline: "none",
-    boxShadow: `0 0 0 1px ${color.focusRing}`,
     whiteSpace: "pre-wrap",
     "::selection": {
       backgroundColor: color.selection,

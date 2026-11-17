@@ -43,7 +43,6 @@ export function installMenu(send: (command: Command) => void) {
         submenu: [
           item("addNote"),
           item("addQuote"),
-          item("addLink"),
           { ...item("addFile"), label: "Add Files…" },
           { type: "separator" },
           { role: "close" },
@@ -55,10 +54,7 @@ export function installMenu(send: (command: Command) => void) {
         submenu: [
           item("search"),
           item("toggleSidebar"),
-          { type: "separator" },
-          { role: "resetZoom" },
-          { role: "zoomIn" },
-          { role: "zoomOut" },
+          // No zoom roles: Cmd+=, - and 0 change the grid's columns in the renderer, as on Windows and Linux.
           { type: "separator" },
           { role: "togglefullscreen" },
           ...(development

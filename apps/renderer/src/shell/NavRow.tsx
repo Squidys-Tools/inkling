@@ -2,11 +2,14 @@ import * as stylex from "@stylexjs/stylex";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
+import { railRow } from "./railRow.stylex.ts";
 
 type RowLook = { active?: boolean; tone?: "nav" | "footer"; compact: boolean };
 
-/** How a selected row is filled: by the sidebar's sliding pill, or by itself. */
-export const slidingSelection = (selected: boolean) => (selected ? "" : undefined);
+/** A selected sidebar row's fill, drawn inside the row so it scrolls and drags with it. */
+export function SelectionFill() {
+  return <span data-selection-fill aria-hidden="true" {...stylex.props(styles.fill)} />;
+}
 
 /** A sidebar destination keeps its name when only its icon is visible. */
 export function NavLink({
@@ -17,14 +20,17 @@ export function NavLink({
   label,
   count,
   slides = false,
+  glide,
   onClick,
   ...link
 }: RowLook & {
   icon: ReactNode;
   label: string;
   count?: ReactNode;
-  /** The sidebar's sliding pill draws this row's selection. */
+  /** Its selection glides from the sidebar's last selected row. */
   slides?: boolean;
+  /** Its id for the sidebar's open and close glide. */
+  glide?: string;
   onClick?: () => void;
 } & Pick<LinkProps, "to" | "params">) {
   return (
@@ -36,15 +42,18 @@ export function NavLink({
       aria-label={compact ? label : undefined}
       title={compact ? label : undefined}
       aria-current={active ? "page" : undefined}
-      data-sidebar-selected={slidingSelection(active && slides)}
+      data-glide={glide}
+      data-sidebar-nav
       {...stylex.props(
         styles.row,
         styles[tone],
         compact && styles.compact,
+        compact && railSquare,
         active && styles.active,
         active && slides && styles.slid,
       )}
     >
+      {active && slides && <SelectionFill />}
       <span {...stylex.props(styles.icon, active && styles.activeIcon)}>{icon}</span>
       {!compact && (
         <span data-sidebar-label {...stylex.props(styles.label)}>
@@ -95,6 +104,7 @@ export function NavButton({
         styles.button,
         styles[tone],
         compact && styles.compact,
+        compact && railSquare,
         active && styles.active,
       )}
     >
@@ -108,18 +118,43 @@ export function NavButton({
   );
 }
 
+// A rail control keeps the column's full click but draws its fill as a square, like a Space's cover:
+// transparent side borders take the 52px column down to the 44px row, and each corner is wider by
+// the same 4px to stay round.
+export const { railSquare } = stylex.create({
+  railSquare: {
+    borderLeftWidth: "4px",
+    borderRightWidth: "4px",
+    borderLeftStyle: "solid",
+    borderRightStyle: "solid",
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    backgroundClip: "padding-box",
+    borderTopLeftRadius: `calc(${radius.control} + 4px) ${radius.control}`,
+    borderTopRightRadius: `calc(${radius.control} + 4px) ${radius.control}`,
+    borderBottomLeftRadius: `calc(${radius.control} + 4px) ${radius.control}`,
+    borderBottomRightRadius: `calc(${radius.control} + 4px) ${radius.control}`,
+  },
+});
+
 const styles = stylex.create({
   row: {
     display: "flex",
     alignItems: "center",
     gap: "10px",
-    height: "32px",
+    // Every rail control is the column's width and this tall, so each takes the same click.
+    height: railRow.height,
     minWidth: 0,
     flexGrow: 1,
     paddingLeft: "18px",
     paddingRight: "10px",
     borderRadius: radius.control,
-    backgroundColor: { default: "transparent", ":hover": color.overlayHover },
+    // Keyboard focus lights the row like a hover; a ring would sit on the selected row too.
+    backgroundColor: {
+      default: "transparent",
+      ":hover": color.overlayHover,
+      ":focus-visible": color.overlayHover,
+    },
     lineHeight: "18px",
     textDecoration: "none",
     cursor: "pointer",
@@ -127,8 +162,7 @@ const styles = stylex.create({
     transitionProperty: "color, background-color, transform",
     transitionDuration: motion.micro,
     transitionTimingFunction: motion.enter,
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-    outlineOffset: "-2px",
+    outline: "none",
   },
   compact: { justifyContent: "center", paddingLeft: 0, paddingRight: 0 },
   button: { width: "100%", borderWidth: 0, fontFamily: font.body, textAlign: "left" },
@@ -139,7 +173,20 @@ const styles = stylex.create({
     backgroundColor: { default: color.overlayActive, ":hover": color.overlayActive },
     color: { default: color.inkStrong, ":hover": color.inkStrong },
   },
-  slid: { backgroundColor: { default: "transparent", ":hover": "transparent" } },
+  slid: {
+    position: "relative",
+    isolation: "isolate",
+    backgroundColor: { default: "transparent", ":hover": "transparent" },
+  },
+  // Under the row's content: z-index -1 inside the row's own stacking context.
+  fill: {
+    position: "absolute",
+    inset: 0,
+    zIndex: -1,
+    borderRadius: radius.control,
+    backgroundColor: color.overlayActive,
+    pointerEvents: "none",
+  },
   icon: { display: "grid", placeItems: "center", width: "16px", flexShrink: 0, color: color.muted },
   activeIcon: { color: color.accent },
   label: {
