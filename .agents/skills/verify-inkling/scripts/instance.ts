@@ -690,6 +690,83 @@ switch (command) {
     process.exit(posted.status === 201 ? 0 : 1);
     break;
   }
+  case "press": {
+    // Windows fallback for combos `ad press` cannot name (`,`, `/`, `?`, `\`, `-`, `=`, `+`):
+    // WScript.Shell SendKeys, with the run's window activated by pid. Same combo syntax as
+    // `ad press` (`press ctrl+comma`, `press shift+?`, `press ctrl+-`). AppActivate must
+    // succeed first — a missed activate would type into whatever window is foreground.
+    if (process.platform !== "win32")
+      fail(
+        "press is the Windows fallback for punctuation keys; `ad press` takes xdotool names on Linux",
+      );
+    const run = currentRun();
+    const combo = rest.join("+").toLowerCase();
+    const tokens = combo.split("+").filter(Boolean);
+    const key = tokens.pop();
+    if (!key) fail("usage: press <combo>  e.g. press ctrl+comma / press shift+? / press ctrl+-");
+    const named: Record<string, string> = {
+      return: "{ENTER}",
+      enter: "{ENTER}",
+      escape: "{ESC}",
+      esc: "{ESC}",
+      tab: "{TAB}",
+      space: " ",
+      backspace: "{BS}",
+      delete: "{DEL}",
+      del: "{DEL}",
+      home: "{HOME}",
+      end: "{END}",
+      pageup: "{PGUP}",
+      pagedown: "{PGDN}",
+      up: "{UP}",
+      down: "{DOWN}",
+      left: "{LEFT}",
+      right: "{RIGHT}",
+      comma: ",",
+      period: ".",
+      slash: "/",
+      backslash: "\\",
+      minus: "-",
+      equal: "=",
+      plus: "{+}",
+      semicolon: ";",
+      quote: "'",
+      backquote: "`",
+      question: "?",
+      exclaim: "!",
+    };
+    for (let n = 1; n <= 12; n++) named[`f${n}`] = `{F${n}}`;
+    const escapeChar = (char: string) => ("+^%~(){}[]".includes(char) ? `{${char}}` : char);
+    const body = named[key] ?? (key.length === 1 ? escapeChar(key) : undefined);
+    if (body === undefined) fail(`press: unknown key "${key}" (a name or a single character)`);
+    const mods = new Set(tokens);
+    for (const mod of mods)
+      if (!["ctrl", "control", "shift", "alt"].includes(mod))
+        fail(
+          `press: modifier "${mod}" unsupported (ctrl/shift/alt only; cmd/win has no SendKeys form)`,
+        );
+    const keys =
+      (mods.has("ctrl") || mods.has("control") ? "^" : "") +
+      (mods.has("alt") ? "%" : "") +
+      (mods.has("shift") ? "+" : "") +
+      body;
+    if (!liveOwned().some((p) => p.pid === run.electronPid))
+      fail("this run's app is not running; press would type into the foreground window");
+    const id = findWindowId(run);
+    if (!id) fail("no window for this run's electron pid");
+    const focused = agentDesktop(run, ["focus-window", "--window-id", id]);
+    if (focused.status !== 0)
+      fail(`press: focus-window failed: ${focused.stdout}${focused.stderr}`);
+    const script =
+      `Start-Sleep -Milliseconds 150;` +
+      `$w=New-Object -ComObject WScript.Shell;` +
+      `$w.SendKeys('${keys.replace(/'/g, "''")}')`;
+    const out = spawnSync("powershell", ["-NoProfile", "-Command", script], { encoding: "utf8" });
+    if (out.status !== 0)
+      fail(`press: SendKeys failed (${out.status}): ${out.stderr || out.stdout}`);
+    console.log(JSON.stringify({ pressed: keys }));
+    break;
+  }
   case "cleanup": {
     try {
       const result = await cleanDev();
@@ -701,7 +778,7 @@ switch (command) {
   }
   default:
     console.error(
-      "usage: instance.ts launch [--empty] [--skip-build] [--link <inkling://capture?url=...>] | launch --installer [--fail] | doctor | progress | window | windows | ref <role> <name> [--contains] [--in <ref>] [--window <id>] | tree [--window <id>] [snapshot args] | ad <args> | shot <name> | db <sql> | capture <url> | cleanup",
+      "usage: instance.ts launch [--empty] [--skip-build] [--link <inkling://capture?url=...>] | launch --installer [--fail] | doctor | progress | window | windows | ref <role> <name> [--contains] [--in <ref>] [--window <id>] | tree [--window <id>] [snapshot args] | ad <args> | press <combo> | shot <name> | db <sql> | capture <url> | cleanup",
     );
     process.exit(64);
 }
