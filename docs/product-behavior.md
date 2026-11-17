@@ -32,7 +32,7 @@ Background jobs read an image's text with OCR, take its color palette for the it
 
 ### Notes and quotes
 
-A quick note opens at once and stays lightweight. A note can expand into Focus Mode for longer writing or reading.
+A quick note opens at once and stays lightweight. Opening a saved note opens its text as a page, edited in place and written only on Save.
 
 A quote keeps its source URL when it has one and shows as a quote card.
 
@@ -88,7 +88,7 @@ Opening a card grows it into the library frame, and the item view replaces the l
 
 Articles open in a distraction-free reader with clean typography, images, headings and links, code blocks, footnotes where available, safe supported video embeds, and an original source link at the bottom.
 
-Focus Mode is a sparse writing view with headings, bold text, links and interactive todos, in the same WYSIWYG Markdown editor as notes.
+A note's page is a sparse writing view with headings, bold text, links and interactive todos, in a WYSIWYG Markdown editor.
 
 ## Onboarding
 

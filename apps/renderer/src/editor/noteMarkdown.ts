@@ -1,7 +1,8 @@
-import type { Extensions } from "@tiptap/core";
+import type { EditorEvents, Extensions } from "@tiptap/core";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Markdown } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
+import { normalizeNoteBody } from "./notes.ts";
 
 /** A class name for each node the editor draws. The editor passes StyleX classes; parsing needs none. */
 export type NoteClasses = {
@@ -75,4 +76,26 @@ export function noteExtensions(classes?: NoteClasses): Extensions {
     taskItem.configure({ nested: true }),
     Markdown.configure({ markedOptions: { gfm: true } }),
   ];
+}
+
+/**
+ * Whether the note differs, after each edit, from the text it opened with (or
+ * `saved`, when given) or was last saved as, both as the editor writes them.
+ */
+export function noteChanges(saved: string | null = null) {
+  return {
+    update: ({ editor, transaction }: EditorEvents["update"]) => {
+      const write = (doc: typeof transaction.before) =>
+        normalizeNoteBody(editor.markdown?.serialize(doc.toJSON()) ?? "");
+      // Autofocus can add a trailing paragraph, and an update, before TipTap's
+      // `create` event, so the opening text is the document before the first update.
+      saved ??= write(transaction.before);
+      const markdown = write(editor.state.doc);
+      return { markdown, changed: markdown !== saved };
+    },
+    save: (markdown: string) => {
+      saved = markdown;
+    },
+    opening: () => saved,
+  };
 }

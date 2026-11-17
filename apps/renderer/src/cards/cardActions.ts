@@ -27,6 +27,11 @@ export function retryProcessing(jobId: string) {
 }
 
 export function openItem(view: CardView, navigate: Navigate) {
+  // A note opens straight into its text; its details are one button away.
+  if (view.kind === "Note" && !view.archived) {
+    void navigate({ to: "/item/$id/write", params: { id: view.id } });
+    return;
+  }
   const from = location.href;
   void prepareItemOpen(view.id).then((current) => {
     // The card may scroll into view first: a route change in that time cancels the open.

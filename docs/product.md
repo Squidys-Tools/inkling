@@ -32,7 +32,7 @@ The primary experience is a Windows desktop application used during browsing, re
 - Render specialized card types rather than generic bookmarks.
 - Provide exact, OCR, structured, semantic, and visual search over local content.
 - Provide manual and automatically updated Spaces.
-- Provide article reading and Focus Mode.
+- Provide article reading and a full-page note editor.
 - Process locally and support CPU-only operation.
 
 ## Brand Commitments
