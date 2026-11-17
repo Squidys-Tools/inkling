@@ -98,6 +98,7 @@ const handlers = LibraryRpcs.toLayer(
           }),
         ),
       kindCounts: () => answer(library.kindCounts()),
+      tagCounts: () => answer(library.tagCounts()),
       cards: ({ scope, cursor, limit }) => {
         switch (scope._tag) {
           case "Active":

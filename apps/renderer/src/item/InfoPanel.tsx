@@ -118,8 +118,7 @@ export function InfoPanel({
       {processing && (
         <ProcessingRows processing={processing} onPaper={false} onRetry={retryProcessing} />
       )}
-      <section {...stylex.props(styles.card)}>
-        <h3 {...stylex.props(styles.sectionTitle)}>Spaces &amp; tags</h3>
+      <section aria-label="Spaces and tags">
         <TagList tags={item.tags} spaces={filedIn} onAddTag={onAddTag} onRemoveTag={onRemoveTag} />
       </section>
       <section>
@@ -213,16 +212,6 @@ const styles = stylex.create({
     lineHeight: "20px",
     color: color.inkSoft,
     overflowWrap: "anywhere",
-  },
-  card: {
-    paddingTop: "11px",
-    paddingInline: space.s3,
-    paddingBottom: space.s3,
-    borderRadius: "10px",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: color.border,
-    backgroundColor: color.surface,
   },
   sectionTitle: {
     marginTop: 0,
