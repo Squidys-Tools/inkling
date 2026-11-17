@@ -282,7 +282,7 @@ export function ZoomableMedia({
         )}
       </div>
       {ready && (
-        <Glass style={video ? [styles.pill, styles.pillTop] : styles.pill}>
+        <Glass style={video ? [styles.pill, styles.pillCorner] : styles.pill}>
           <SizeStepper
             label="Zoom"
             percent={Math.round(zoom * 100)}
@@ -353,6 +353,6 @@ const styles = stylex.create({
     padding: space.s1,
     borderRadius: radius.round,
   },
-  // A video's native controls run along the bottom, so its pill sits at the top.
-  pillTop: { top: space.s4, bottom: "auto" },
+  // A video's native controls run along its foot, so its pill keeps to the stage's corner beside them.
+  pillCorner: { left: "auto", right: space.s4, translate: "none" },
 });

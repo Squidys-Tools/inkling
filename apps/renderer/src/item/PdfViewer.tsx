@@ -1,16 +1,14 @@
 import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import ChevronLeftIcon from "@hugeicons/core-free-icons/ChevronLeftIcon";
-import ChevronRightIcon from "@hugeicons/core-free-icons/ChevronRightIcon";
-import MinusSignIcon from "@hugeicons/core-free-icons/MinusSignIcon";
-import PlusSignIcon from "@hugeicons/core-free-icons/PlusSignIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
-import { IconButton } from "@inkling/ui";
+import { Button, Glass, IconButton } from "@inkling/ui";
 import { color, font, itemColor, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { useHotkeys } from "@tanstack/react-hotkeys";
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ScrollArea } from "../reader/ScrollArea.tsx";
+import { SizeStepper } from "./SizeStepper.tsx";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -19,14 +17,21 @@ type ViewerState =
   | { phase: "error"; message: string }
   | { phase: "ready"; document: PDFDocumentProxy };
 
+type Size = { width: number; height: number };
+
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.25;
+// Page column layout in CSS pixels; `tops` below depends on these matching the styles.
+const PAD_TOP = 24;
+const PAD_X = 32;
+const GAP = 18;
+const THUMB_WIDTH = 40;
 const clampZoom = (value: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 const failure = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
 
-/** Reads a saved PDF page by page on the item stage. */
+/** Reads a saved PDF on the item stage: every page in one scrolling column, with a page rail. */
 export function PdfViewer({
   url,
   title,
@@ -37,13 +42,16 @@ export function PdfViewer({
   onClose: () => void;
 }) {
   const [state, setState] = useState<ViewerState>({ phase: "loading", percent: null });
-  const [pageNumber, setPageNumber] = useState(1);
+  // Each page's size at scale 1, read once on load so the column never reflows while reading.
+  const [sizes, setSizes] = useState<Size[]>([]);
   // null is fit to width.
   const [zoom, setZoom] = useState<number | null>(null);
-  const [renderedScale, setRenderedScale] = useState(1);
   const [width, setWidth] = useState(0);
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [current, setCurrent] = useState(1);
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  const [rail, setRail] = useState<HTMLElement | null>(null);
+  // Where the reader is, as a page and how far into it, so a zoom keeps them there.
+  const anchor = useRef<{ index: number; within: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,15 +60,23 @@ export function PdfViewer({
       if (!cancelled && total)
         setState({ phase: "loading", percent: Math.round((loaded / total) * 100) });
     };
-    task.promise.then(
-      (document) => {
-        if (!cancelled) setState({ phase: "ready", document });
-      },
-      (error: unknown) => {
+    task.promise
+      .then(async (document) => {
+        const pages = Array.from({ length: document.numPages }, (_, at) => at + 1);
+        const read = await Promise.all(
+          pages.map(async (number) => {
+            const { width, height } = (await document.getPage(number)).getViewport({ scale: 1 });
+            return { width, height };
+          }),
+        );
+        if (cancelled) return;
+        setSizes(read);
+        setState({ phase: "ready", document });
+      })
+      .catch((error: unknown) => {
         if (!cancelled)
           setState({ phase: "error", message: failure(error, "Couldn’t open this PDF.") });
-      },
-    );
+      });
     return () => {
       cancelled = true;
       void task.destroy();
@@ -68,139 +84,114 @@ export function PdfViewer({
   }, [url]);
 
   useEffect(() => {
-    const scroller = scrollerRef.current;
     if (!scroller) return;
     const observer = new ResizeObserver(([entry]) => {
       if (entry) setWidth(entry.contentRect.width);
     });
     observer.observe(scroller);
     return () => observer.disconnect();
-  }, []);
+  }, [scroller]);
 
-  const pageCount = state.phase === "ready" ? state.document.numPages : 0;
-  const page = pageCount > 0 ? Math.min(pageNumber, pageCount) : pageNumber;
+  const pageCount = sizes.length;
+  // Fit is to the widest page, so a landscape page in a portrait document is not cut off.
+  const widest = Math.max(0, ...sizes.map((size) => size.width));
+  const fit = widest > 0 && width > 0 ? clampZoom((width - PAD_X * 2) / widest) : 1;
+  const scale = zoom ?? fit;
+  const heights = sizes.map((size) => Math.floor(size.height * scale));
+  const tops: number[] = [];
+  heights.reduce((top, height, index) => {
+    tops[index] = top;
+    return top + height + GAP;
+  }, PAD_TOP);
+
+  const follow = () => {
+    if (!scroller || pageCount === 0) return;
+    const line = scroller.scrollTop + scroller.clientHeight / 3;
+    let index = 0;
+    while (index + 1 < pageCount && tops[index + 1]! <= line) index++;
+    // A short last page never reaches the line, so the bottom of the scroll is the last page.
+    const atEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
+    if (scroller.scrollTop > 0 && atEnd) index = pageCount - 1;
+    setCurrent(index + 1);
+    anchor.current = {
+      index,
+      within: (scroller.scrollTop - tops[index]!) / Math.max(1, heights[index]!),
+    };
+  };
+
+  // A new scale moves every page, so put the reader back where they were.
+  useLayoutEffect(() => {
+    const at = anchor.current;
+    if (!scroller || !at || tops[at.index] === undefined) return;
+    scroller.scrollTop = tops[at.index]! + at.within * heights[at.index]!;
+    scroller.scrollLeft = (scroller.scrollWidth - scroller.clientWidth) / 2;
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- runs only when the scale changes; tops and heights follow it.
+  }, [scale, scroller]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (state.phase !== "ready" || !canvas || width === 0) return;
-    const drawing = new AbortController();
-    const { signal } = drawing;
-    void (async () => {
-      const pdfPage = await state.document.getPage(page);
-      if (signal.aborted) return;
-      const scale = zoom ?? clampZoom(width / pdfPage.getViewport({ scale: 1 }).width);
-      const viewport = pdfPage.getViewport({ scale });
-      const ratio = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(viewport.width * ratio);
-      canvas.height = Math.floor(viewport.height * ratio);
-      canvas.style.width = `${Math.floor(viewport.width)}px`;
-      canvas.style.height = `${Math.floor(viewport.height)}px`;
-      const task = pdfPage.render({
-        canvas,
-        viewport,
-        transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
-      });
-      signal.addEventListener("abort", () => task.cancel(), { once: true });
-      try {
-        await task.promise;
-        if (!signal.aborted) setRenderedScale(scale);
-      } catch (error) {
-        if (!(error instanceof Error && error.name === "RenderingCancelledException")) throw error;
-      }
-    })().catch((error: unknown) => {
-      if (!signal.aborted)
-        setState({ phase: "error", message: failure(error, "Couldn’t draw this page.") });
-    });
-    return () => drawing.abort();
-  }, [state, page, zoom, width]);
+    const thumb = rail?.querySelector<HTMLElement>(`[data-page="${current}"]`);
+    if (!rail || !thumb) return;
+    if (thumb.offsetTop < rail.scrollTop) rail.scrollTop = thumb.offsetTop - GAP;
+    else if (thumb.offsetTop + thumb.offsetHeight > rail.scrollTop + rail.clientHeight)
+      rail.scrollTop = thumb.offsetTop + thumb.offsetHeight - rail.clientHeight + GAP;
+  }, [current, rail]);
 
-  const turn = (delta: number) =>
-    setPageNumber(Math.min(Math.max(1, page + delta), Math.max(1, pageCount)));
+  const goTo = (page: number) => {
+    const next = Math.min(Math.max(1, page), Math.max(1, pageCount));
+    if (scroller && tops[next - 1] !== undefined)
+      scroller.scrollTop = tops[next - 1]! - PAD_TOP / 2;
+    setCurrent(next);
+  };
   // Arrow keys a focused field uses stay with it.
   useHotkeys(
     [
-      { hotkey: "ArrowLeft", callback: () => turn(-1) },
-      { hotkey: "PageUp", callback: () => turn(-1) },
-      { hotkey: "ArrowRight", callback: () => turn(1) },
-      { hotkey: "PageDown", callback: () => turn(1) },
+      { hotkey: "ArrowLeft", callback: () => goTo(current - 1) },
+      { hotkey: "PageUp", callback: () => goTo(current - 1) },
+      { hotkey: "ArrowRight", callback: () => goTo(current + 1) },
+      { hotkey: "PageDown", callback: () => goTo(current + 1) },
     ],
     { ignoreDefaultPrevented: true },
   );
 
+  const resize = (next: number) => setZoom(clampZoom(next));
+  const pages = sizes.map((size, index) => ({ number: index + 1, size }));
+  const pdf = state.phase === "ready" ? state.document : null;
+  const railed = pdf !== null && pageCount > 1;
+
   return (
     <section aria-label={title} {...stylex.props(styles.viewer)}>
-      <header {...stylex.props(styles.bar)}>
-        <span title={title} {...stylex.props(styles.title)}>
-          {title}
-        </span>
-        <div {...stylex.props(styles.group)}>
-          <IconButton
-            label="Zoom out"
-            icon={<HugeiconsIcon icon={MinusSignIcon} size={15} />}
-            style={styles.small}
-            onClick={() => setZoom((current) => clampZoom((current ?? renderedScale) - ZOOM_STEP))}
-          />
-          <span {...stylex.props(styles.readout, styles.zoomReadout)}>
-            {zoom === null
-              ? `Fit · ${Math.round(renderedScale * 100)}%`
-              : `${Math.round(zoom * 100)}%`}
-          </span>
-          <IconButton
-            label="Zoom in"
-            icon={<HugeiconsIcon icon={PlusSignIcon} size={15} />}
-            style={styles.small}
-            onClick={() => setZoom((current) => clampZoom((current ?? renderedScale) + ZOOM_STEP))}
-          />
-          <button type="button" onClick={() => setZoom(null)} {...stylex.props(styles.fit)}>
-            Fit
-          </button>
-        </div>
-        <div {...stylex.props(styles.group)}>
-          <IconButton
-            label="Previous page"
-            icon={<HugeiconsIcon icon={ChevronLeftIcon} size={15} />}
-            style={styles.small}
-            disabled={page <= 1}
-            onClick={() => turn(-1)}
-          />
-          <span {...stylex.props(styles.readout)}>
-            {state.phase === "ready" ? (
-              <>
-                <input
-                  type="number"
-                  min={1}
-                  max={pageCount}
-                  value={page}
-                  aria-label="Page number"
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    if (Number.isFinite(next) && next >= 1)
-                      setPageNumber(Math.min(Math.floor(next), pageCount));
-                  }}
-                  {...stylex.props(styles.pageInput)}
-                />
-                {` / ${pageCount}`}
-              </>
-            ) : (
-              "– / –"
-            )}
-          </span>
-          <IconButton
-            label="Next page"
-            icon={<HugeiconsIcon icon={ChevronRightIcon} size={15} />}
-            style={styles.small}
-            disabled={state.phase !== "ready" || page >= pageCount}
-            onClick={() => turn(1)}
-          />
-        </div>
-        <IconButton
-          label="Close PDF"
-          icon={<HugeiconsIcon icon={Cancel01Icon} size={16} />}
-          style={styles.small}
-          onClick={onClose}
-        />
-      </header>
-      <div ref={scrollerRef} {...stylex.props(styles.scroller)}>
+      {railed && (
+        <nav ref={setRail} aria-label="Pages" {...stylex.props(styles.rail)}>
+          {pages.map(({ number, size }) => (
+            <button
+              key={number}
+              type="button"
+              data-page={number}
+              aria-label={`Page ${number}`}
+              aria-current={current === number ? "page" : undefined}
+              onClick={() => goTo(number)}
+              {...stylex.props(
+                styles.thumb,
+                styles.box(THUMB_WIDTH, Math.round((size.height / size.width) * THUMB_WIDTH)),
+                current === number && styles.thumbCurrent,
+              )}
+            >
+              <PageCanvas
+                document={pdf}
+                number={number}
+                scale={THUMB_WIDTH / size.width}
+                root={rail}
+              />
+            </button>
+          ))}
+        </nav>
+      )}
+      <ScrollArea
+        viewportRef={setScroller}
+        onScroll={follow}
+        style={[styles.scroller, railed && styles.besideRail]}
+        viewportStyle={styles.viewport}
+      >
         {state.phase === "loading" && (
           <p role="status" {...stylex.props(styles.status)}>
             {state.percent === null ? "Loading…" : `Loading ${state.percent}%`}
@@ -211,118 +202,240 @@ export function PdfViewer({
             {state.message}
           </p>
         )}
-        <canvas ref={canvasRef} hidden={state.phase !== "ready"} {...stylex.props(styles.page)} />
-      </div>
+        {pdf && width > 0 && (
+          <div {...stylex.props(styles.column)}>
+            {pages.map(({ number, size }) => (
+              <div
+                key={number}
+                aria-label={`Page ${number} of ${pageCount}`}
+                role="img"
+                {...stylex.props(
+                  styles.page,
+                  styles.box(Math.floor(size.width * scale), heights[number - 1]!),
+                )}
+              >
+                <PageCanvas document={pdf} number={number} scale={scale} root={scroller} />
+              </div>
+            ))}
+          </div>
+        )}
+      </ScrollArea>
+      {pdf && (
+        <>
+          <Glass style={[styles.pill, styles.controls]}>
+            <SizeStepper
+              label="Zoom"
+              percent={Math.round(scale * 100)}
+              canShrink={scale > MIN_ZOOM}
+              canGrow={scale < MAX_ZOOM}
+              onShrink={() => resize(scale - ZOOM_STEP)}
+              onGrow={() => resize(scale + ZOOM_STEP)}
+            />
+            {zoom !== null && (
+              <Button style={styles.fit} onClick={() => setZoom(null)}>
+                Fit
+              </Button>
+            )}
+            <span aria-hidden="true" {...stylex.props(styles.divider)} />
+            <IconButton
+              label="Close PDF"
+              icon={<HugeiconsIcon icon={Cancel01Icon} size={14} />}
+              style={styles.round}
+              onClick={onClose}
+            />
+          </Glass>
+          <Glass
+            aria-hidden="true"
+            style={[styles.pill, styles.count, railed && styles.countBesideRail]}
+          >
+            Page {current} <span {...stylex.props(styles.of)}>of {pageCount}</span>
+          </Glass>
+        </>
+      )}
     </section>
   );
 }
 
+/**
+ * One page drawn into a canvas while it is near the visible part of `root`.
+ * Far pages hold no canvas, so a long PDF keeps only a few drawn at once.
+ */
+function PageCanvas({
+  document,
+  number,
+  scale,
+  root,
+}: {
+  document: PDFDocumentProxy;
+  number: number;
+  scale: number;
+  root: HTMLElement | null;
+}) {
+  const [near, setNear] = useState(false);
+  const [holder, setHolder] = useState<HTMLSpanElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!holder || !root) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setNear(entry?.isIntersecting ?? false),
+      {
+        root,
+        rootMargin: "50% 0px",
+      },
+    );
+    observer.observe(holder);
+    return () => observer.disconnect();
+  }, [holder, root]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!near || !canvas) return;
+    const drawing = new AbortController();
+    const { signal } = drawing;
+    void (async () => {
+      const page = await document.getPage(number);
+      if (signal.aborted) return;
+      const viewport = page.getViewport({ scale });
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(viewport.width * ratio);
+      canvas.height = Math.floor(viewport.height * ratio);
+      const task = page.render({
+        canvas,
+        viewport,
+        transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
+      });
+      signal.addEventListener("abort", () => task.cancel(), { once: true });
+      await task.promise;
+    })().catch((error: unknown) => {
+      // A cancelled draw is a page that scrolled away or changed scale; the next draw replaces it.
+      if (!(error instanceof Error && error.name === "RenderingCancelledException"))
+        console.warn(`Couldn’t draw page ${number}`, error);
+    });
+    return () => drawing.abort();
+  }, [near, document, number, scale]);
+
+  return (
+    <span ref={setHolder} {...stylex.props(styles.holder)}>
+      {near && <canvas ref={canvasRef} {...stylex.props(styles.canvas)} />}
+    </span>
+  );
+}
+
+const RAIL = "64px";
+
 const styles = stylex.create({
   viewer: {
-    display: "flex",
-    flexDirection: "column",
+    position: "relative",
     width: "100%",
     height: "100%",
     minHeight: 0,
-  },
-  bar: {
-    display: "flex",
-    alignItems: "center",
-    gap: space.s3,
-    paddingBlock: space.s2,
-    paddingInline: space.s3,
-    borderBottomWidth: 1,
-    borderBottomStyle: "solid",
-    borderBottomColor: color.border,
-    backgroundColor: color.surface,
-  },
-  title: {
-    flexGrow: 1,
-    minWidth: 0,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    fontFamily: font.quote,
-    fontSize: text.md,
-    color: color.ink,
-  },
-  group: {
-    display: "flex",
-    alignItems: "center",
-    gap: space.s1,
-    padding: "3px",
-    borderRadius: radius.control,
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: color.border,
-    backgroundColor: color.sunken,
-  },
-  small: { width: "26px", height: "26px" },
-  readout: {
-    display: "flex",
-    alignItems: "center",
-    gap: "5px",
     fontFamily: font.body,
-    fontSize: text.xs,
-    color: color.muted,
   },
-  zoomReadout: { minWidth: "74px", justifyContent: "center" },
-  fit: {
-    marginLeft: "2px",
-    padding: 0,
-    borderWidth: 0,
-    backgroundColor: "transparent",
-    fontSize: text.xs,
-    color: color.accentStrong,
-    textDecoration: "underline",
-    textUnderlineOffset: "3px",
-    cursor: "pointer",
+  rail: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: RAIL,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "10px",
+    paddingBlock: space.s3,
+    overflowY: "auto",
+    scrollbarWidth: "none",
+    borderRightWidth: 1,
+    borderRightStyle: "solid",
+    borderRightColor: color.border,
+    backgroundColor: color.glass,
   },
-  pageInput: {
-    width: "42px",
-    paddingBlock: space.s1,
-    paddingInline: "5px",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: { default: "transparent", ":focus": color.accent },
-    borderRadius: "6px",
-    backgroundColor: "transparent",
-    color: color.ink,
-    fontFamily: font.body,
-    fontSize: text.xs,
-    textAlign: "right",
-    outline: "none",
-    appearance: "textfield",
-    "::-webkit-inner-spin-button": { appearance: "none", margin: 0 },
-    "::-webkit-outer-spin-button": { appearance: "none", margin: 0 },
-  },
-  scroller: {
+  thumb: {
     position: "relative",
-    flexGrow: 1,
-    minHeight: 0,
-    overflow: "auto",
-    display: "grid",
-    justifyItems: "center",
-    alignItems: "start",
-    paddingTop: "26px",
-    paddingInline: space.s5,
-    paddingBottom: space.s10,
-    backgroundColor: color.raised,
+    flexShrink: 0,
+    padding: 0,
+    overflow: "hidden",
+    borderWidth: 0,
+    borderRadius: "2px",
+    backgroundColor: itemColor.pdfPaper,
+    opacity: { default: 0.55, ":hover": 0.85 },
+    cursor: "pointer",
+    outlineWidth: 1,
+    outlineStyle: "solid",
+    outlineColor: { default: color.border, ":focus-visible": color.accent },
+    outlineOffset: 0,
+    transitionProperty: "opacity",
+    transitionDuration: "120ms",
   },
+  thumbCurrent: {
+    opacity: { default: 1, ":hover": 1 },
+    outlineWidth: 2,
+    outlineColor: color.accentStrong,
+    outlineOffset: "2px",
+  },
+  scroller: { position: "absolute", inset: 0, height: "auto" },
+  viewport: { overflowX: "auto", outline: "none" },
+  besideRail: { left: RAIL },
+  column: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: `${GAP}px`,
+    boxSizing: "border-box",
+    width: "max-content",
+    minWidth: "100%",
+    paddingTop: `${PAD_TOP}px`,
+    paddingInline: `${PAD_X}px`,
+    paddingBottom: "72px",
+  },
+  page: {
+    position: "relative",
+    flexShrink: 0,
+    overflow: "hidden",
+    borderRadius: "3px",
+    backgroundColor: itemColor.pdfPaper,
+    boxShadow: `0 18px 50px ${color.shadow}`,
+  },
+  box: (width: number, height: number) => ({ width: `${width}px`, height: `${height}px` }),
+  holder: { position: "absolute", inset: 0 },
+  canvas: { display: "block", width: "100%", height: "100%" },
   status: {
     position: "absolute",
     inset: 0,
     margin: 0,
     display: "grid",
     placeItems: "center",
-    fontFamily: font.body,
     fontSize: text.sm,
     color: color.muted,
   },
   error: { color: color.danger },
-  page: {
-    borderRadius: "4px",
-    backgroundColor: itemColor.pdfPaper,
-    boxShadow: `0 8px 30px ${color.shadow}`,
+  pill: {
+    position: "absolute",
+    zIndex: 1,
+    display: "flex",
+    alignItems: "center",
+    borderRadius: radius.round,
   },
+  controls: { top: space.s4, right: space.s4, gap: "2px", padding: space.s1 },
+  fit: { height: "28px", paddingInline: "10px", borderRadius: radius.round, fontSize: text.sm },
+  divider: {
+    width: "1px",
+    height: "16px",
+    marginInline: "4px",
+    backgroundColor: color.glassRim,
+  },
+  round: { width: "28px", height: "28px", borderRadius: radius.round },
+  count: {
+    bottom: space.s4,
+    left: "50%",
+    translate: "-50% 0",
+    height: "30px",
+    paddingInline: space.s3,
+    fontSize: text.sm,
+    color: color.ink,
+    fontVariantNumeric: "tabular-nums",
+    pointerEvents: "none",
+  },
+  countBesideRail: { left: `calc(50% + ${RAIL} / 2)` },
+  of: { marginLeft: "4px", color: color.muted },
 });

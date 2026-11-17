@@ -2,6 +2,7 @@ import PlayIcon from "@hugeicons/core-free-icons/PlayIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { cardColor, color, font, motion, radius, text } from "@inkling/ui/tokens.stylex";
+import { posterMarker } from "../markers.stylex.ts";
 
 export const FRAME_ALLOW =
   "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
@@ -13,12 +14,15 @@ export const FRAME_ALLOW =
 export function PlayPoster({
   label,
   provider,
+  title,
   image,
   onPlay,
   style,
 }: {
   label: string;
   provider: string;
+  /** Shown over the poster's foot, beside the play button. */
+  title?: string;
   image?: string;
   onPlay: () => void;
   style?: stylex.StyleXStyles;
@@ -28,7 +32,7 @@ export function PlayPoster({
       type="button"
       aria-label={label}
       onClick={onPlay}
-      {...stylex.props(styles.poster, style)}
+      {...stylex.props(posterMarker, styles.poster, style)}
     >
       {image && (
         <img
@@ -39,11 +43,15 @@ export function PlayPoster({
           {...stylex.props(styles.image)}
         />
       )}
-      <span aria-hidden="true" {...stylex.props(styles.play)}>
-        <HugeiconsIcon icon={PlayIcon} size={21} />
-      </span>
-      <span aria-hidden="true" {...stylex.props(styles.provider)}>
-        {provider}
+      <span aria-hidden="true" {...stylex.props(styles.foot)}>
+        <span {...stylex.props(styles.caption)}>
+          <span {...stylex.props(styles.provider)}>{provider}</span>
+          {title && <span {...stylex.props(styles.title)}>{title}</span>}
+        </span>
+        <span {...stylex.props(styles.play)}>
+          <HugeiconsIcon icon={PlayIcon} size={15} />
+          Play on {provider}
+        </span>
       </span>
     </button>
   );
@@ -64,33 +72,61 @@ const styles = stylex.create({
     width: "100%",
     height: "100%",
     objectFit: "cover",
-    opacity: 0.88,
   },
-  play: {
+  // Darkens only the foot, so the caption reads on a bright poster.
+  foot: {
     position: "absolute",
-    inset: 0,
-    margin: "auto",
-    display: "grid",
-    placeItems: "center",
-    width: "54px",
-    height: "54px",
-    borderRadius: radius.round,
-    backgroundColor: color.glass,
-    color: color.inkStrong,
-    boxShadow: `0 10px 28px ${color.shadow}, inset 0 0 0 1px ${color.glassEdge}`,
-    transitionProperty: "transform",
-    transitionDuration: motion.micro,
-    transform: { default: "scale(1)", ":hover": "scale(1.08)" },
+    insetInline: 0,
+    bottom: 0,
+    display: "flex",
+    alignItems: "flex-end",
+    gap: "12px",
+    paddingTop: "56px",
+    paddingInline: "16px",
+    paddingBottom: "14px",
+    backgroundImage: `linear-gradient(transparent, ${color.scrim})`,
+    textAlign: "left",
+    pointerEvents: "none",
   },
+  caption: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "4px" },
   provider: {
-    position: "absolute",
-    bottom: "11px",
-    left: "12px",
-    fontFamily: font.body,
+    fontFamily: font.mono,
     fontSize: text.xs,
     letterSpacing: "0.13em",
     textTransform: "uppercase",
     color: cardColor.quoteKicker,
-    pointerEvents: "none",
+  },
+  title: {
+    overflow: "hidden",
+    fontFamily: font.display,
+    fontSize: "16px",
+    fontWeight: 500,
+    lineHeight: "21px",
+    color: color.inkStrong,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  play: {
+    flexShrink: 0,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "7px",
+    height: "34px",
+    paddingLeft: "11px",
+    paddingRight: "14px",
+    borderRadius: radius.round,
+    backgroundColor: color.glass,
+    boxShadow: `0 10px 28px ${color.shadow}, inset 0 0 0 1px ${color.glassEdge}`,
+    color: color.inkStrong,
+    fontFamily: font.display,
+    fontSize: text.sm,
+    fontWeight: 500,
+    whiteSpace: "nowrap",
+    transitionProperty: "transform",
+    transitionDuration: motion.micro,
+    transform: {
+      default: "scale(1)",
+      [stylex.when.ancestor(":hover", posterMarker)]: "scale(1.04)",
+    },
   },
 });

@@ -25,6 +25,7 @@ export function VideoPlayer({ item }: { item: DescribedItem }) {
       <PlayPoster
         label={`Play video: ${item.title}`}
         provider={providerLabel(item.video.provider)}
+        title={item.title}
         image={item.image}
         onPlay={() => setPlaying(true)}
         style={styles.fill}
