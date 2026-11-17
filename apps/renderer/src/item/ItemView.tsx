@@ -136,15 +136,27 @@ function ItemBody({
       },
       { root: scroller, rootMargin: "0px 0px -8px 0px" },
     );
+    // The page ends with Similar and no filler, so a short section can't scroll up to the
+    // fold; the end of the scroll counts as having reached it.
+    let inHalf = false;
+    const settle = () => {
+      const atEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
+      setSection(inHalf || atEnd ? "similar" : "info");
+    };
     const reached = new IntersectionObserver(
-      (entries) => setSection(entries.some((entry) => entry.isIntersecting) ? "similar" : "info"),
+      (entries) => {
+        inHalf = entries.some((entry) => entry.isIntersecting);
+        settle();
+      },
       { root: scroller, rootMargin: "0px 0px -50% 0px" },
     );
     approached.observe(similar);
     reached.observe(similar);
+    scroller.addEventListener("scroll", settle, { passive: true });
     return () => {
       approached.disconnect();
       reached.disconnect();
+      scroller.removeEventListener("scroll", settle);
     };
   }, [scroller, similar]);
 
@@ -467,16 +479,15 @@ const styles = stylex.create({
   },
   // The pinned band is a swatch (22px) with s3 above and below it.
   underPalette: { paddingTop: `calc(${space.s3} + 22px + ${space.s5})` },
-  // Tall enough that Similar can scroll all the way up to the top.
+  // No filler: the page scrolls only as far as Similar's own content, never up under the top fade.
   similar: {
     gridColumn: 1,
     gridRow: 3,
     minWidth: 0,
-    minHeight: "100cqh",
     paddingTop: space.s5,
     paddingBottom: space.s5,
   },
-  similarPinned: { minHeight: `calc(100cqh - 22px - 2 * ${space.s3})`, paddingTop: space.s2 },
+  similarPinned: { paddingTop: space.s2 },
   status: {
     margin: 0,
     paddingTop: space.s5,
