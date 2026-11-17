@@ -1,4 +1,5 @@
-import type { Job, LibraryCard, Space } from "@inkling/contracts";
+import type { Job, Space } from "@inkling/contracts";
+import type { XPost, XPostEntity } from "@inkling/contracts/jobs";
 
 // The demo library's records as data, with file names instead of bundler URLs:
 // the web preview (./seed.ts) projects them into cards, and tools/dev writes
@@ -23,9 +24,228 @@ export type SeedItem = {
   /** Stagger slot: createdAt = base - floor(index / 2) days. */
   index: number;
   metadata?: Record<string, unknown>;
+  /** Stored as `metadata.social`; its picture paths name seed files, as `file` does. */
+  xPost?: XPost;
 };
 
+// Invented accounts and posts; none of these are real people. Pictures reuse the seed's photos.
+const linked = (
+  text: string,
+  ...spans: [needle: string, kind: XPostEntity["kind"], url?: string][]
+) => ({
+  text,
+  entities: spans.map(([needle, kind, url]) => {
+    const start = text.indexOf(needle);
+    return { kind, start, end: start + needle.length, ...(url && { url }) };
+  }),
+});
+const photo = (path: string, width: number, height: number) => ({
+  kind: "photo" as const,
+  url: `https://pbs.twimg.com/media/${path}`,
+  width,
+  height,
+  path,
+});
+const accounts = {
+  tomas: { authorName: "Tomás Rey", authorHandle: "tomasrey" },
+  ines: { authorName: "Ines Lund", authorHandle: "ineslund" },
+  radio: { authorName: "Pocket Radio", authorHandle: "pocketradio" },
+  mara: { authorName: "Mara Okafor", authorHandle: "maraokafor", verified: "blue" as const },
+  wren: {
+    authorName: "Wren Abara",
+    authorHandle: "wrenabara",
+    verified: "blue" as const,
+    avatarPath: "compressO-IMG_4630.jpg",
+  },
+  field: {
+    authorName: "Field Notes Studio",
+    authorHandle: "fieldnotesstudio",
+    verified: "business" as const,
+    squareAvatar: true,
+    avatarPath: "compressO-IMG_4638.jpg",
+  },
+};
+const xPostItem = (
+  id: string,
+  index: number,
+  author: keyof typeof accounts,
+  publishedDate: string,
+  post: Omit<XPost, "provider" | "postUrl" | "postId">,
+  tags: string[],
+): SeedItem => {
+  const account = accounts[author];
+  const postUrl = `https://x.com/${account.authorHandle}/status/${id.replace(/\D/gu, "")}`;
+  return {
+    id: `seed-x-${id}`,
+    kind: "url",
+    title: `${account.authorName}'s post`,
+    description: post.text,
+    source: "X",
+    sourceUrl: postUrl,
+    index,
+    metadata: { tags: [...tags, "post"] },
+    xPost: {
+      provider: "x",
+      postUrl,
+      postId: id.replace(/\D/gu, ""),
+      ...account,
+      publishedDate,
+      ...post,
+    },
+  };
+};
+
+const xPosts: SeedItem[] = [
+  xPostItem(
+    "desk-1901",
+    1,
+    "tomas",
+    "2026-03-04T09:12:00.000Z",
+    { text: "Moved my whole desk to the window. Productivity unclear, mood excellent." },
+    ["desk"],
+  ),
+  xPostItem(
+    "shelf-1902",
+    6,
+    "ines",
+    "2026-02-18T17:40:00.000Z",
+    {
+      text: "Things I learned building a bookshelf with no plan:\n\n1. Measure the wall, not the room.\n2. The cheap screws are cheap for a reason.\n3. A level that lies is worse than no level.\n4. Sand before you stain, then sand again, then accept it.\n5. The shelf you build second is the one you keep.\n6. Nobody notices the back panel, so use the nice wood there anyway. You will know.\n7. Ask a friend to hold the other end before you need one.",
+    },
+    ["woodworking", "diy"],
+  ),
+  xPostItem(
+    "fort-1903",
+    2,
+    "mara",
+    "2026-01-30T07:05:00.000Z",
+    {
+      text: "Walked out to the old fort this morning, before the ferries start.",
+      media: [photo("compressO-BD0448C2-54B5-4791-B6EF-05629CA6C40C.jpg", 1967, 2934)],
+    },
+    ["travel", "photography"],
+  ),
+  xPostItem(
+    "roll-1904",
+    8,
+    "wren",
+    "2026-01-12T20:30:00.000Z",
+    {
+      ...linked("Four days, one roll of film. #filmphotography", ["#filmphotography", "hashtag"]),
+      media: [
+        photo("compressO-IMG_4636.jpg", 736, 485),
+        photo("compressO-9BCD88C1-AFC4-483B-9A33-7C6F292BFBB2.jpg", 2832, 4248),
+        photo("compressO-IMG_2618.jpg", 1080, 1920),
+        photo("compressO-IMG_4630.jpg", 650, 1156),
+      ],
+    },
+    ["film", "photography"],
+  ),
+  xPostItem(
+    "set-1905",
+    10,
+    "radio",
+    "2025-12-09T22:15:00.000Z",
+    {
+      text: "Recorded the whole set on a phone taped to a mic stand. Sound is better than it has any right to be.",
+      media: [
+        {
+          ...photo("compressO-IMG_4636.jpg", 736, 485),
+          kind: "video",
+          durationSeconds: 102,
+        },
+      ],
+    },
+    ["music", "video"],
+  ),
+  xPostItem(
+    "lamp-1906",
+    12,
+    "ines",
+    "2026-03-01T12:00:00.000Z",
+    {
+      text: "This is the right answer and I will not be taking questions.",
+      quote: {
+        postId: "1800",
+        postUrl: "https://x.com/fieldnotesstudio/status/1800",
+        ...accounts.field,
+        text: "Hot take: the best desk lamp is the one you can aim at the wall, not at the page.",
+        publishedDate: "2026-02-28T15:00:00.000Z",
+        media: [photo("compressO-IMG_4630.jpg", 650, 1156)],
+      },
+    },
+    ["desk", "lighting"],
+  ),
+  xPostItem(
+    "paper-1907",
+    14,
+    "field",
+    "2026-02-02T10:00:00.000Z",
+    {
+      ...linked(
+        "We wrote up how we test paper for the next notebook run. fieldnotes.example/paper-tests",
+        ["fieldnotes.example/paper-tests", "url", "https://fieldnotes.example/paper-tests"],
+      ),
+      linkCard: {
+        url: "https://fieldnotes.example/paper-tests",
+        domain: "fieldnotes.example",
+        title: "How we test paper: bleed, ghosting and fountain pens",
+        description: "Twelve stocks, three inks, one very patient intern.",
+        imageUrl: "https://pbs.twimg.com/card_img/paper-tests",
+        imageWidth: 1200,
+        imageHeight: 672,
+        imagePath: "compressO-IMG_4638.jpg",
+        large: true,
+      },
+    },
+    ["paper", "stationery"],
+  ),
+  xPostItem(
+    "poll-1908",
+    16,
+    "radio",
+    "2026-01-21T18:00:00.000Z",
+    {
+      text: "Which do you actually keep on your desk?",
+      poll: {
+        choices: [
+          { label: "Paper notebook", votes: 1066 },
+          { label: "Sticky notes", votes: 719 },
+          { label: "Index cards", votes: 348 },
+          { label: "Nothing, it's all in my head", votes: 185 },
+        ],
+        endsAt: "2026-01-22T18:00:00.000Z",
+        final: true,
+      },
+    },
+    ["desk", "poll"],
+  ),
+  xPostItem(
+    "reply-1909",
+    18,
+    "mara",
+    "2026-02-09T08:45:00.000Z",
+    {
+      text: "Window desks are undefeated. Mine faces a brick wall and I still count it.",
+      replyTo: { postId: "1901", handle: "tomasrey" },
+    },
+    ["desk"],
+  ),
+  xPostItem(
+    "restock-1910",
+    20,
+    "field",
+    "2026-03-10T11:30:00.000Z",
+    {
+      text: "Restock day: the dot-grid A5 is back, plus a new cover in moss green.",
+      media: [photo("compressO-IMG_2618.jpg", 1080, 1920)],
+    },
+    ["stationery"],
+  ),
+];
+
 export const seedItems: SeedItem[] = [
+  ...xPosts,
   {
     id: "me-fuji-night",
     kind: "image",
@@ -454,39 +674,3 @@ export const seedJobs: { itemId: string; status: Job["status"] }[] = [
   { itemId: "preview-article", status: "processing" },
   { itemId: "preview-file", status: "failed" },
 ];
-
-/**
- * The cards the preview library starts with, newest first, and the archived
- * copies. `url` turns a seed file name into the bundler's URL for it.
- */
-export function projectSeed(items: SeedItem[], url: (file: string) => string) {
-  const day = 24 * 60 * 60 * 1000;
-  const base = Date.now() - 30 * 60 * 1000;
-  const card = (item: SeedItem): LibraryCard => ({
-    id: item.id,
-    kind: item.kind,
-    title: item.title,
-    description: item.description ?? null,
-    sourceUrl: item.sourceUrl ?? null,
-    sourceLabel: item.source ?? null,
-    localAssetPath: item.file ? url(item.file) : null,
-    thumbnailPath:
-      item.kind === "image" && item.file
-        ? url(item.file)
-        : item.thumbnailFile
-          ? url(item.thumbnailFile)
-          : null,
-    ocrText: "",
-    createdAt: base - Math.floor(item.index / 2) * day,
-    updatedAt: base - Math.floor(item.index / 2) * day,
-    archived: false,
-    hasArticleContent: item.hasArticleContent ?? false,
-    metadata: { ...item.metadata },
-  });
-  return {
-    active: items.map(card).sort((a, b) => b.createdAt - a.createdAt),
-    archived: items
-      .filter((item) => item.archivedCopy)
-      .map((item) => ({ ...card(item), id: `archive-${item.id}`, archived: true })),
-  };
-}

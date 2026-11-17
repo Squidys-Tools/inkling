@@ -1,3 +1,4 @@
+import type { XPost } from "@inkling/contracts/jobs";
 import type { LookupHost } from "./public-host.ts";
 
 type IngestionExtractor = "defuddle" | "fallback";
@@ -27,18 +28,16 @@ export interface ImageDimensions {
   height: number;
 }
 
-export interface XPostMetadata {
-  provider: "x";
-  postUrl: string;
-  postId: string;
-  embedHtml?: string;
-  authorName?: string;
-  authorUrl?: string;
-  authorHandle?: string;
-  text?: string;
-  publishedDate?: string | null;
-  width?: number | null;
-}
+// The X post shape is the worker contract's schema, so the two cannot drift apart.
+export type {
+  XPost as XPostMetadata,
+  XPostEntity,
+  XPostLinkCard,
+  XPostMedia,
+  XPostPoll,
+  XQuotedPost,
+  XVerified,
+} from "@inkling/contracts/jobs";
 
 export interface NormalizedArticle {
   sourceUrl: string;
@@ -54,7 +53,7 @@ export interface NormalizedArticle {
   imageDimensions: ImageDimensions[];
   safeEmbeds: SafeEmbedCandidate[];
   extractor: IngestionExtractor;
-  social?: XPostMetadata;
+  social?: XPost;
 }
 
 export interface RawArticleExtraction {

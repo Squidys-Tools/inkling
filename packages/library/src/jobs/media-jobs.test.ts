@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
 import {
@@ -7,6 +7,7 @@ import {
   IMAGE_THUMBNAIL_JOB,
   JOB_LEASE_MILLIS,
   PDF_THUMBNAIL_JOB,
+  X_POST_MEDIA_JOB,
 } from "../storage/jobs.ts";
 import { closeLibrary } from "../storage/test-helpers.ts";
 import {
@@ -198,4 +199,118 @@ test("a thumbnail job whose lease expired resumes on restart without duplicating
     { id: jobId, status: "completed" },
   ]);
   expect(events).toEqual([pdf.id]);
+});
+
+// An invented post, as the worker's extractor returns it.
+const xPostUrl = "https://x.com/mara_okafor/status/301";
+const pbs = (path: string) => `https://pbs.twimg.com/${path}?format=jpg&name=small`;
+const xArticle = (sourceUrl: string) => ({
+  sourceUrl,
+  fetchedUrl: sourceUrl,
+  canonicalUrl: xPostUrl,
+  title: "Mara Okafor's post",
+  description: "Tide tables, annotated",
+  text: "Tide tables, annotated\n\nInes Lund @ines_lund Paper maps still win offline",
+  html: "",
+  author: "Mara Okafor",
+  publishedDate: "2026-10-03T14:05:00.000Z",
+  imageUrls: [],
+  imageDimensions: [],
+  safeEmbeds: [],
+  extractor: "fallback" as const,
+  social: {
+    provider: "x" as const,
+    postUrl: xPostUrl,
+    postId: "301",
+    authorName: "Mara Okafor",
+    authorHandle: "mara_okafor",
+    text: "Tide tables, annotated",
+    avatarUrl: "https://pbs.twimg.com/profile_images/1/m_x96.jpg",
+    media: [
+      { kind: "photo" as const, url: pbs("media/Tide"), width: 1200, height: 800 },
+      { kind: "photo" as const, url: pbs("media/Gone"), width: 1200, height: 800 },
+    ],
+    quote: {
+      postId: "90",
+      postUrl: "https://x.com/ines_lund/status/90",
+      authorName: "Ines Lund",
+      authorHandle: "ines_lund",
+      text: "Paper maps still win offline",
+      avatarUrl: "https://pbs.twimg.com/profile_images/2/i_normal.jpg",
+    },
+  },
+});
+
+test("a saved X post's pictures land in its own folder, and a network failure retries only what is missing", async () => {
+  const { root, library } = await temporaryLibrary();
+  const captured = await library.captureUrl({ sourceUrl: xPostUrl, captureSource: "quick link" });
+  const requested: string[] = [];
+  let avatarFailures = 1;
+  const jobs = await createJobs(root, {
+    extractUrl: async (sourceUrl) => xArticle(sourceUrl),
+    downloadXMedia: async (url) => {
+      requested.push(url);
+      if (url.includes("Gone")) return null;
+      if (url.includes("m_x96") && avatarFailures-- > 0) throw new Error("socket hang up");
+      return imageFixture();
+    },
+  });
+  await (await library.worker({ processors: jobs.processors })).drain();
+  expect(
+    library.db.prepare("SELECT status FROM jobs WHERE kind = ?").all(X_POST_MEDIA_JOB),
+  ).toEqual([{ status: "pending" }]);
+
+  await (await thumbnailLane(library, jobs)).drain();
+
+  const folder = `assets/items/${captured.id}`;
+  expect(readdirSync(join(root, folder)).sort()).toEqual([
+    "x-avatar.png",
+    "x-media-0.png",
+    "x-quote-avatar.png",
+  ]);
+  const social = (await library.getItem(captured.id))?.metadata.social;
+  expect(social).toMatchObject({
+    avatarPath: `${folder}/x-avatar.png`,
+    media: [{ path: `${folder}/x-media-0.png` }, { url: pbs("media/Gone") }],
+    quote: { avatarPath: `${folder}/x-quote-avatar.png` },
+  });
+  expect(social).not.toHaveProperty("media.1.path");
+  // The first run stored two pictures and failed on the avatar; the retry asked again only
+  // for the avatar and the picture that answered without an image.
+  expect(requested.filter((url) => url.includes("Tide"))).toHaveLength(1);
+  expect(requested.filter((url) => url.includes("m_x96"))).toHaveLength(2);
+  expect(
+    library.db.prepare("SELECT status FROM jobs WHERE kind = ?").all(X_POST_MEDIA_JOB),
+  ).toEqual([{ status: "completed" }]);
+  // Search reaches the quoted post through the enriched text.
+  const cards = await library.searchItems("paper maps", 20);
+  expect(cards.map((item) => item.id)).toEqual([captured.id]);
+  // The card draws the library's copies only; a picture still missing is left off it.
+  expect(cards[0].metadata.social).toEqual({
+    provider: "x",
+    postUrl: xPostUrl,
+    postId: "301",
+    authorName: "Mara Okafor",
+    authorHandle: "mara_okafor",
+    avatarPath: `${folder}/x-avatar.png`,
+    text: "Tide tables, annotated",
+    media: [{ kind: "photo", width: 1200, height: 800, path: `${folder}/x-media-0.png` }],
+    quote: {
+      postId: "90",
+      postUrl: "https://x.com/ines_lund/status/90",
+      authorName: "Ines Lund",
+      authorHandle: "ines_lund",
+      avatarPath: `${folder}/x-quote-avatar.png`,
+      text: "Paper maps still win offline",
+    },
+  });
+});
+
+test("post pictures are refused for an unsafe item id or a deleted item", async () => {
+  const { root, library } = await temporaryLibrary();
+  const bytes = imageFixture();
+  const file = { slot: "avatar", url: "https://pbs.twimg.com/a.jpg", bytes };
+  await expect(library.storeXPostMedia("../escape", [file])).rejects.toThrow("escaped");
+  expect(await library.storeXPostMedia("missing-item", [file])).toBe(false);
+  expect(existsSync(join(root, "assets", "items"))).toBe(false);
 });

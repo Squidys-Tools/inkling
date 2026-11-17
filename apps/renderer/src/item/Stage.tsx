@@ -1,5 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import { cardColor, color, radius } from "@inkling/ui/tokens.stylex";
+import { color, radius } from "@inkling/ui/tokens.stylex";
 import { lazy, type ReactNode, Suspense } from "react";
 import { PostArtwork } from "../cards/PostArtwork.tsx";
 import { QuoteArtwork } from "../cards/QuoteArtwork.tsx";
@@ -18,8 +18,8 @@ const PdfViewer = lazy(() =>
 /** Warms the PDF viewer's code while a PDF item is open, so Open PDF does not wait for it. */
 export const preloadPdfViewer = () => void import("./PdfViewer.tsx");
 
-function ArtBox({ children, paper }: { children: ReactNode; paper?: boolean }) {
-  return <div {...stylex.props(styles.artBox, paper && styles.paper)}>{children}</div>;
+function ArtBox({ children }: { children: ReactNode }) {
+  return <div {...stylex.props(styles.artBox)}>{children}</div>;
 }
 
 /** The item's media on the dotted stage, drawn by kind. */
@@ -42,13 +42,11 @@ export function Stage({
     );
   if (item.post && item.xPostId)
     return (
-      <ArtBox paper>
-        <XPostFrame
-          key={item.xPostId}
-          postId={item.xPostId}
-          fallback={<PostArtwork post={item.post} style={styles.fillArt} />}
-        />
-      </ArtBox>
+      <XPostFrame
+        key={item.xPostId}
+        postId={item.xPostId}
+        fallback={<PostArtwork post={item.post} layout="stage" />}
+      />
     );
   if (item.kind === "Video" && item.file && !item.video)
     return <ZoomableMedia key={item.id} src={item.image} video={item.file} alt={item.title} />;
@@ -74,12 +72,7 @@ export function Stage({
         alt={item.imageAlt || item.title}
       />
     );
-  if (item.post)
-    return (
-      <ArtBox>
-        <PostArtwork post={item.post} style={styles.fillArt} />
-      </ArtBox>
-    );
+  if (item.post) return <XPostFrame fallback={<PostArtwork post={item.post} layout="stage" />} />;
   return (
     <ArtBox>
       <TypedArtworkFor view={item} waiting={processing?.active} />
@@ -96,6 +89,4 @@ const styles = stylex.create({
     borderRadius: radius.tile,
     backgroundColor: color.surface,
   },
-  paper: { backgroundColor: cardColor.embedPaper },
-  fillArt: { height: "100%" },
 });

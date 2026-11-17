@@ -11,6 +11,6 @@ export const FRAME_ORIGINS = {
 } as const;
 
 export function xPostFrameUrl(postId: string) {
-  const params = new URLSearchParams({ id: postId, dnt: "true", theme: "light" });
+  const params = new URLSearchParams({ id: postId, dnt: "true", theme: "dark" });
   return `${FRAME_ORIGINS.x}/embed/Tweet.html?${params.toString()}`;
 }

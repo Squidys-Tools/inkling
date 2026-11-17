@@ -11,6 +11,7 @@ import {
   seedSpaces,
   type SeedItem,
 } from "../../apps/renderer/src/library/preview/seed-data.ts";
+import { seedPostPaths } from "../../apps/renderer/src/library/preview/project-seed.ts";
 
 const seedAssets = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -62,6 +63,12 @@ export async function seedLibrary(directory: string) {
             ? `assets/items/${item.id}/${item.thumbnailFile}`
             : null;
       const metadata = { ...item.metadata };
+      const postFiles = new Set<string>();
+      if (item.xPost)
+        metadata.social = seedPostPaths(item.xPost, (file) => {
+          postFiles.add(file);
+          return `assets/items/${item.id}/${file}`;
+        });
       const html = seedArticles[item.id];
       if (html) metadata.html = html;
       insert.run(
@@ -80,11 +87,14 @@ export async function seedLibrary(directory: string) {
         createdAt,
         item.archived ? 1 : 0,
       );
-      if (fileName) {
+      const files = [...(fileName ? [fileName] : []), ...postFiles];
+      if (files.length > 0) {
         const itemDirectory = join(directory, "assets", "items", item.id);
         fileWrites.push(
           mkdir(itemDirectory, { recursive: true }).then(() =>
-            place(join(seedAssets, fileName), join(itemDirectory, fileName)),
+            Promise.all(
+              files.map((file) => place(join(seedAssets, file), join(itemDirectory, file))),
+            ),
           ),
         );
       }

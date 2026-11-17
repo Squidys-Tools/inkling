@@ -48,6 +48,14 @@ const vendoredNotices = [
     noticeFile: "apps/renderer/licenses/LICENSE-react-bits.md",
   },
   {
+    name: "xeet",
+    license: "Apache-2.0",
+    sourceUrl: "https://github.com/rauchg/xeet",
+    description:
+      "How a saved X post is read from its page, adapted in packages/ingestion/src/x-post-page.ts.",
+    noticeFile: "apps/renderer/licenses/Apache-2.0.txt",
+  },
+  {
     name: "nomic-embed-text-v1.5",
     license: "Apache-2.0",
     sourceUrl: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5",
