@@ -22,7 +22,7 @@ Preconditions: seeded library, `doctor` all PASS, sidebar reads `Everything 42`.
 - **Choose Note.** `$I ad click "$($I ref menuitem Note)"`. The document value becomes `app://local/index.html#/add/note`; a textfield named `Note` and a `Back` button exist — the editor shows no save or close control while empty. Once the body is dirty, `Discard` and `Save to library` appear beside an `Edited` status (`Ctrl ↵ saves · Esc discards`); a `Format selection` toolbar shows only while text is selected.
 - **Enter text.** `$I ad set-value "$($I ref textfield Note)" 'verify probe alpha'` → `post_state.value` equals the text. `$I shot 02-typed`.
 - **Save.** `$I ad click "$($I ref button 'Save to library')"`.
-- **Proof.** `$I tree | grep -E 'Everything|Note:'` shows `Everything 43` and a group `Note: Untitled note`; `$I shot 03-saved`; `$I db "SELECT kind,title,body,body_format,archived,metadata FROM items ORDER BY created_at DESC LIMIT 1"` returns kind `note`, title `null`, body `verify probe alpha`, body_format `md`, archived `0`, metadata `{"captureSource":"quick note"}`.
+- **Proof.** `$I tree | grep -E 'Everything|Note:'` shows `Everything 43` and a group `Note: Untitled note`; `$I shot 03-saved`; `$I db "SELECT kind,title,body,body_format,archived,metadata FROM items ORDER BY created_at DESC LIMIT 1"` returns kind `note`, title `null`, body `verify probe alpha`, body_format `md`, archived `0`, metadata `{"captureSource":"quick note"}`; a `generate_embedding` job is queued for it.
 - **Keyboard save.** Repeat open and enter text with body `shortcut note`, then `$I ad press ctrl+return --window-id '{window}'` instead of clicking Save: same row (`kind note`, body `shortcut note`), `Everything` +1.
 
 ## Gotchas
