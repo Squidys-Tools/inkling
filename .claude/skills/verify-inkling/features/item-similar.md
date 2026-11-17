@@ -1,12 +1,12 @@
 # Similar items
 
-An open item's Similar section lists items the library ranks as related. Status: **driven** on 2026-11-15 — empty and populated. The seeded library has no `item_embeddings` rows (no ingestion pipeline), so a fresh run shows the empty copy. The viewed item needs its own `item_embeddings` row — `searchSimilar` returns `[]` without one — so a seed item stays empty until it is itself embedded; capturing this run's own items (or editing one, which re-enqueues `generate_embedding`) is what populates the section. Populating takes the viewed item's row plus at least one other embedded item; the first `generate_embedding` can download the model into the run's library, so on a networked run the section does populate.
+An open item's Similar section lists items the library ranks as related. Status: **driven** on 2026-11-17 — empty and populated. The seeded library has no `item_embeddings` rows (no ingestion pipeline), so a fresh run shows the empty copy. The viewed item needs its own `item_embeddings` row — `searchSimilar` returns `[]` without one — so a seed item stays empty until it is itself embedded. Three paths embed an item: capturing this run's own items, editing one (`updateItem` re-enqueues `generate_embedding` on title/body/tag changes), and — seed items only — opening an image or PDF, whose empty `ocr_text` enqueues OCR that chains into an embedding. Populating takes the viewed item's row plus at least one other embedded item; the first `generate_embedding` can download the model into the run's library, so on a networked run the section does populate.
 
 ## Sub-features
 
 - `similar-empty` the Similar section renders and shows "Nothing similar yet." when nothing is related.
 - `similar-populated` results appear as `button "<title>"` tiles; text-kind tiles carry a kind label (`NOTE`, `ARTICLE`, …).
-- Not driven: clicking a similar item's tile — tiles repeat names (two results can both read `Untitled note`), so a `ref` click trips the `AMBIGUOUS_TARGET` twin guard and keyboard `Tab`+`Enter` lands on the section's own Close instead.
+- Not driven: clicking a similar item's tile — tiles repeat names (two results can both read `Untitled note`), so a `ref` click trips the `AMBIGUOUS_TARGET` twin guard and keyboard `Tab`+`Enter` lands on the item view's `Close` instead.
 
 ## How to get to it (user POV)
 

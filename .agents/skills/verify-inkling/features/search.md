@@ -1,6 +1,6 @@
 # Search
 
-Search narrows the library to items matching a query, shows an empty state with Clear search when nothing matches, and can save the query as a Smart Space. Status: **driven** on 2026-11-15. Not driven on Windows: the `/` shortcut (agent-desktop has no key name for `/` there; the Linux instabox driver's xdotool path sends it and it is covered there).
+Search narrows the library to items matching a query, shows an empty state with Clear search when nothing matches, and can save the query as a Smart Space. Status: **driven** on 2026-11-17. The `/` shortcut focuses the same field through `$I press slash` (the SendKeys fallback — `ad press` has no `/` key name on Windows).
 
 ## Sub-features
 
@@ -19,7 +19,7 @@ Search narrows the library to items matching a query, shows an empty state with 
 Preconditions: seeded library, Everything selected.
 
 - **Focus by key.** `$I ad press ctrl+k --window-id '{window}'`; `$I tree | grep 'Search your mind'` shows `states=focused`.
-- **Match.** `$I ad set-value "$($I ref textfield 'Search your mind')" hundred`; results debounce about 220 ms but wait ~3 s before asserting (semantic ranking can still be resolving; it can legally take ~5 s plus a cold model load when embeddings exist — on the seeded library there are none, so text alone answers), then `$I tree | grep -E '(article|group) "(Article|Note|Image|Post|Quote|Video|PDF|File):'` shows only `Article: The Hundred-Year Language` (assert the card-kind prefix: the tree also carries landmark groups like `Window controls`; on Linux the card role is `article`, on Windows it may read `group`). `$I shot s1`.
+- **Match.** `$I ad set-value "$($I ref textfield 'Search your mind')" hundred`; results debounce about 220 ms but wait ~3 s before asserting (semantic ranking can still be resolving; the query-side embedding waits at most ~5 s — a longer cold model load forfeits semantic for that query rather than extending the wait. On the seeded library there are no embeddings, so text alone answers), then `$I tree | grep -E '(article|group) "(Article|Note|Image|Post|Quote|Video|PDF|File):'` shows only `Article: The Hundred-Year Language` (assert the card-kind prefix: the tree also carries landmark groups like `Window controls`; on Linux the card role is `article`, on Windows it may read `group`). `$I shot s1`.
 - **Empty.** `set-value` `zzzzqqqq`; no card groups remain and a button `Clear search` appears. `$I shot s2`.
 - **Clear.** `$I ad click "$($I ref button 'Clear search')"`; card groups return (the rendered window of the virtualized grid, offscreen groups included; do not assert a number).
 - **Save as Space.** Search `hundred` again, then blur the field with `$I ad press tab --window-id '{window}'`. A button `Save as Space` appears (it only shows once the field is unfocused). Click it, `set-value` the textfield `Space name` to `Hundred Smart`, click `Create Space`.
@@ -29,7 +29,7 @@ Preconditions: seeded library, Everything selected.
 
 - `set-value` on the search field does drive the app's search. Tab blurs the field; Escape blurs it too but clears the query first.
 - Once the field blurs with a non-matching query, two controls named `Clear search` exist — the empty-state action and the filter row's chip — so `ref button 'Clear search'` reports 2 matches; resolve one from `tree` or re-focus the field first. `Save as Space` opens the same inline draft form the sidebar's `Add a Space` uses, not a dialog.
-- Results update after a ~220 ms debounce; give it ~3 s, and up to ~5 s when embeddings exist, since semantic ranking resolves behind the FTS results.
+- Results update after a ~220 ms debounce; give it ~3 s. When embeddings exist the semantic pass resolves behind the FTS results and is capped at ~5 s for the query vector — a longer model load just skips semantic for that query.
 - Full-app search is whole-token text (FTS) plus optional semantic ranking: `hund` will not match `hundred`; a semantic match may add unrelated cards once embeddings exist. Search never downloads the model (`embedQuery` may not use the network): without it the semantic pass quietly contributes nothing (`embedQuery` fails fast on missing model assets) and text ranking alone answers.
 - Typing in the field while a Space or the Archive is selected navigates to Everything — search is always library-wide, there is no in-space filter. Escape in the focused field clears the query and blurs. Saving a Smart Space with Save as Space clears the search and lands you in the new Space.
 - Focusing the field swaps the resting pill's view-name label for the mascot's eyes (an aria-hidden canvas: present in focused-field screenshots, never in `tree`/`ref`).

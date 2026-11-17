@@ -4,7 +4,7 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 
 ## Baseline preconditions
 
-- Launch with `instance.ts launch` (seeded demo library: Everything shows 32 active items; Spaces `Design references`, `Read later`, `Weekend reading`; 3 seeded archived copies, ids `archive-5`, `archive-10`, `archive-12`). Run `doctor` and require all PASS.
+- Launch with `instance.ts launch` (seeded demo library: Everything shows 42 active items; Spaces `Design references`, `Read later`, `Weekend reading`; 3 seeded archived copies, ids `archive-5`, `archive-10`, `archive-12`). Run `doctor` and require all PASS.
 - Every recipe starts from that state and uses `$I` for `bun .claude/skills/verify-inkling/scripts/instance.ts`.
 - Never drive an instance this run did not launch.
 
@@ -13,8 +13,8 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 - Look up controls by exact accessible name: `$I ref <role> "<name>"` prints a fresh ref; act with `$I ad click|set-value|expand '<ref>'`. Re-resolve after every UI change; refs die with their snapshot. Right after launch the `Add` menu mounts lazily — `ref menubutton Add` can match 0 while its chunk loads; retry once.
 - Quote refs in PowerShell (`'@s…:e1'`).
 - The grid is virtualized: counting visible card groups is not counting items. Use the sidebar link `Everything <n>` and `db` for counts.
-- Text goes in with `set-value` (accessibility ValuePattern); it is not keystroke typing. Keys go through `$I ad press <combo> --window-id '{window}'`: they reach our window without taking focus and report `delivered_unverified`, so confirm the effect with `tree` or `db`.
-- Menus are reachable through `$I tree --surface menu`. Confirmations are an in-app dialog in the main window's tree (`alertdialog` on Windows, `alert` on Linux) — on Windows an open `alertdialog` wedges `ref`/`tree`, so drive it with `press` keys (see spaces.md).
+- Text goes in with `set-value` (accessibility ValuePattern); it is not keystroke typing. Keys go through `$I ad press <combo> --window-id '{window}'`: they reach our window without taking focus and report `delivered_unverified`, so confirm the effect with `tree` or `db`. `ad press` names only letters, digits and named keys — for punctuation combos (`,`, `/`, `?`, `\`, `-`, `=`, `+`) use `$I press <combo>`, the SendKeys fallback that focuses our recorded window first (via `focus-window --window-id`), so it cannot fire in another inkling window.
+- Menus are reachable through `$I tree --surface menu`. Confirmations are an in-app dialog in the main window's tree (`alertdialog` on Windows, `alert` on Linux) — on Windows an open `alertdialog` wedges `ref`/`tree`, so drive it with `ad press` keys (see spaces.md).
 - Cards are only in the tree on Everything with no item open. If `ref group '<Kind>: <title>'` finds nothing, you are on an item view (`#/item/<id>`), a form (`#/add/…`) or a Space: go to Everything with `$I ad click "$($I ref link Everything --contains)"`.
 - A ref found with `--in <ref>` still can't be clicked when sibling elements share the accessible name (`AMBIGUOUS_TARGET`): open the item and use a uniquely named control instead.
 - After every mutation read the stored row with `$I db "<SELECT>"` and take `$I shot <name>`.
@@ -27,10 +27,10 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 
 ## Features
 
-Every feature was executed end to end with agent-desktop on 2026-11-15 unless its file says otherwise.
+Every feature was executed end to end with agent-desktop on 2026-11-17 unless its file says otherwise.
 
 - [Capture a note](./capture-note.md): Add > Note > Save to library, Ctrl+Enter.
-- [Edit a note](./edit-note.md): item view > Edit note > Save note.
+- [Edit a note](./edit-note.md): note card > write page, or item view > Edit note > Save.
 - [Capture a quote](./capture-quote.md): Add > Quote.
 - [Capture a link](./capture-link.md): a URL in the add tile (uses the network for the URL you type).
 - [Capture by deep link](./capture-deep-link.md): `inkling://capture?url=...` as a launch argument, no GUI.
@@ -41,18 +41,19 @@ Every feature was executed end to end with agent-desktop on 2026-11-15 unless it
 - [Tags](./tags.md): item view > `Add a tag` field, Enter, suggestions, Escape, Remove tag.
 - [Similar items](./item-similar.md): item view > Similar, empty state and populated tiles.
 - [Rename an item's title](./item-title.md): item view > title > inline field > Enter.
-- [Reader](./item-reader.md): card or item view > Read > TYPEFACE > ESC.
+- [Grid column zoom](./grid-zoom.md): Ctrl+- / Ctrl+= / Ctrl+0 (or Ctrl+wheel) steps the grid's column count.
+- [Reader](./item-reader.md): card or item view > Read > Typeface > Esc.
 - [Settings](./settings.md): Settings or Ctrl+, > sheet sections, welcome replay.
 - [Keyboard shortcuts](./shortcuts.md): `?` > bindings dialog; the commands it lists.
-- [Welcome tour](./welcome.md): first launch on an unfinished library, `launch --empty`. Driven 2026-11-15.
-- [Windows setup window](./installer.md): `launch --installer`, Install, progress pacing, ready, failed. Driven 2026-11-15.
+- [Welcome tour](./welcome.md): first launch on an unfinished library, `launch --empty`. Driven 2026-11-17.
+- [Windows setup window](./installer.md): `launch --installer`, Install, progress pacing, ready, failed. Driven 2026-11-17.
 
 ## Not covered, with the reason
 
 - The OS-level deep link (a browser or the shell opening `inkling://`): only a packaged build registers the scheme, and that build opens the real library. The app's own intake is covered by [capture-deep-link](./capture-deep-link.md).
 - File and Screenshot capture (native pickers) and drag and drop: OS input this driver does not reach. Paste is driven on the Linux instabox box (`ad clipboard-set "<text>"` then `ad press ctrl+v` with the grid focused saves a `note`/`clipboard` item); on Windows it needs `--headed`.
 - Card right-click menu: driven on the Linux instabox box (opens `Item actions` with the `Keep in a Space` submenu); on Windows `right-click` needs `--headed` (real cursor and focus). The item view's `Keep in a Space` offers a flat `Add to`/`Remove from <space>` list; the card's own menu wraps the same Space actions in a submenu (adding `Allow in <smart>` entries) among other card actions, plus a top-level `Remove from <current>` when opened inside a Space.
-- The `/` shortcut: driven on the Linux instabox box (its xdotool path sends the key); on Windows agent-desktop has no key name for it. Ctrl+K reaches the same field.
+- The `/` shortcut's own search binding is driven via `$I press slash` (SendKeys fallback; `ad press` has no key name for it on Windows). Ctrl+K reaches the same field through `ad press`.
 - Permanent delete from Archive: not driven. Unmapped is unverified, not passing.
 - Item-view media wheel zoom and pan (`ZoomableMedia`): needs `--headed` wheel input.
 - The Post item view's `Load post from X` (`XPostFrame`; reloads the embed from x.com over the network): not driven.
