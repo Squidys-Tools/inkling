@@ -17,7 +17,7 @@ import { ActionBar } from "./ActionBar.tsx";
 import { InfoPanel, ItemHeading, Palette, paletteOf } from "./InfoPanel.tsx";
 import { findCard } from "./itemFlight.ts";
 import { describeItem } from "./model.ts";
-import { useItemNavigation } from "./navigation.ts";
+import { useItemNavigation, useReaderNavigation } from "./navigation.ts";
 import { useItem, useMemberships } from "./queries.ts";
 import { SimilarPanel } from "./SimilarPanel.tsx";
 import { preloadPdfViewer, Stage } from "./Stage.tsx";
@@ -69,6 +69,7 @@ function ItemBody({
   onOpenSimilar: (id: string) => void;
 }) {
   const navigate = useNavigate();
+  const readerNavigation = useReaderNavigation();
   const query = useItem(id);
   const memberships = useMemberships(id);
   const regularSpaces = useSpaces().filter((space) => space.kind === "regular");
@@ -236,7 +237,7 @@ function ItemBody({
                       }
                       onEditNote={() => void navigate({ to: "/item/$id/write", params: { id } })}
                       onOpenPdf={() => setPdfOpen(true)}
-                      onRead={() => void navigate({ to: "/item/$id/read", params: { id } })}
+                      onRead={() => readerNavigation.openFromItem(id)}
                     />
                     {actionError && <p {...stylex.props(styles.error)}>{actionError}</p>}
                   </div>

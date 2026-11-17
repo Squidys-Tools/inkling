@@ -26,8 +26,6 @@ function run(router: ReturnType<typeof useRouter>, command: Command) {
       return router.navigate({ to: "/add/note" });
     case "addQuote":
       return router.navigate({ to: "/add/quote" });
-    case "addLink":
-      return router.navigate({ to: "/add/link" });
     case "openSettings":
       return router.navigate({ to: ".", search: (prev) => ({ ...prev, settings: "general" }) });
     case "back":

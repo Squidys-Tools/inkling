@@ -4,5 +4,4 @@
 export const drafts = {
   note: "",
   quote: { body: "", attribution: "", sourceUrl: "" },
-  link: { url: "", title: "" },
 };
