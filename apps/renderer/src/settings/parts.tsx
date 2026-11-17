@@ -419,7 +419,8 @@ const styles = stylex.create({
   },
   body: { display: "flex", flex: "1 1 auto", flexDirection: "column", height: "auto" },
   bodyViewport: { flex: "1 1 auto", height: "auto", minHeight: 0 },
-  bodyContent: { display: "flex", flexDirection: "column" },
+  // Keeps row ends clear of the overlay bar, which takes the pointer while it shows.
+  bodyContent: { display: "flex", flexDirection: "column", paddingRight: "12px" },
   section: {
     display: "flex",
     flexDirection: "column",

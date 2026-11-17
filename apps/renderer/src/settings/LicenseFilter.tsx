@@ -166,7 +166,7 @@ const styles = stylex.create({
     outline: "none",
     transformOrigin: "top right",
   },
-  list: { maxHeight: "300px" },
+  list: { maxHeight: "300px", paddingRight: "12px" },
   item: {
     display: "flex",
     alignItems: "center",
