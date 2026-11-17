@@ -2,35 +2,28 @@ import * as stylex from "@stylexjs/stylex";
 import { color, text } from "@inkling/ui/tokens.stylex";
 import { useBlocker, useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
-import { useStepBack } from "../item/navigation.ts";
+import { dayAndMonth } from "../format.ts";
+import { describeItem } from "../item/model.ts";
+import { useReaderNavigation, useStepBack } from "../item/navigation.ts";
 import { useItem } from "../item/queries.ts";
 import { useEscape } from "../item/useEscape.ts";
-import { useMounted } from "../item/useMounted.ts";
 import { libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
 import { showWrittenCard } from "../library/writes.ts";
-import { confirm } from "../shell/confirm.ts";
-import { NoteEditor } from "./NoteEditor.tsx";
+import { confirmDiscard, NoteEditor } from "./NoteEditor.tsx";
 import { noteBodyForEditor, noteBodyForStorage, normalizeNoteBody } from "./notes.ts";
 
-const confirmDiscard = () =>
-  confirm({
-    message: "Discard your changes to this note?",
-    confirmLabel: "Discard",
-    destructive: true,
-  });
-
-/** Focus Mode for a saved note: the whole stage to write in, saved only on Save. */
+/** A saved note's page: its text, edited in place and saved only on Save. */
 export function FocusEditor({ id }: { id: string }) {
   const navigate = useNavigate();
   const stepBack = useStepBack();
+  const { showDetails } = useReaderNavigation();
   const query = useItem(id);
   const detail = query.data;
-  // Every way out (Escape, Cancel, Back, the sidebar) asks before dropping unsaved
-  // edits. Leaving waits for a save in flight, which leaves by itself when it lands.
+  // Every way out (Escape, Back, Details, the sidebar) asks before dropping unsaved
+  // edits. Leaving waits for a save in flight.
   const dirty = useRef(false);
   const saving = useRef(false);
-  const mounted = useMounted();
   const leave = () => {
     if (!saving.current)
       stepBack(() => void navigate({ to: "/item/$id", params: { id }, replace: true }));
@@ -48,7 +41,7 @@ export function FocusEditor({ id }: { id: string }) {
     (detail === null
       ? "This note is no longer in your library."
       : detail && kind !== "note"
-        ? "Only notes open in Focus Mode."
+        ? "Only notes open here."
         : null);
   if (status)
     return (
@@ -64,25 +57,25 @@ export function FocusEditor({ id }: { id: string }) {
   return (
     <NoteEditor
       key={detail.id}
-      kicker="Focus mode"
-      name={title}
+      title={title}
+      meta={["Note", dayAndMonth(detail.createdAt)]}
+      tags={describeItem(detail).tags}
       initialMarkdown={initial}
       placeholder="Write…"
-      saveLabel="Save note"
+      saveLabel="Save"
       onChange={(_markdown, changed) => {
         dirty.current = changed;
       }}
       onCancel={leave}
+      onDetails={() => showDetails(id)}
       onSave={async ({ markdown }) => {
         const body = noteBodyForStorage(stored, title, markdown);
         saving.current = true;
         try {
           showWrittenCard(await (await libraryClient()).updateItem({ id, body, bodyFormat: "md" }));
-          dirty.current = false;
         } finally {
           saving.current = false;
         }
-        if (mounted.current) leave();
       }}
     />
   );

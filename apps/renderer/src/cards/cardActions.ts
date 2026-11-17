@@ -27,6 +27,11 @@ export function retryProcessing(jobId: string) {
 }
 
 export function openItem(view: CardView, navigate: Navigate) {
+  // A note opens straight into its text; its details are one button away.
+  if (view.kind === "Note" && !view.archived) {
+    void navigate({ to: "/item/$id/write", params: { id: view.id } });
+    return;
+  }
   const from = location.href;
   void prepareItemOpen(view.id).then((current) => {
     // The card may scroll into view first: a route change in that time cancels the open.
@@ -79,6 +84,27 @@ export async function deleteForever(view: CardView) {
     await run("Couldn’t delete this", async () => {
       await (await libraryClient()).deleteItem({ id: view.id });
       notify("Deleted permanently");
+    });
+}
+
+export async function deleteArchive(count: number) {
+  const confirmed = await confirm({
+    message:
+      count === 1
+        ? "Delete the archived item for good?"
+        : `Delete all ${count.toLocaleString()} archived items for good?`,
+    detail: "They leave every Space, and their files are removed from the library.",
+    confirmLabel: "Delete all",
+    destructive: true,
+  });
+  if (confirmed)
+    await run("Couldn’t empty the archive", async () => {
+      const deleted = await (await libraryClient()).deleteArchived({});
+      notify(
+        deleted.length === 1
+          ? "Deleted 1 item permanently"
+          : `Deleted ${deleted.length.toLocaleString()} items permanently`,
+      );
     });
 }
 

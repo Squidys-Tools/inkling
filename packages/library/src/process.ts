@@ -98,6 +98,7 @@ const handlers = LibraryRpcs.toLayer(
           }),
         ),
       kindCounts: () => answer(library.kindCounts()),
+      tagCounts: () => answer(library.tagCounts()),
       cards: ({ scope, cursor, limit }) => {
         switch (scope._tag) {
           case "Active":
@@ -176,6 +177,11 @@ const handlers = LibraryRpcs.toLayer(
       deleteItem: ({ id }) =>
         answer(library.deleteItem(id)).pipe(
           Effect.tap(() => publish({ _tag: "ItemsRemoved", ids: [id] })),
+          Effect.tap(() => publish({ _tag: "SpacesChanged" })),
+        ),
+      deleteArchived: () =>
+        answer(library.deleteArchived()).pipe(
+          Effect.tap((ids) => publish({ _tag: "ItemsRemoved", ids })),
           Effect.tap(() => publish({ _tag: "SpacesChanged" })),
         ),
       spaces: () => answer(library.listSpaces()),

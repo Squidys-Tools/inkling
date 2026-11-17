@@ -34,6 +34,7 @@ export const color = stylex.defineVars({
   onCaptionClose: "#ffffff",
   success: "#7fa08d",
   successStrong: "#a5c3b1",
+  successSoft: "rgba(127, 160, 141, 0.15)",
 
   paperYellow: "#3a3524",
 
@@ -45,6 +46,9 @@ export const color = stylex.defineVars({
   glassSheen: "rgba(255, 255, 255, 0.06)",
   overlayHover: "rgba(255, 255, 255, 0.04)",
   overlayActive: "rgba(255, 255, 255, 0.08)",
+  // An overlay scrollbar's pill: ink at 30%, and 46% under the pointer.
+  scrollThumb: "rgba(229, 221, 210, 0.3)",
+  scrollThumbHot: "rgba(229, 221, 210, 0.46)",
   scrim: "rgba(0, 0, 0, 0.5)",
   // The settings sheet dims the library under it harder than a small dialog does.
   modalScrim: "rgba(8, 8, 7, 0.74)",
@@ -182,15 +186,22 @@ export const cardColor = stylex.defineVars({
   quoteMark: "#c4ba8c",
   quoteText: "#d0c68f",
   quoteRule: "#81764c",
-  postPaper: "#edf4f5",
-  postInk: "#243d42",
-  postMuted: "#6b8589",
-  postAvatarInk: "#e8f0f2",
-  postRule: "rgba(36, 61, 66, 0.16)",
-  embedPaper: "#ffffff",
+  // A post is drawn in X's dark theme: near black, below the library sheet like the other dark cards.
+  postPaper: "#08090a",
+  postInk: "#e7e9ea",
+  postMuted: "#71767b",
+  postAvatar: "#2f3336",
+  postRule: "rgba(231, 233, 234, 0.14)",
+  postLink: "#1d9bf0",
+  postBar: "rgba(231, 233, 234, 0.08)",
+  postBarWin: "rgba(29, 155, 240, 0.32)",
+  // The paper of X's dark embed, its blue "Dim" theme; XPostFrame blends it out to postPaper.
+  xDimPaper: "#15202b",
+  verifiedBlue: "#1d9bf0",
+  verifiedGold: "#c9a54e",
+  verifiedCheck: "#ffffff",
   hoverShadow: "rgba(0, 0, 0, 0.4)",
   controlEdge: "#4a4842",
-  tileMeta: "#6f685f",
   tileButton: "rgba(12, 12, 11, 0.72)",
   deleteHover: "#3a251d",
   deleteInkHover: "#f0b095",

@@ -18,7 +18,7 @@
 
 ### URL capture
 
-When a user pastes or saves a URL, the item and its card appear at once, titled with the domain unless the capture supplied a title. A video link shows as a video card from the start. A background job then fetches the page, extracts the article, sanitizes it, and stores its text, author, date, images and safe embeds; an X post link becomes a post card once that job has run. The page's title replaces the domain unless the user renamed the card first, and a description the user wrote is kept.
+When a user pastes or saves a URL, the item and its card appear at once, titled with the domain unless the capture supplied a title. A video link shows as a video card from the start. A background job then fetches the page, extracts the article, sanitizes it, and stores its text, author, date, images and safe embeds; an X post link becomes a post card once that job has run. A post's avatar, photos, video and GIF posters, quoted post and link card pictures are downloaded into the library, and its card shows only those copies, so it still looks whole offline or after the post is deleted; a picture that could not be downloaded is left off the card rather than loaded from X. The page's title replaces the domain unless the user renamed the card first, and a description the user wrote is kept.
 
 If extraction fails, retain the URL, title, domain, and any metadata that was successfully found.
 
@@ -32,7 +32,7 @@ Background jobs read an image's text with OCR, take its color palette for the it
 
 ### Notes and quotes
 
-A quick note opens at once and stays lightweight. A note can expand into Focus Mode for longer writing or reading.
+A quick note opens at once and stays lightweight. Opening a saved note opens its text as a page, edited in place and written only on Save.
 
 A quote keeps its source URL when it has one and shows as a quote card.
 
@@ -88,7 +88,7 @@ Opening a card grows it into the library frame, and the item view replaces the l
 
 Articles open in a distraction-free reader with clean typography, images, headings and links, code blocks, footnotes where available, safe supported video embeds, and an original source link at the bottom.
 
-Focus Mode is a sparse writing view with headings, bold text, links and interactive todos, in the same WYSIWYG Markdown editor as notes.
+A note's page is a sparse writing view with headings, bold text, links and interactive todos, in a WYSIWYG Markdown editor.
 
 ## Onboarding
 

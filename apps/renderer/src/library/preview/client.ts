@@ -9,6 +9,7 @@ import type {
 import { ITEM_KINDS, type ItemKind } from "@inkling/ingestion/item-kind";
 import { markdownToPlainText } from "@inkling/ingestion/markdown-text";
 import { mentionsSubject, smartSpaceSubjects } from "@inkling/ingestion/photo-subjects";
+import { countTags } from "@inkling/ingestion/tag-counts";
 import { displayKind, toCardView } from "../cardModel.ts";
 import type { LibraryClient } from "../connection.ts";
 import {
@@ -220,6 +221,14 @@ export function createPreviewClient(): LibraryClient {
         return count ? [{ kind, count }] : [];
       }).sort((a, b) => b.count - a.count);
     },
+    tagCounts: async () =>
+      countTags(
+        ordered(false).flatMap(({ card }) =>
+          (Array.isArray(card.metadata.tags) ? card.metadata.tags : []).flatMap((tag) =>
+            typeof tag === "string" ? [{ id: card.id, tag }] : [],
+          ),
+        ),
+      ),
     cards: async ({ scope, cursor, limit }) => page(scope, cursor, limit),
     cardsById: async ({ ids }) =>
       ids.flatMap((id) => {
@@ -346,6 +355,15 @@ export function createPreviewClient(): LibraryClient {
       items.delete(id);
       for (const ids of membership.values()) ids.delete(id);
       emit({ _tag: "ItemsRemoved", ids: [id] });
+    },
+    deleteArchived: async () => {
+      const ids = [...items.values()]
+        .filter((found) => found.card.archived)
+        .map((found) => found.card.id);
+      for (const id of ids) items.delete(id);
+      for (const members of membership.values()) for (const id of ids) members.delete(id);
+      emit({ _tag: "ItemsRemoved", ids });
+      return ids;
     },
 
     spaces: async () => withCounts(),

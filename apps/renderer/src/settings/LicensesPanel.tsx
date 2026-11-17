@@ -8,6 +8,7 @@ import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.sty
 import { useQuery } from "@tanstack/react-query";
 import { useDeferredValue, useState } from "react";
 import { desktop } from "../desktop.ts";
+import { ScrollArea } from "../reader/ScrollArea.tsx";
 import { LicenseFilter } from "./LicenseFilter.tsx";
 import { filterLicenses, licenseCounts, type ThirdPartyLicense } from "./licenseList.ts";
 import { Panel, PanelBody, settingsText } from "./parts.tsx";
@@ -148,7 +149,11 @@ function Notice({
         <div {...stylex.props(styles.details)}>
           {entry.description && <p {...stylex.props(settingsText.body)}>{entry.description}</p>}
           {entry.noticeText ? (
-            <pre {...stylex.props(styles.text)}>{entry.noticeText}</pre>
+            <div {...stylex.props(styles.textBox)}>
+              <ScrollArea viewportStyle={styles.textViewport}>
+                <pre {...stylex.props(styles.text)}>{entry.noticeText}</pre>
+              </ScrollArea>
+            </div>
           ) : (
             <p {...stylex.props(settingsText.body)}>
               This package ships without a license file. Its source has the details.
@@ -299,24 +304,27 @@ const styles = stylex.create({
     paddingBottom: space.s4,
     paddingLeft: "25px",
   },
-  text: {
-    margin: 0,
-    maxHeight: "320px",
-    overflow: "auto",
-    paddingInline: space.s4,
-    paddingBlock: "14px",
+  textBox: {
+    overflow: "hidden",
     borderRadius: "10px",
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: color.border,
     backgroundColor: color.surface,
+  },
+  textViewport: {
+    boxSizing: "border-box",
+    maxHeight: "348px",
+    paddingInline: space.s4,
+    paddingBlock: "14px",
+  },
+  text: {
+    margin: 0,
     fontFamily: font.mono,
     fontSize: text.xs,
     lineHeight: "17px",
     overflowWrap: "anywhere",
     whiteSpace: "pre-wrap",
     color: color.inkSoft,
-    scrollbarWidth: "thin",
-    scrollbarColor: `${color.borderStrong} transparent`,
   },
 });

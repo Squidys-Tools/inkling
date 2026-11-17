@@ -1,13 +1,13 @@
 # Welcome tour
 
-The first launch over an unfinished library opens a five-screen welcome (`#/welcome`) that demos the app's core moves. `Continue` advances, `Back` returns, `Skip` leaves at any point, and the last screen's `Open my library` enters the library. Finishing writes `app_settings.onboarding_completed = '1'`, so the next launch goes straight to the library. Status: **driven** on 2026-11-15 (all five screens, `Open my library`, the persisted flag). Not driven: each screen's animated demo (motion is asserted only by watching the tree settle).
+The first launch over an unfinished library opens a five-screen welcome (`#/welcome`) that demos the app's core moves. `Continue` advances, `Back` returns, `Skip` leaves at any point, and the last screen's `Open my library` enters the library. Finishing writes `app_settings.onboarding_completed = '1'`, so the next launch goes straight to the library. Status: **driven** on 2026-11-17 (all five screens, `Open my library`, the persisted flag, the `Show again` replay). Not driven: each screen's animated demo (motion is asserted only by watching the tree settle).
 
 ## Sub-features
 
 - `welcome-screens` five screens, each advancing on `Continue`; `Back` appears from screen two.
 - `welcome-skip` `Skip` or Escape leaves the tour and finishes onboarding the same way.
 - `welcome-finish` the last screen's `Open my library` completes the flag and lands on `#/`.
-- `welcome-replay` Settings > General > "Welcome tour" > `Show the welcome again` replays it; finishing a replay returns to the page it sat over.
+- `welcome-replay` Settings > General > "Welcome tour" > `Show again` replays it; finishing a replay returns to the page it sat over.
 
 ## How to get to it (user POV)
 

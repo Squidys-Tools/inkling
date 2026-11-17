@@ -1,4 +1,4 @@
-import { projectSeed } from "../seed-data.ts";
+import { projectSeed } from "../project-seed.ts";
 import { seedItems } from "./seed-data.ts";
 
 // Stands in for ../seed.ts in the site demo build; see siteDemo in apps/renderer/vite.config.ts.
