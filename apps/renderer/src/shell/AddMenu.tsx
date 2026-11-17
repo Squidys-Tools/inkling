@@ -6,6 +6,7 @@ import { lazy, Suspense, useEffect, useRef } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { captureFiles, captureScreenshot, useCaptureState } from "../capture/capture.ts";
 import type { Choice } from "./AddChoices.tsx";
+import { railRow } from "./railRow.stylex.ts";
 import { railSquare } from "./NavRow.tsx";
 import { handleCommand } from "./commands.ts";
 
@@ -110,6 +111,6 @@ const styles = stylex.create({
     transitionTimingFunction: motion.enter,
     outline: "none",
   },
-  compact: { justifyContent: "center", width: "100%", height: "36px", paddingInline: 0 },
+  compact: { justifyContent: "center", width: "100%", height: railRow.height, paddingInline: 0 },
   anchorCompact: { width: "100%" },
 });

@@ -3,6 +3,7 @@ import * as stylex from "@stylexjs/stylex";
 import { Link } from "@tanstack/react-router";
 import { color, motion, radius } from "@inkling/ui/tokens.stylex";
 import { search } from "../library/search.ts";
+import { railRow } from "./railRow.stylex.ts";
 import { railSquare, SelectionFill } from "./NavRow.tsx";
 import { SpaceCover } from "./SpaceCover.tsx";
 import { opensMenu, openSpaceMenu, type SpaceActions } from "./spaceMenu.ts";
@@ -46,7 +47,7 @@ export function CompactSpaceRow({
 }
 
 const styles = stylex.create({
-  // Centered in the square with 3px around it; the open row's rail cover sits at the same spot.
+  // Centered in the square with 5px around it; the open row's rail cover sits at the same spot.
   cover: { width: "30px", height: "30px" },
   row: {
     position: "relative",
@@ -54,7 +55,7 @@ const styles = stylex.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    height: "36px",
+    height: railRow.height,
     borderRadius: radius.control,
     textDecoration: "none",
     backgroundColor: {

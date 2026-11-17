@@ -22,6 +22,7 @@ import { useAppearance } from "../settings/appearance.ts";
 import { AddMenu } from "./AddMenu.tsx";
 import { IndexingRing } from "./IndexingRing.tsx";
 import { NavButton, NavLink } from "./NavRow.tsx";
+import { railRow } from "./railRow.stylex.ts";
 import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
 import { SpacesSection } from "./SpacesSection.tsx";
 import { UpdateRow } from "./UpdateRow.tsx";
@@ -181,6 +182,7 @@ export function Sidebar({
         {...stylex.props(
           styles.sidebar,
           styles.width(width),
+          rail && railRows,
           narrow && styles.narrow,
           chrome.controls === "custom-right" && styles.unifiedHeader,
           chrome.controls === "native-left" && styles.belowLights,
@@ -288,6 +290,9 @@ export function Sidebar({
     </>
   );
 }
+
+// The rail's rows are taller, so each control's highlight square has room around its icon or cover.
+const railRows = stylex.createTheme(railRow, { height: "40px" });
 
 const styles = stylex.create({
   sidebar: {
