@@ -15,7 +15,7 @@ export const notAddress = "enter a web address, such as example.com.";
  * Leaving and saving for an Add page. Back and Escape return without saving;
  * a save puts the new card at the top of the library, selects it and returns.
  */
-export function useAddPage() {
+export function useAddPage({ onEscape }: { onEscape?: () => void } = {}) {
   const navigate = useNavigate();
   const stepBack = useStepBack();
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +28,7 @@ export function useAddPage() {
   const leave = () => {
     if (!busy.current) stepBack(() => void navigate({ to: "/" }));
   };
-  useEscape(leave);
+  useEscape(onEscape ?? leave);
 
   /** Resolves true once saved; a failure is shown as `error` and rethrown for the caller. */
   const save = async (write: (client: LibraryClient) => Promise<ItemDetail>) => {
