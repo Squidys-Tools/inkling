@@ -1,4 +1,5 @@
-import { projectSeed, seedItems } from "./seed-data.ts";
+import { projectSeed } from "./project-seed.ts";
+import { seedItems } from "./seed-data.ts";
 
 // The web preview's library: the demo seed in ./seed-demo, plus one item of each
 // kind the seed lacks. Image sizes match the files, so cards keep their real proportions.

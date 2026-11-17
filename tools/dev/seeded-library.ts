@@ -8,10 +8,10 @@ import {
   seedBodies,
   seedItems,
   seedMembership,
-  seedPostPaths,
   seedSpaces,
   type SeedItem,
 } from "../../apps/renderer/src/library/preview/seed-data.ts";
+import { seedPostPaths } from "../../apps/renderer/src/library/preview/project-seed.ts";
 
 const seedAssets = join(
   dirname(fileURLToPath(import.meta.url)),
