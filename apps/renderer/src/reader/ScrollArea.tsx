@@ -44,12 +44,14 @@ export function ScrollArea({
   children,
   viewportRef,
   onScroll,
+  style,
   viewportStyle,
   trackStyle,
 }: {
   children: ReactNode;
   viewportRef?: Ref<HTMLDivElement>;
   onScroll?: (event: UIEvent<HTMLDivElement>) => void;
+  style?: stylex.StyleXStyles;
   viewportStyle?: stylex.StyleXStyles;
   trackStyle?: stylex.StyleXStyles;
 }) {
@@ -128,7 +130,7 @@ export function ScrollArea({
 
   const awake = scrolling || dragging;
   return (
-    <div {...stylex.props(styles.root, scrollAreaMarker)}>
+    <div {...stylex.props(styles.root, style)}>
       <div
         ref={viewport}
         onScroll={(event) => {
@@ -136,7 +138,7 @@ export function ScrollArea({
           wake();
           onScroll?.(event);
         }}
-        {...stylex.props(styles.viewport, viewportStyle)}
+        {...stylex.props(styles.viewport, scrollAreaMarker, viewportStyle)}
       >
         <div ref={content}>{children}</div>
       </div>
@@ -178,6 +180,8 @@ const styles = stylex.create({
     height: "100%",
     overflowX: "hidden",
     overflowY: "auto",
+    // Matches FADE, so a focused control or caret scrolled into view stays clear of the fade.
+    scrollPaddingBlock: "28px",
     scrollbarWidth: "none",
     "::-webkit-scrollbar": { display: "none" },
   },
@@ -190,13 +194,23 @@ const styles = stylex.create({
     zIndex: 1,
     width: "11px",
     touchAction: "none",
-    opacity: { default: 0, [stylex.when.ancestor(":hover", scrollAreaMarker)]: 1 },
-    pointerEvents: { default: "none", [stylex.when.ancestor(":hover", scrollAreaMarker)]: "auto" },
+    // Woken by its own viewport or itself under the pointer, not by an outer ScrollArea's.
+    opacity: {
+      default: 0,
+      ":hover": 1,
+      [stylex.when.siblingBefore(":hover", scrollAreaMarker)]: 1,
+    },
+    pointerEvents: {
+      default: "none",
+      ":hover": "auto",
+      [stylex.when.siblingBefore(":hover", scrollAreaMarker)]: "auto",
+    },
     // Appears quickly, lingers on the way out.
     transitionProperty: "opacity",
     transitionDuration: {
       default: `calc(${motion.micro} * 3.2)`,
-      [stylex.when.ancestor(":hover", scrollAreaMarker)]: motion.micro,
+      ":hover": motion.micro,
+      [stylex.when.siblingBefore(":hover", scrollAreaMarker)]: motion.micro,
     },
     transitionTimingFunction: motion.standard,
   },
