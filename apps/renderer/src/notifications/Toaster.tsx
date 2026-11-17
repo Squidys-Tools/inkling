@@ -3,7 +3,7 @@ import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import type { Space } from "@inkling/contracts";
-import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
+import { cardColor, color, font, motion } from "@inkling/ui/tokens.stylex";
 import { useState, useSyncExternalStore } from "react";
 import { KindIcon } from "../cards/KindIcon.tsx";
 import { useSpaceThumbs } from "../library/spaceThumbs.ts";
@@ -60,7 +60,7 @@ function ToastList() {
                 <button type="button" {...toast.actionProps} {...stylex.props(styles.action)} />
               )}
               <Toast.Close aria-label="Dismiss notification" {...stylex.props(styles.close)}>
-                <HugeiconsIcon icon={Cancel01Icon} size={13} />
+                <HugeiconsIcon icon={Cancel01Icon} size={12} />
               </Toast.Close>
               {toast.timeout !== undefined && toast.timeout > 0 && (
                 <span
@@ -94,7 +94,7 @@ function Tile({ subject }: { subject: NoticeSubject }) {
     );
   return (
     <span aria-hidden="true" {...stylex.props(styles.tile, styles.kind)}>
-      <KindIcon kind={subject.kind} size={16} />
+      <KindIcon kind={subject.kind} size={14} />
     </span>
   );
 }
@@ -117,7 +117,7 @@ const styles = stylex.create({
     zIndex: 100,
     display: "flex",
     flexDirection: "column",
-    gap: "8px",
+    gap: "6px",
     width: "min(340px, calc(100vw - 32px))",
     outline: "none",
     pointerEvents: "none",
@@ -126,17 +126,17 @@ const styles = stylex.create({
     position: "relative",
     display: "flex",
     alignItems: "center",
-    gap: "11px",
-    minHeight: "58px",
-    padding: "9px",
+    gap: "9px",
+    minHeight: "46px",
+    padding: "6px 6px 6px 7px",
     overflow: "hidden",
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: color.border,
-    borderRadius: radius.panel,
+    borderRadius: "11px",
     backgroundColor: color.raised,
     color: color.ink,
-    boxShadow: `0 18px 40px ${color.shadow}`,
+    boxShadow: `0 14px 32px ${color.shadow}`,
     fontFamily: font.body,
     pointerEvents: "auto",
     WebkitAppRegion: "no-drag",
@@ -149,18 +149,13 @@ const styles = stylex.create({
     transitionDuration: motion.reveal,
     transitionTimingFunction: motion.enter,
   },
-  // A red edge stands in for the picture: an error is about the attempt, not an item.
-  error: {
-    paddingLeft: "15px",
-    borderColor: cardColor.dangerEdge,
-    backgroundImage: `linear-gradient(90deg, ${cardColor.dangerWash}, transparent 60%)`,
-    boxShadow: `inset 4px 0 0 ${color.danger}, 0 18px 40px ${color.shadow}`,
-  },
+  // A red outline stands in for the picture: an error is about the attempt, not an item.
+  error: { paddingLeft: "10px", borderColor: cardColor.dangerOutline },
   tile: {
     flexShrink: 0,
-    width: "38px",
-    height: "38px",
-    borderRadius: "8px",
+    width: "32px",
+    height: "32px",
+    borderRadius: "7px",
   },
   picture: { objectFit: "cover", backgroundColor: color.surface },
   kind: {
@@ -174,19 +169,19 @@ const styles = stylex.create({
     margin: 0,
     overflow: "hidden",
     fontFamily: font.display,
-    fontSize: "13px",
+    fontSize: "12.5px",
     fontWeight: 500,
-    lineHeight: "17px",
+    lineHeight: "16px",
     color: color.inkStrong,
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
   description: {
     display: "-webkit-box",
-    marginTop: "1px",
+    margin: 0,
     overflow: "hidden",
-    fontSize: "12px",
-    lineHeight: "16px",
+    fontSize: "11.5px",
+    lineHeight: "15px",
     color: color.muted,
     overflowWrap: "anywhere",
     WebkitBoxOrient: "vertical",
@@ -194,16 +189,16 @@ const styles = stylex.create({
   },
   action: {
     flexShrink: 0,
-    height: "28px",
-    paddingInline: "11px",
+    height: "24px",
+    paddingInline: "9px",
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: color.borderStrong,
-    borderRadius: radius.control,
+    borderRadius: "7px",
     backgroundColor: { default: "transparent", ":hover": color.hover },
     color: color.inkStrong,
     fontFamily: font.display,
-    fontSize: "12px",
+    fontSize: "11.5px",
     fontWeight: 500,
     cursor: "pointer",
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
@@ -213,9 +208,8 @@ const styles = stylex.create({
     display: "grid",
     placeItems: "center",
     flexShrink: 0,
-    alignSelf: "flex-start",
-    width: "22px",
-    height: "22px",
+    width: "20px",
+    height: "20px",
     padding: 0,
     appearance: "none",
     borderWidth: 0,
