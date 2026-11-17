@@ -48,6 +48,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
+      # Bun's cache on a Dev Drive cuts a cold Windows install from about 60s to 35s, setup
+      # included. The checkout and the packaged app stay on the runner's NTFS disk.
+      - if: runner.os == 'Windows'
+        uses: samypr100/setup-dev-drive@562171fe8df7401fdf582d766cd3b6ab80d5b1a0 # v4.1.0
+        with:
+          drive-size: 4GB
+          trusted-dev-drive: true
+          env-mapping: BUN_INSTALL_CACHE_DIR,{{ DEV_DRIVE }}/bun-cache
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: .bun-version
