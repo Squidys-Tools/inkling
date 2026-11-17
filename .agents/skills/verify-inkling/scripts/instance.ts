@@ -692,9 +692,9 @@ switch (command) {
   }
   case "press": {
     // Windows fallback for combos `ad press` cannot name (`,`, `/`, `?`, `\`, `-`, `=`, `+`):
-    // WScript.Shell SendKeys, with the run's window activated by pid. Same combo syntax as
-    // `ad press` (`press ctrl+comma`, `press shift+?`, `press ctrl+-`). AppActivate must
-    // succeed first — a missed activate would type into whatever window is foreground.
+    // WScript.Shell SendKeys after `focus-window` on the run's own window. Same combo syntax as
+    // `ad press` (`press ctrl+comma`, `press shift+?`, `press ctrl+-`). The focus must succeed
+    // first: SendKeys types into whatever window is foreground.
     if (process.platform !== "win32")
       fail(
         "press is the Windows fallback for punctuation keys; `ad press` takes xdotool names on Linux",
