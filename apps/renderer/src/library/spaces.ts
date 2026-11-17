@@ -138,16 +138,32 @@ export async function deleteSpace(space: Space) {
     await (await libraryClient()).deleteSpace({ id: space.id });
     return true;
   });
-  if (done) {
-    spacesStore.set((state) => ({
-      ...state,
-      spaces: state.spaces.filter((candidate) => candidate.id !== space.id),
-    }));
-    forgetSpaceCount(space.id);
-    forgetSpaceThumbs(space.id);
-  }
-  if (done) notify("Space deleted", { description: "Its items are still in your library." });
-  return done === true;
+  if (!done) return false;
+  spacesStore.set((state) => ({
+    ...state,
+    spaces: state.spaces.filter((candidate) => candidate.id !== space.id),
+  }));
+  let restored = false;
+  notify("Space deleted", {
+    id: `space-deleted ${space.id}`,
+    description: "Its items are still in your library.",
+    action: {
+      label: "Undo",
+      run: async () => {
+        const spaces = await (await libraryClient()).restoreSpace({ id: space.id });
+        restored = true;
+        ++reloads;
+        spacesStore.set((state) => ({ ...state, spaces: ordered(spaces) }));
+      },
+    },
+    // Kept until Undo is no longer offered, so a restored Space shows its cover and count again.
+    onClose: () => {
+      if (restored) return;
+      forgetSpaceCount(space.id);
+      forgetSpaceThumbs(space.id);
+    },
+  });
+  return true;
 }
 
 export async function setInSpace(spaceId: string, itemId: string, filed: boolean) {

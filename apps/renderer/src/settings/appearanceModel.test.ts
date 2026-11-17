@@ -1,37 +1,35 @@
 import { expect, test } from "bun:test";
 import { parseAppearance } from "./appearanceModel.ts";
 
-test("old Appearance choices migrate, but an old sidebar style does not choose a sidebar", () => {
+test("an old view toggle or sidebar style is dropped and chooses nothing", () => {
   const actual = parseAppearance(
     JSON.stringify({ sidebarStyle: "classic", viewToggle: "segmented", sidebarToggle: "edge" }),
   );
   expect(actual).toEqual({
-    sidebar: "refined",
-    viewToggle: "segmented",
+    sidebar: "cover",
     gridColumns: "4",
     windowControlsAtRest: "hover",
   });
+  expect(actual).not.toHaveProperty("viewToggle");
   expect(actual).not.toHaveProperty("sidebarStyle");
   expect(actual).not.toHaveProperty("sidebarToggle");
   expect(parseAppearance('{"windowControls":"inset"}')).not.toHaveProperty("windowControls");
-  expect(parseAppearance(null, "segmented").viewToggle).toBe("segmented");
-  expect(parseAppearance('{"viewToggle":"segmented"}', "pill").viewToggle).toBe("pill");
-  expect(parseAppearance('{"viewToggle":"segmented"}', "invalid").viewToggle).toBe("segmented");
 });
 
 test("invalid or missing Appearance settings use known defaults", () => {
-  for (const raw of [null, "not json", "null", "[]", '{"viewToggle":"oops"}'])
+  for (const raw of [null, "not json", "null", "[]", '{"gridColumns":"oops"}'])
     expect(parseAppearance(raw)).toEqual({
-      sidebar: "refined",
-      viewToggle: "pill",
+      sidebar: "cover",
       gridColumns: "4",
       windowControlsAtRest: "hover",
     });
 });
 
-test("Shelf is the sidebar only when chosen", () => {
-  expect(parseAppearance('{"sidebar":"shelf"}').sidebar).toBe("shelf");
-  expect(parseAppearance('{"sidebar":"classic"}').sidebar).toBe("refined");
+test("Strip is the sidebar only when chosen, and an old Shelf choice becomes Strip", () => {
+  expect(parseAppearance('{"sidebar":"strip"}').sidebar).toBe("strip");
+  expect(parseAppearance('{"sidebar":"shelf"}').sidebar).toBe("strip");
+  expect(parseAppearance('{"sidebar":"refined"}').sidebar).toBe("cover");
+  expect(parseAppearance('{"sidebar":"classic"}').sidebar).toBe("cover");
 });
 
 test("the pill stays hidden at rest unless Always is chosen", () => {

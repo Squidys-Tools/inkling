@@ -154,6 +154,8 @@ export const LibraryRpcs = RpcGroup.make(
   call("createSpace", CreateSpaceInput.fields, Space),
   call("updateSpace", UpdateSpaceInput.fields, Space),
   call("deleteSpace", ById, Schema.Void),
+  /** Undoes a recent deleteSpace in this session, with the items and removals it held. */
+  call("restoreSpace", ById, Schema.Array(Space)),
   call("swapSpaces", { firstId: Text, secondId: Text }, Schema.Array(Space)),
   call("addToSpace", { spaceId: Text, itemId: Text }, Schema.Void),
   call("removeFromSpace", { spaceId: Text, itemId: Text }, Schema.Void),

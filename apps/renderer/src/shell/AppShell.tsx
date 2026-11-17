@@ -11,10 +11,11 @@ import { toggleSidebar, useViewState } from "../libraryView/viewState.ts";
 import { ContextMenuLayer } from "../menu/contextMenu.tsx";
 import { Toaster } from "../notifications/Toaster.tsx";
 import { useFirstRun } from "../onboarding/useFirstRun.ts";
+import { useAppearance } from "../settings/appearance.ts";
 import { handleCommand } from "./commands.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { Sidebar } from "./Sidebar.tsx";
-import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
+import { sidebarCompact, sidebarExpanded, stripAddBeside } from "./sidebarGeometry.ts";
 import { TitleBar } from "./TitleBar.tsx";
 import { useCommands } from "./useCommands.ts";
 import { useSidebarMotion } from "./useSidebarMotion.ts";
@@ -51,7 +52,8 @@ export function AppShell() {
   const narrow = useMedia("(max-width: 780px)");
   const open = useViewState((state) => state.sidebarOpen);
   const inset = narrow && open ? 0 : open ? sidebarExpanded : sidebarCompact;
-  const [stageRef, visualOpen] = useSidebarMotion(open, inset, narrow);
+  const beside = useAppearance().sidebar === "strip" ? stripAddBeside : 0;
+  const [stageRef, visualOpen] = useSidebarMotion(open, inset, narrow, beside);
 
   return (
     <div {...stylex.props(styles.shell)}>
@@ -60,12 +62,7 @@ export function AppShell() {
         <Sidebar open={open} visualOpen={visualOpen} narrow={narrow} />
         <main
           ref={stageRef}
-          {...stylex.props(
-            styles.stage,
-            styles.inset(inset),
-            !covered && styles.library,
-            narrow && styles.narrow,
-          )}
+          {...stylex.props(styles.stage, styles.inset(inset), narrow && styles.narrow)}
         >
           <div {...stylex.props(styles.content)}>
             <LibraryHost covered={covered} painting={painting} sidebarCollapsed={false} />
@@ -114,16 +111,16 @@ const styles = stylex.create({
   welcome: { position: "fixed", inset: 0, zIndex: 35, backgroundColor: color.window },
   stage: {
     position: "absolute",
-    top: 0,
-    bottom: 0,
-    right: 0,
+    top: "8px",
+    bottom: "8px",
+    right: "8px",
     zIndex: 1,
     boxSizing: "border-box",
     minWidth: 0,
     backgroundColor: color.surface,
     borderWidth: 0,
-    borderTopLeftRadius: radius.frame,
-    borderBottomLeftRadius: radius.frame,
+    borderRadius: radius.frame,
+    boxShadow: `0 0 0 1px ${color.border}, -10px 0 28px -12px ${color.shadow}`,
     overflow: "hidden",
     contain: "strict",
     transformOrigin: "left top",
@@ -132,9 +129,6 @@ const styles = stylex.create({
     transitionDuration: motion.layout,
   },
   inset: (left: number) => ({ left }),
-  // The library already has its own gutters; a full-height rule here reads as a stray line.
-  // Covered pages keep the reviewed frame edge. The inset pseudo-edge inherits this color.
-  library: { borderLeftColor: "transparent" },
   narrow: { transitionDuration: "0s" },
   content: { position: "absolute", inset: 0 },
   page: {

@@ -6,27 +6,24 @@ import texture from "./assets/typed-texture.png";
 
 // PDFs, notes and files share one layout: a mono label and ring, the title in
 // DM Sans caps, three dots and a mono footnote over the same dotted texture.
-// `compact` is the list row.
 function TypedArtwork({
   label,
   title,
   footnote,
-  compact = false,
 }: {
   label: string;
   title: string;
   footnote?: string;
-  compact?: boolean;
 }) {
   return (
-    <div {...stylex.props(styles.art, compact && styles.compactArt)} aria-hidden="true">
+    <div {...stylex.props(styles.art)} aria-hidden="true">
       <img src={texture} alt="" decoding="async" {...stylex.props(styles.texture)} />
       <div {...stylex.props(styles.labelRow)}>
         <span {...stylex.props(styles.label)}>{label}</span>
         <span {...stylex.props(styles.ring)} />
       </div>
-      <span {...stylex.props(styles.title, compact && styles.compactTitle)}>{title}</span>
-      <div {...stylex.props(styles.dots, compact && styles.compactDots)}>
+      <span {...stylex.props(styles.title)}>{title}</span>
+      <div {...stylex.props(styles.dots)}>
         <span {...stylex.props(styles.dot, styles.dotAccent)} />
         <span {...stylex.props(styles.dot, styles.dotYellow)} />
         <span {...stylex.props(styles.dot, styles.dotGreen)} />
@@ -44,11 +41,9 @@ const wordCount = (value: string) => {
 /** The art a card draws when it has no image: by kind, for PDFs, notes, files and the rest. */
 export function TypedArtworkFor({
   view,
-  compact,
   waiting,
 }: {
   view: CardView;
-  compact?: boolean;
   /** Jobs are still running, so a missing thumbnail may yet arrive. */
   waiting?: boolean;
 }) {
@@ -58,7 +53,6 @@ export function TypedArtworkFor({
         label="PDF"
         title={pdfPreviewTitle(view.title) || "Document"}
         footnote={view.pdfPageCount ? `${view.pdfPageCount} PAGES` : undefined}
-        compact={compact}
       />
     );
   if (view.kind === "Note") {
@@ -68,7 +62,6 @@ export function TypedArtworkFor({
         label="NOTE"
         title={view.title}
         footnote={words > 0 ? `${words} WORDS` : undefined}
-        compact={compact}
       />
     );
   }
@@ -79,7 +72,6 @@ export function TypedArtworkFor({
       label={extension || view.kind.toUpperCase()}
       title={view.noPreview && !waiting ? "No preview" : pdfPreviewTitle(view.title) || view.kind}
       footnote={view.fileSizeBytes ? formatByteSize(view.fileSizeBytes) : undefined}
-      compact={compact}
     />
   );
 }
@@ -96,12 +88,6 @@ const styles = stylex.create({
     paddingTop: "42px",
     paddingInline: "28px",
     paddingBottom: "30px",
-  },
-  compactArt: {
-    paddingTop: "14px",
-    paddingRight: "16px",
-    paddingBottom: "14px",
-    paddingLeft: "18px",
   },
   texture: {
     position: "absolute",
@@ -154,10 +140,6 @@ const styles = stylex.create({
     WebkitLineClamp: 2,
     overflow: "hidden",
   },
-  compactTitle: {
-    marginTop: "14px",
-    fontSize: "15px",
-  },
   dots: {
     position: "relative",
     zIndex: 2,
@@ -165,9 +147,6 @@ const styles = stylex.create({
     alignItems: "center",
     gap: "8px",
     marginTop: "14px",
-  },
-  compactDots: {
-    marginTop: "10px",
   },
   dot: {
     width: "10px",

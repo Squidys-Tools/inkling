@@ -12,19 +12,12 @@ export function quoteArtworkText(view: CardView) {
 
 // In the grid the quote grows the card to fit (up to ten lines); elsewhere it
 // fills the box it is given.
-export function QuoteArtwork({
-  view,
-  layout,
-}: {
-  view: CardView;
-  layout: "grid" | "list" | "fill";
-}) {
+export function QuoteArtwork({ view, layout }: { view: CardView; layout: "grid" | "fill" }) {
   const { text, attribution } = quoteArtworkText(view);
-  const compact = layout === "list";
   return (
     <div {...stylex.props(styles.art, styles[layout])} aria-hidden="true">
-      <span {...stylex.props(styles.mark, compact && styles.compactMark)}>“</span>
-      <p {...stylex.props(styles.text, compact && styles.compactText)}>{text}</p>
+      <span {...stylex.props(styles.mark)}>“</span>
+      <p {...stylex.props(styles.text)}>{text}</p>
       {attribution && (
         <>
           <span {...stylex.props(styles.rule)} />
@@ -53,13 +46,6 @@ const styles = stylex.create({
     paddingBottom: "40px",
     paddingLeft: "26px",
   },
-  list: {
-    position: "relative",
-    height: "100%",
-    minHeight: "155px",
-    paddingBlock: "14px",
-    paddingInline: "16px",
-  },
   fill: {
     position: "absolute",
     inset: 0,
@@ -76,11 +62,6 @@ const styles = stylex.create({
     lineHeight: "100px",
     color: cardColor.quoteMark,
   },
-  compactMark: {
-    height: "40px",
-    fontSize: "56px",
-    lineHeight: "40px",
-  },
   text: {
     margin: 0,
     overflow: "hidden",
@@ -93,10 +74,6 @@ const styles = stylex.create({
     display: "-webkit-box",
     WebkitBoxOrient: "vertical",
     WebkitLineClamp: 10,
-  },
-  compactText: {
-    fontSize: "15px",
-    WebkitLineClamp: 3,
   },
   rule: {
     flexShrink: 0,

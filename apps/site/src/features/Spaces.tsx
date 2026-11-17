@@ -1,7 +1,7 @@
 import type { SpaceColor } from "@inkling/contracts";
 import * as stylex from "@stylexjs/stylex";
 import { color, radius } from "@inkling/ui/tokens.stylex";
-import { SpaceMark } from "../../../renderer/src/shell/SpaceMark.tsx";
+import { SpaceSwatch } from "../../../renderer/src/shell/SpaceCover.tsx";
 
 const spaces: { name: string; color: SpaceColor; holds: string; smart: boolean }[] = [
   { name: "Design references", color: "orange", holds: "Everything tagged reference", smart: true },
@@ -15,7 +15,7 @@ export function Spaces() {
     <ul aria-label="Example Spaces" {...stylex.props(styles.list)}>
       {spaces.map((space) => (
         <li key={space.name} {...stylex.props(styles.row)}>
-          <SpaceMark color={space.color} />
+          <SpaceSwatch space={{ kind: space.smart ? "smart" : "regular", color: space.color }} />
           <span {...stylex.props(styles.name)}>{space.name}</span>
           <span {...stylex.props(styles.holds)}>{space.holds}</span>
           <span {...stylex.props(styles.kind)}>{space.smart ? "Smart" : "Picked"}</span>
