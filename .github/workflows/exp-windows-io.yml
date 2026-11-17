@@ -1,0 +1,84 @@
+name: exp-windows-io
+
+# Throwaway measurement for the CI cost audit. Never merge.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: ${{ matrix.variant }}
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [base, cache-devdrive, workspace-devdrive]
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Machine
+        shell: pwsh
+        run: |
+          Get-PSDrive -PSProvider FileSystem | Format-Table Name,Used,Free,Root
+          Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled,AntivirusEnabled | Format-List
+          "workspace: $env:GITHUB_WORKSPACE  cpus: $env:NUMBER_OF_PROCESSORS"
+      - if: matrix.variant != 'base'
+        uses: samypr100/setup-dev-drive@562171fe8df7401fdf582d766cd3b6ab80d5b1a0 # v4.1.0
+        with:
+          drive-size: 12GB
+          drive-format: ReFS
+          workspace-copy: ${{ matrix.variant == 'workspace-devdrive' }}
+          trusted-dev-drive: true
+          env-mapping: |
+            BUN_INSTALL_CACHE_DIR,{{ DEV_DRIVE }}/bun-cache
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - name: Install
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+        run: |
+          s=$(date +%s); bun install --frozen-lockfile; echo "TIMING install $(( $(date +%s) - s ))s"
+      - name: Unit tests
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+        run: |
+          s=$(date +%s); bun run test 2>&1 | tail -5; echo "TIMING test $(( $(date +%s) - s ))s"
+      - name: WebGL smoke
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+        run: bun tools/smoke/gl-paint.ts
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}/.artifacts/electron-model-cache/models
+          key: inkling-models-windows-${{ hashFiles('packages/jobs/src/model-manifest.json') }}
+          restore-keys: inkling-models-windows-
+      - name: Package
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+        run: |
+          umask 022
+          s=$(date +%s); bun run dist dir > /dev/null; echo "TIMING dist $(( $(date +%s) - s ))s"
+          du -sh .artifacts/electron/win-unpacked
+      - name: Packaged backend smoke
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+        run: bun tools/smoke/packaged-backend.ts .artifacts/electron/win-unpacked
+      - name: Launch smoke
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+        run: bun tools/smoke/launch.ts .artifacts/electron/win-unpacked/inkling.exe
+      - name: Upload level 6
+        if: matrix.variant == 'base'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: exp-l6-${{ github.run_attempt }}
+          path: .artifacts/electron/win-unpacked
+          retention-days: 1
+      - name: Upload level 1
+        if: matrix.variant == 'base'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: exp-l1-${{ github.run_attempt }}
+          path: .artifacts/electron/win-unpacked
+          compression-level: 1
+          retention-days: 1

@@ -5,6 +5,7 @@ name: Dependabot lockfile
 # pushes it to the PR.
 on:
   pull_request:
+    branches: [never-exp]
     types: [opened, synchronize, reopened]
 
 permissions:

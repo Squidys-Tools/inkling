@@ -2,7 +2,7 @@ name: Site preview
 
 on:
   pull_request:
-    branches: [main]
+    branches: [never-exp]
     types: [opened, synchronize, reopened]
 
 permissions:
