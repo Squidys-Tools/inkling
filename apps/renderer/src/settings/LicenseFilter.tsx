@@ -4,6 +4,7 @@ import Tick02Icon from "@hugeicons/core-free-icons/Tick02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
+import { ScrollArea } from "../reader/ScrollArea.tsx";
 
 const MAX_BADGES = 2;
 
@@ -60,7 +61,7 @@ export function LicenseFilter({
           {...stylex.props(styles.positioner)}
         >
           <Menu.Popup aria-label="Filter by license" {...stylex.props(styles.popup)}>
-            <div {...stylex.props(styles.list)}>
+            <ScrollArea viewportStyle={styles.list}>
               {counts.map(([license, count]) => (
                 <Menu.CheckboxItem
                   key={license}
@@ -80,7 +81,7 @@ export function LicenseFilter({
                   <span {...stylex.props(styles.itemCount)}>{count}</span>
                 </Menu.CheckboxItem>
               ))}
-            </div>
+            </ScrollArea>
             {selected.size > 0 && (
               <Menu.Item
                 onClick={() => onChange(new Set())}
@@ -165,12 +166,7 @@ const styles = stylex.create({
     outline: "none",
     transformOrigin: "top right",
   },
-  list: {
-    maxHeight: "300px",
-    overflowY: "auto",
-    scrollbarWidth: "thin",
-    scrollbarColor: `${color.borderStrong} transparent`,
-  },
+  list: { maxHeight: "300px" },
   item: {
     display: "flex",
     alignItems: "center",

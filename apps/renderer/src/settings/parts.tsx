@@ -4,6 +4,7 @@ import { Button } from "@inkling/ui";
 import * as stylex from "@stylexjs/stylex";
 import { color, font, motion, radius, space, text } from "@inkling/ui/tokens.stylex";
 import { type ComponentProps, type ReactNode, useId } from "react";
+import { ScrollArea } from "../reader/ScrollArea.tsx";
 
 /** One settings section: a header with the close button, then a scrolling body. */
 export function Panel({
@@ -49,7 +50,11 @@ export function Panel({
 }
 
 export function PanelBody({ children }: { children: ReactNode }) {
-  return <div {...stylex.props(styles.body)}>{children}</div>;
+  return (
+    <ScrollArea style={styles.body} viewportStyle={styles.bodyViewport}>
+      <div {...stylex.props(styles.bodyContent)}>{children}</div>
+    </ScrollArea>
+  );
 }
 
 /** Stands in for a section that needs the desktop app. */
@@ -412,16 +417,9 @@ const styles = stylex.create({
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
     outlineOffset: "2px",
   },
-  body: {
-    display: "flex",
-    flex: "1 1 auto",
-    flexDirection: "column",
-    minHeight: 0,
-    overflowY: "auto",
-    paddingRight: "3px",
-    scrollbarWidth: "thin",
-    scrollbarColor: `${color.borderStrong} transparent`,
-  },
+  body: { display: "flex", flex: "1 1 auto", flexDirection: "column", height: "auto" },
+  bodyViewport: { flex: "1 1 auto", height: "auto", minHeight: 0 },
+  bodyContent: { display: "flex", flexDirection: "column" },
   section: {
     display: "flex",
     flexDirection: "column",

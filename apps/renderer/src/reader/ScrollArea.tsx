@@ -44,12 +44,14 @@ export function ScrollArea({
   children,
   viewportRef,
   onScroll,
+  style,
   viewportStyle,
   trackStyle,
 }: {
   children: ReactNode;
   viewportRef?: Ref<HTMLDivElement>;
   onScroll?: (event: UIEvent<HTMLDivElement>) => void;
+  style?: stylex.StyleXStyles;
   viewportStyle?: stylex.StyleXStyles;
   trackStyle?: stylex.StyleXStyles;
 }) {
@@ -128,7 +130,7 @@ export function ScrollArea({
 
   const awake = scrolling || dragging;
   return (
-    <div {...stylex.props(styles.root, scrollAreaMarker)}>
+    <div {...stylex.props(styles.root, scrollAreaMarker, style)}>
       <div
         ref={viewport}
         onScroll={(event) => {
@@ -178,6 +180,8 @@ const styles = stylex.create({
     height: "100%",
     overflowX: "hidden",
     overflowY: "auto",
+    // Matches FADE, so a focused control or caret scrolled into view stays clear of the fade.
+    scrollPaddingBlock: "28px",
     scrollbarWidth: "none",
     "::-webkit-scrollbar": { display: "none" },
   },
