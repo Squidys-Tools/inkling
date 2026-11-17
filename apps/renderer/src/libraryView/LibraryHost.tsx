@@ -120,7 +120,7 @@ export function LibraryHost({
         <Grid
           key={gridKey}
           ids={ids}
-          header={archive ? <ArchiveHeader count={count} /> : undefined}
+          header={archive && ready ? <ArchiveHeader count={count} /> : undefined}
           addTile={scope._tag === "Active" && !searching && ready}
           pinnedOffset={pinned}
           onNearEnd={() => {
