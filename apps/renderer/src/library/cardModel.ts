@@ -73,6 +73,8 @@ export type CardView = {
   /** A managed original exists to reveal; a thumbnail alone is not the saved file. */
   hasLocalFile: boolean;
   archived: boolean;
+  /** "Archived today", from the last write, which for an archived item is archiving it. */
+  archivedLabel?: string;
   treatment: Treatment;
   media: MediaKind;
 };
@@ -252,6 +254,14 @@ function itemDateLabel(timestamp: number, now: number) {
   };
 }
 
+function archivedLabel(timestamp: number, now: number) {
+  const { label, until } = itemDateLabel(timestamp, now);
+  return {
+    label: `Archived ${until === Number.POSITIVE_INFINITY ? label : label.toLowerCase()}`,
+    until,
+  };
+}
+
 function fallbackRatio(kind: ItemKind) {
   switch (kind) {
     case "Video":
@@ -378,6 +388,7 @@ export function toCardView(card: LibraryCard, now = Date.now()): CardView {
     hasArticleContent: card.hasArticleContent,
     hasLocalFile: Boolean(card.localAssetPath),
     archived: card.archived,
+    archivedLabel: card.archived ? archivedLabel(card.updatedAt, now).label : undefined,
     treatment: noPreview ? "media" : treatmentOf(kind, image, Boolean(social)),
     media: mediaOf(kind, image, Boolean(social)),
   };
@@ -396,7 +407,10 @@ export function cardView(card: LibraryCard, clock: number, now = Date.now()) {
     return held.view;
   }
   const view = toCardView(card, now);
-  const { until } = itemDateLabel(card.createdAt, now);
+  const until = Math.min(
+    itemDateLabel(card.createdAt, now).until,
+    card.archived ? archivedLabel(card.updatedAt, now).until : Number.POSITIVE_INFINITY,
+  );
   views.set(card, { view, clock, until });
   expireLabelAt(until);
   return view;

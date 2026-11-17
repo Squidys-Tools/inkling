@@ -87,6 +87,27 @@ export async function deleteForever(view: CardView) {
     });
 }
 
+export async function deleteArchive(count: number) {
+  const confirmed = await confirm({
+    message:
+      count === 1
+        ? "Delete the archived item for good?"
+        : `Delete all ${count.toLocaleString()} archived items for good?`,
+    detail: "They leave every Space, and their files are removed from the library.",
+    confirmLabel: "Delete all",
+    destructive: true,
+  });
+  if (confirmed)
+    await run("Couldn’t empty the archive", async () => {
+      const deleted = await (await libraryClient()).deleteArchived({});
+      notify(
+        deleted.length === 1
+          ? "Deleted 1 item permanently"
+          : `Deleted ${deleted.length.toLocaleString()} items permanently`,
+      );
+    });
+}
+
 export async function openCardMenu(
   view: CardView,
   at: { x: number; y: number },

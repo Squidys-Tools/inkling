@@ -356,6 +356,15 @@ export function createPreviewClient(): LibraryClient {
       for (const ids of membership.values()) ids.delete(id);
       emit({ _tag: "ItemsRemoved", ids: [id] });
     },
+    deleteArchived: async () => {
+      const ids = [...items.values()]
+        .filter((found) => found.card.archived)
+        .map((found) => found.card.id);
+      for (const id of ids) items.delete(id);
+      for (const members of membership.values()) for (const id of ids) members.delete(id);
+      emit({ _tag: "ItemsRemoved", ids });
+      return ids;
+    },
 
     spaces: async () => withCounts(),
     createSpace: async ({ name, color, query, kind }) => {

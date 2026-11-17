@@ -10,6 +10,7 @@ import { scopeFromPath, scopeKey } from "../library/scope.ts";
 import { search, useSearch } from "../library/search.ts";
 import { spacesStore, useSpace } from "../library/spaces.ts";
 import { useSelector } from "@tanstack/react-store";
+import { ArchiveHeader } from "./ArchiveHeader.tsx";
 import { EmptyState } from "./EmptyState.tsx";
 import { FilterRow } from "./FilterRow.tsx";
 import { Grid } from "./Grid.tsx";
@@ -67,9 +68,8 @@ export function LibraryHost({
     : state?.status === "ready";
   const pinned = searching && !focused;
   const viewName = archive ? "Archive" : (space?.name ?? "Everything");
-  const layout = archive ? "archive" : "grid";
   // A new scope or search starts a new grid at the top; anything else keeps the scroll.
-  const gridKey = `${layout}|${searching ? `search:${results === null ? "" : ran}` : scopeKey(scope)}`;
+  const gridKey = searching ? `search:${results === null ? "" : ran}` : scopeKey(scope);
 
   let empty: { title: string; detail: string; action?: { label: string; run: () => void } } | null =
     null;
@@ -120,7 +120,7 @@ export function LibraryHost({
         <Grid
           key={gridKey}
           ids={ids}
-          layout={layout}
+          header={archive && ready ? <ArchiveHeader count={count} /> : undefined}
           addTile={scope._tag === "Active" && !searching && ready}
           pinnedOffset={pinned}
           onNearEnd={() => {

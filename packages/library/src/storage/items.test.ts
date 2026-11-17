@@ -207,6 +207,23 @@ test("kind counts follow the card kinds, skip archived items and survive broken 
   ]);
 });
 
+test("deleting the archive deletes only archived items, and their Space memberships", async () => {
+  const { library } = await temporaryLibrary();
+  const kept = await library.createNote({ title: "Kept", body: "still here" });
+  const first = await library.createNote({ title: "First", body: "archived" });
+  const second = await library.createNote({ title: "Second", body: "archived" });
+  const filed = await library.createSpace({ name: "Filed", kind: "regular" });
+  await library.addSpaceItem(filed.id, kept.id);
+  await library.addSpaceItem(filed.id, first.id);
+  await library.archiveItem(first.id);
+  await library.archiveItem(second.id);
+
+  expect([...(await library.deleteArchived())].sort()).toEqual([first.id, second.id].sort());
+  expect(count(library, "items")).toBe(1);
+  expect(ids(await library.listSpaceItems(filed.id))).toEqual([kept.id]);
+  expect(await library.deleteArchived()).toEqual([]);
+});
+
 test("tag counts ignore case and archived items, and keep the most used spelling", async () => {
   const { library } = await temporaryLibrary();
   const notes = await Promise.all(

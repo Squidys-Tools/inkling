@@ -215,6 +215,17 @@ export function makeItems(ctx: StorageContext) {
     if (removal) yield* attempt(() => rm(removal, { recursive: true, force: true }));
   });
 
+  // An item that fails, or was restored after the list was read, stays in the archive.
+  const deleteArchived = Effect.fnUntraced(function* () {
+    const rows = yield* sql<{ id: string }>`SELECT id FROM items WHERE archived = 1`;
+    const deleted: string[] = [];
+    for (const { id } of rows) {
+      const exit = yield* Effect.exit(deleteItem(id));
+      if (exit._tag === "Success") deleted.push(id);
+    }
+    return deleted;
+  });
+
   // SQLite's lower() folds ASCII only, so countTags groups them in JavaScript.
   const tagCounts = Effect.fnUntraced(function* () {
     const rows = yield* sql<{ id: string; tag: string }>`SELECT i.id, t.value AS tag
@@ -282,5 +293,6 @@ export function makeItems(ctx: StorageContext) {
     updateItem,
     archiveItem,
     deleteItem,
+    deleteArchived,
   };
 }

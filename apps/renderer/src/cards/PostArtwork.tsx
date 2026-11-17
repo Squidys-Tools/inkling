@@ -13,10 +13,9 @@ import {
 } from "../library/cardModel.ts";
 
 /**
- * `card` is the grid's post at its own height; `compact` fills a small tile or a list row with
- * the header and a few lines; `stage` is the item view's, sized as X's post detail.
+ * `card` is the grid's post at its own height; `stage` is the item view's, sized as X's post detail.
  */
-export type PostLayout = "card" | "compact" | "stage";
+export type PostLayout = "card" | "stage";
 
 /** A drawn X post: the card never loads X's own embed, which only the item view plays. */
 export function PostArtwork({
@@ -28,7 +27,6 @@ export function PostArtwork({
   layout?: PostLayout;
   style?: stylex.StyleXStyles;
 }) {
-  const full = layout !== "compact";
   const stage = layout === "stage";
   return (
     <div
@@ -51,7 +49,7 @@ export function PostArtwork({
           <HugeiconsIcon icon={NewTwitterIcon} size={stage ? 18 : 15} strokeWidth={2} />
         </span>
       </div>
-      {full && post.replyTo && (
+      {post.replyTo && (
         <p {...stylex.props(styles.context, stage && x.context)}>
           Replying to <span {...stylex.props(styles.link)}>@{post.replyTo}</span>
         </p>
@@ -61,8 +59,8 @@ export function PostArtwork({
           <PostText parts={post.parts} />
         </p>
       )}
-      {full && post.media.length > 0 && <MediaGrid media={post.media} stage={stage} />}
-      {full && post.quote && (
+      {post.media.length > 0 && <MediaGrid media={post.media} stage={stage} />}
+      {post.quote && (
         <div {...stylex.props(styles.box, stage && x.box, styles.quote, stage && x.quote)}>
           <div {...stylex.props(styles.quoteHeader, stage && x.line)}>
             <Avatar author={post.quote} size="small" stage={stage} />
@@ -90,7 +88,7 @@ export function PostArtwork({
           </div>
         </div>
       )}
-      {full && post.linkCard && (
+      {post.linkCard && (
         <div {...stylex.props(styles.box, stage && x.box, !post.linkCard.large && styles.linkRow)}>
           {post.linkCard.image && (
             <img
@@ -116,7 +114,7 @@ export function PostArtwork({
           </div>
         </div>
       )}
-      {full && post.poll && (
+      {post.poll && (
         <div {...stylex.props(styles.poll, stage && x.poll)}>
           {post.poll.choices.map((choice) => (
             <div
@@ -270,13 +268,6 @@ function MediaGrid({ media, stage }: { media: PostMedia[]; stage: boolean }) {
 
 const layouts = stylex.create({
   card: {},
-  compact: {
-    height: "100%",
-    overflow: "hidden",
-    paddingTop: "12px",
-    paddingInline: "12px",
-    paddingBottom: "12px",
-  },
   // X's post detail, as xeet measures it: 16 by 12 padding and 15/20 type.
   stage: {
     paddingTop: "12px",
@@ -290,7 +281,6 @@ const layouts = stylex.create({
 
 const bodyClamp = stylex.create({
   card: { WebkitLineClamp: 8 },
-  compact: { WebkitLineClamp: 3 },
   stage: { display: "block", marginTop: "12px", fontSize: "17px", lineHeight: "24px" },
 });
 
