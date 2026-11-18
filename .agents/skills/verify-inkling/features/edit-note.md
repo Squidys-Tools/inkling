@@ -1,6 +1,6 @@
 # Edit a note
 
-Edit note reopens a saved note's body in the full-page editor and saves the change in place. Status: **driven** on 2026-11-17 (after capture-note; the card opens the write page directly, `Details` reaches the item view).
+Edit note reopens a saved note's body in the full-page editor and saves the change in place. Status: **driven** on 2026-11-17 (before notes opened into their item view; re-drive the open step).
 
 ## Sub-features
 
@@ -10,15 +10,15 @@ Edit note reopens a saved note's body in the full-page editor and saves the chan
 
 ## How to get to it (user POV)
 
-- Open a note card — it lands on its write page directly; the item view is one **Details** click away. Or choose **Edit note** in the item view — same write page.
+- Open a note card — it lands on the item view; choose **Edit note** there to reach the write page.
 - Leaving with unsaved edits (`Back`, `Details`, Escape, other navigation) asks "Discard your changes to this note?" through the shared confirm (`Cancel`/`Discard`; not driven). Inside the editor, Escape on a dirty buffer asks to revert in place.
 
 ## Driving it with agent-desktop
 
 Preconditions: a note with body `verify probe alpha` exists (run capture-note first), Everything is shown.
 
-- **Open the note.** `$I ad click "$($I ref group 'Note: Untitled note')"` lands on `#/item/<id>/write`: textfield `Note` has value `verify probe alpha`; buttons `Back` and `Details` only — `Discard`/`Save` render only while dirty. `$I ad click "$($I ref button Details)"` shows the item view: `Info`, `Similar`, `Close`, `Edit note`, `Keep in a Space`, `Archive` (plus the title button, the `Add a tag` combobox, a `Remove tag <name>` button per tag, and `Saved`/`From` rows); `$I shot 04-open`.
-- **Open the editor.** `$I ad click "$($I ref button 'Edit note')"` returns to the same `#/item/<id>/write` route the card opened.
+- **Open the note.** `$I ad click "$($I ref group 'Note: Untitled note')"` lands on the item view: `Info`, `Similar`, `Close`, `Edit note`, `Keep in a Space`, `Archive` (plus the title button, the `Add a tag` combobox, a `Remove tag <name>` button per tag, and `Saved`/`From` rows); `$I shot 04-open`.
+- **Open the editor.** `$I ad click "$($I ref button 'Edit note')"` lands on `#/item/<id>/write`: textfield `Note` has value `verify probe alpha`; buttons `Back` and `Details` only — `Discard`/`Save` render only while dirty.
 - **Replace the body.** `$I ad set-value "$($I ref textfield Note)" 'verify probe edited'`; `Discard`/`Save` appear with the `Edited` status. `$I shot 05-typed`.
 - **Save.** `$I ad click "$($I ref button Save)"` — the button is named `Save`, not `Save note`. Saving does not navigate: the route stays `#/item/<id>/write` and `Discard`/`Save` disappear. `$I ad click "$($I ref button Back)"` (or `Details`) returns to the item view (`Edit note` visible again).
 - **Proof.** `$I shot 06-saved`; `$I db "SELECT title,body,description,created_at,updated_at FROM items WHERE body LIKE 'verify probe%'"` returns body and description `verify probe edited`, title `null`, `created_at` unchanged, `updated_at` later.

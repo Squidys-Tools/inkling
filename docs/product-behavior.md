@@ -32,7 +32,7 @@ Background jobs read an image's text with OCR, take its color palette for the it
 
 ### Notes and quotes
 
-A quick note opens at once and stays lightweight. Opening a saved note opens its text as a page, edited in place and written only on Save.
+A quick note opens at once and stays lightweight. Opening a saved note opens its item view like any other card; Edit note there opens its text as a page, edited in place and written only on Save.
 
 A quote keeps its source URL when it has one and shows as a quote card.
 
