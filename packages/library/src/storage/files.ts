@@ -9,6 +9,7 @@ import { isInside } from "../paths.ts";
 import { nonEmpty } from "./shared.ts";
 import { attempt, invalidInput } from "./errors.ts";
 import { IMAGE_THUMBNAIL_JOB, VIDEO_POSTER_JOB } from "./jobs.ts";
+import { SCREENSHOT_SOURCE_LABEL, screenshotTitle } from "./screenshot-title.ts";
 
 const maxFileBytes = 50 * 1024 * 1024;
 
@@ -133,8 +134,9 @@ export function makeFiles(ctx: StorageContext) {
         OR CASE WHEN json_valid(metadata) THEN json_extract(metadata, '$.screenshotHash') END = ${hash} LIMIT 1`;
         if (existing.length) return null;
         const item = yield* saveFile({ ...input, kind: "image" });
-        yield* sql`UPDATE items SET metadata = json_set(metadata, '$.screenshotHash', ${hash})
-        WHERE id = ${item.id}`;
+        yield* sql`UPDATE items SET metadata = json_set(metadata, '$.screenshotHash', ${hash}),
+        title = ${screenshotTitle(item.title ?? input.fileName, item.createdAt)},
+        source_label = ${SCREENSHOT_SOURCE_LABEL} WHERE id = ${item.id}`;
         return item.id;
       }),
     );
