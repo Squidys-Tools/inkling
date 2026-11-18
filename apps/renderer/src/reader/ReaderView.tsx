@@ -1,5 +1,4 @@
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
-import InformationCircleIcon from "@hugeicons/core-free-icons/InformationCircleIcon";
 import LinkSquare02Icon from "@hugeicons/core-free-icons/LinkSquare02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
@@ -10,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { controlsOnRight } from "../desktop.ts";
 import { hostname, webUrl } from "../library/assets.ts";
 import { errorMessage } from "../library/errors.ts";
-import { useReaderNavigation, useStepBack } from "../item/navigation.ts";
+import { useStepBack } from "../item/navigation.ts";
 import { useArticleHtml, useItem } from "../item/queries.ts";
 import { useEscape } from "../item/useEscape.ts";
 import { ArticleContent } from "./ArticleContent.tsx";
@@ -38,7 +37,6 @@ const countWords = (nodes: readonly ArticleNode[]): number =>
 export function ReaderView({ id }: { id: string }) {
   const navigate = useNavigate();
   const stepBack = useStepBack();
-  const { showDetails } = useReaderNavigation();
   const [fontSet, setFontSet] = useFontSet();
   const [textSize, setTextSize] = useTextSize();
   useEffect(() => registerFontSet(fontSet), [fontSet]);
@@ -81,10 +79,15 @@ export function ReaderView({ id }: { id: string }) {
   );
   const title = detail?.title || site || "Untitled";
   const byline = [
-    site,
     nonEmpty(detail?.metadata.author),
     minutes > 0 ? `${minutes} min read` : undefined,
   ].filter((part) => part !== undefined);
+  const source = sourceUrl && site && (
+    <a href={sourceUrl} target="_blank" rel="noopener noreferrer" {...stylex.props(styles.source)}>
+      {site}
+      <HugeiconsIcon icon={LinkSquare02Icon} size={12} />
+    </a>
+  );
   const status =
     (query.isLoadingError && errorMessage(query.error)) ??
     (article.isLoadingError && errorMessage(article.error)) ??
@@ -120,25 +123,6 @@ export function ReaderView({ id }: { id: string }) {
         >
           {detail && nodes ? title : null}
         </p>
-        {sourceUrl && (
-          <a
-            href={sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open the page in your browser"
-            title="Open the page in your browser"
-            {...stylex.props(styles.barLink)}
-          >
-            <HugeiconsIcon icon={LinkSquare02Icon} size={17} />
-          </a>
-        )}
-        {detail && (
-          <IconButton
-            label="Details"
-            icon={<HugeiconsIcon icon={InformationCircleIcon} size={18} />}
-            onClick={() => showDetails(id)}
-          />
-        )}
       </div>
       <ScrollArea
         viewportRef={scroller}
@@ -164,14 +148,18 @@ export function ReaderView({ id }: { id: string }) {
               <h1 ref={setHeading} {...stylex.props(styles.title)}>
                 {title}
               </h1>
-              {byline.length > 0 && (
+              {(site || byline.length > 0) && (
                 <p {...stylex.props(styles.byline)}>
                   {site && (
                     <span aria-hidden="true" {...stylex.props(styles.siteMark)}>
                       {site.charAt(0)}
                     </span>
                   )}
-                  {byline.join("  ·  ")}
+                  <span>
+                    {source}
+                    {source && byline.length > 0 && "  ·  "}
+                    {byline.join("  ·  ")}
+                  </span>
                 </p>
               )}
             </header>
@@ -180,6 +168,20 @@ export function ReaderView({ id }: { id: string }) {
               uprightQuotes={uprightQuotes(fontSet)}
               textSize={textSize}
             />
+            {source && (
+              <footer {...stylex.props(styles.footer)}>
+                <span>Saved from {site}</span>
+                <a
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  {...stylex.props(styles.original)}
+                >
+                  Open original
+                  <HugeiconsIcon icon={LinkSquare02Icon} size={13} />
+                </a>
+              </footer>
+            )}
           </article>
         )}
       </ScrollArea>
@@ -265,20 +267,6 @@ const styles = stylex.create({
     transitionTimingFunction: motion.standard,
   },
   barTitleShown: { opacity: 1, translate: "0 0" },
-  barLink: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "32px",
-    height: "32px",
-    borderRadius: radius.control,
-    backgroundColor: { default: "transparent", ":hover": color.overlayHover },
-    color: { default: color.inkSoft, ":hover": color.inkStrong },
-    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
-    outlineOffset: "2px",
-    transitionProperty: "background-color, color",
-    transitionDuration: motion.micro,
-  },
   // Named for ArticleContent: figures break out of the column when this is wide enough.
   scroll: { containerName: "reader", containerType: "inline-size" },
   // Starts under the bar, clear of its buttons and the window's.
@@ -324,6 +312,53 @@ const styles = stylex.create({
     fontSize: text.sm,
     color: color.muted,
     whiteSpace: "pre-wrap",
+  },
+  source: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "4px",
+    borderRadius: "3px",
+    color: { default: color.inkSoft, ":hover": color.inkStrong },
+    textDecorationLine: "underline",
+    textDecorationColor: { default: color.borderStrong, ":hover": color.accentStrong },
+    textUnderlineOffset: "3px",
+    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
+    outlineOffset: "2px",
+    transitionProperty: "color, text-decoration-color",
+    transitionDuration: motion.micro,
+  },
+  footer: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space.s3,
+    marginTop: "clamp(36px, 6vh, 56px)",
+    paddingTop: space.s4,
+    borderTopWidth: "1px",
+    borderTopStyle: "solid",
+    borderTopColor: color.border,
+    fontFamily: reader.meta,
+    fontSize: text.sm,
+    color: color.muted,
+  },
+  original: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    flexShrink: 0,
+    paddingBlock: "6px",
+    paddingInline: "12px",
+    borderRadius: radius.control,
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: { default: color.border, ":hover": color.borderStrong },
+    backgroundColor: { default: color.raised, ":hover": color.hover },
+    color: { default: color.ink, ":hover": color.inkStrong },
+    textDecorationLine: "none",
+    outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
+    outlineOffset: "2px",
+    transitionProperty: "background-color, border-color, color",
+    transitionDuration: motion.micro,
   },
   siteMark: {
     display: "grid",
