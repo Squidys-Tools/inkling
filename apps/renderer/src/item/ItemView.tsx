@@ -342,7 +342,8 @@ const styles = stylex.create({
     borderStyle: "solid",
     borderColor: "transparent",
   },
-  stageDocument: { padding: 0, placeItems: "stretch" },
+  // Longhands, since StyleX lets the stage's paddingBlock and paddingInline outrank a `padding` shorthand.
+  stageDocument: { paddingBlock: 0, paddingInline: 0, placeItems: "stretch" },
   // Shown only while the panel slides: on its left edge beside the stage, on top below it.
   panelShadow: {
     position: "absolute",
