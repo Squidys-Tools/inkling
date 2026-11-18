@@ -5,10 +5,12 @@ export const SCREENSHOT_SOURCE_LABEL = "Screenshots";
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
-// Windows "Screenshot 2026-11-15 114827", Android "Screenshot_2026-11-15-11-48-27-05_<hash>"
-// and "Screenshot_20261115-114827", macOS "Screenshot 2026-11-15 at 11.48.27 PM".
+// A date, a short non-digit gap (" at ", " um ", " à ", "_"), then a time with optional seconds:
+// Windows "Screenshot 2026-11-15 114827", macOS "Screenshot 2026-11-15 at 1.48.27 PM"
+// (localized words, a narrow no-break space before AM/PM), GNOME "Screenshot from 2026-11-15
+// 11-48-27", KDE "Screenshot_20261115_114827", Xfce "Screenshot_2026-11-15_11-48-27".
 const stamped =
-  /(?<!\d)(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})(?:(?:[ _-]|\s+at\s+)(\d{1,2})[.:_-]?(\d{2})[.:_-]?(\d{2})(?!\d{2})(?:\s*([AP])\.?M\.?)?)?/i;
+  /(?<!\d)(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})(?:\D{1,10}?(\d{1,2})[.:_-]?(\d{2})(?:[.:_-]?(\d{2}))?(?!\d)(?:\s*([ap])\.?m\b)?)?/i;
 
 function dateFromName(fileName: string) {
   const match = stamped.exec(fileName);
@@ -18,9 +20,12 @@ function dateFromName(fileName: string) {
   const date = `${year}-${month}-${day}`;
   if (rawHour === undefined) return { date, time: null };
   let hour = +rawHour;
-  if (meridiem) hour = (hour % 12) + (meridiem.toUpperCase() === "P" ? 12 : 0);
-  if (hour > 23 || +minute > 59 || +second > 59) return { date, time: null };
-  return { date, time: `${pad(hour)}.${minute}.${second}` };
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return { date, time: null };
+    hour = (hour % 12) + (meridiem.toLowerCase() === "p" ? 12 : 0);
+  }
+  if (hour > 23 || +minute > 59 || +(second ?? 0) > 59) return { date, time: null };
+  return { date, time: `${pad(hour)}.${minute}${second ? `.${second}` : ""}` };
 }
 
 /**
