@@ -12,7 +12,7 @@ import { useMounted } from "../useMounted.ts";
 export const notAddress = "enter a web address, such as example.com.";
 
 /**
- * Leaving and saving for an Add page. Back and Escape return without saving;
+ * Leaving and saving for an Add page. Back returns and keeps the draft;
  * a save puts the new card at the top of the library, selects it and returns.
  */
 export function useAddPage({ onEscape }: { onEscape?: () => void } = {}) {

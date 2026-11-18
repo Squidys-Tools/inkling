@@ -66,6 +66,7 @@ export function QuoteForm() {
       );
   };
   const onKeyDown = (event: KeyboardEvent) => {
+    if (event.nativeEvent.isComposing) return;
     const single = event.target instanceof HTMLInputElement;
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey || single)) {
       event.preventDefault();
