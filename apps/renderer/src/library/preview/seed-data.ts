@@ -1,5 +1,5 @@
 import type { Job, Space } from "@inkling/contracts";
-import type { XPost, XPostEntity } from "@inkling/contracts/jobs";
+import type { XPost } from "@inkling/contracts/jobs";
 
 // The demo library's records as data, with file names instead of bundler URLs:
 // the web preview (./seed.ts) projects them into cards, and tools/dev writes
@@ -28,220 +28,355 @@ export type SeedItem = {
   xPost?: XPost;
 };
 
-// Invented accounts and posts; none of these are real people. Pictures reuse the seed's photos.
-const linked = (
-  text: string,
-  ...spans: [needle: string, kind: XPostEntity["kind"], url?: string][]
-) => ({
-  text,
-  entities: spans.map(([needle, kind, url]) => {
-    const start = text.indexOf(needle);
-    return { kind, start, end: start + needle.length, ...(url && { url }) };
-  }),
-});
-const photo = (path: string, width: number, height: number) => ({
-  kind: "photo" as const,
-  url: `https://pbs.twimg.com/media/${path}`,
-  width,
-  height,
-  path,
-});
-const accounts = {
-  tomas: { authorName: "Tomás Rey", authorHandle: "tomasrey" },
-  ines: { authorName: "Ines Lund", authorHandle: "ineslund" },
-  radio: { authorName: "Pocket Radio", authorHandle: "pocketradio" },
-  mara: { authorName: "Mara Okafor", authorHandle: "maraokafor", verified: "blue" as const },
-  wren: {
-    authorName: "Wren Abara",
-    authorHandle: "wrenabara",
-    verified: "blue" as const,
-    avatarPath: "compressO-IMG_4630.jpg",
-  },
-  field: {
-    authorName: "Field Notes Studio",
-    authorHandle: "fieldnotesstudio",
-    verified: "business" as const,
-    squareAvatar: true,
-    avatarPath: "compressO-IMG_4638.jpg",
-  },
-};
+// Real posts, as capture stores them: text, media and cards come from each post's page,
+// and the pictures are X's own copies, so the item view's live embed shows the same post.
 const xPostItem = (
-  id: string,
+  slug: string,
   index: number,
-  author: keyof typeof accounts,
-  publishedDate: string,
-  post: Omit<XPost, "provider" | "postUrl" | "postId">,
   tags: string[],
+  post: Omit<XPost, "provider" | "postUrl">,
 ): SeedItem => {
-  const account = accounts[author];
-  const postUrl = `https://x.com/${account.authorHandle}/status/${id.replace(/\D/gu, "")}`;
+  const postUrl = `https://x.com/${post.authorHandle}/status/${post.postId}`;
   return {
-    id: `seed-x-${id}`,
+    id: `seed-x-${slug}`,
     kind: "url",
-    title: `${account.authorName}'s post`,
+    title: `${post.authorName}'s post`,
     description: post.text,
     source: "X",
     sourceUrl: postUrl,
     index,
     metadata: { tags: [...tags, "post"] },
-    xPost: {
-      provider: "x",
-      postUrl,
-      postId: id.replace(/\D/gu, ""),
-      ...account,
-      publishedDate,
-      ...post,
-    },
+    xPost: { provider: "x", postUrl, ...post },
   };
 };
 
 const xPosts: SeedItem[] = [
-  xPostItem(
-    "desk-1901",
-    1,
-    "tomas",
-    "2026-03-04T09:12:00.000Z",
-    { text: "Moved my whole desk to the window. Productivity unclear, mood excellent." },
-    ["desk"],
-  ),
-  xPostItem(
-    "shelf-1902",
-    6,
-    "ines",
-    "2026-02-18T17:40:00.000Z",
-    {
-      text: "Things I learned building a bookshelf with no plan:\n\n1. Measure the wall, not the room.\n2. The cheap screws are cheap for a reason.\n3. A level that lies is worse than no level.\n4. Sand before you stain, then sand again, then accept it.\n5. The shelf you build second is the one you keep.\n6. Nobody notices the back panel, so use the nice wood there anyway. You will know.\n7. Ask a friend to hold the other end before you need one.",
+  xPostItem("webb", 2, ["space", "astronomy", "photography"], {
+    postId: "1546621144358391808",
+    authorName: "NASA",
+    authorHandle: "NASA",
+    verified: "government",
+    avatarUrl: "https://pbs.twimg.com/profile_images/1321163587679784960/0ZxKlEKB_x96.jpg",
+    squareAvatar: true,
+    authorUrl: "https://x.com/NASA",
+    text: "It's here–the deepest, sharpest infrared view of the universe to date: Webb's First Deep Field.\n\nPreviewed by @POTUS on July 11, it shows galaxies once invisible to us. The full set of @NASAWebb's first full-color images & data will be revealed July 12: nasa.gov/webbfirstimages",
+    entities: [
+      {
+        kind: "mention",
+        start: 110,
+        end: 116,
+      },
+      {
+        kind: "mention",
+        start: 185,
+        end: 194,
+      },
+      {
+        kind: "url",
+        start: 254,
+        end: 278,
+        url: "http://nasa.gov/webbfirstimages",
+      },
+    ],
+    publishedDate: "2022-07-11T22:23:10.000Z",
+    media: [
+      {
+        kind: "photo",
+        url: "https://pbs.twimg.com/media/FXazugRWIAQZmml?format=jpg&name=small",
+        width: 2799,
+        height: 2856,
+        alt: "The background of space is black. Thousands of galaxies appear all across the view. Their shapes and colors vary. Some are various shades of orange, others are white. Most stars appear blue, and are sometimes as large as more distant galaxies that appear next to them. A very bright star is just above and left of center. It has eight bright blue, long diffraction spikes. Between 4 o’clock and 6 o’clock in its spikes are several very bright galaxies. A group of three are in the middle, and two are closer to 4 o’clock. These galaxies are part of the galaxy cluster SMACS 0723, and they are warping the appearances of galaxies seen around them. Long orange arcs appear at left and right toward the center.",
+        path: "x-1546621144358391808-1.jpg",
+      },
+    ],
+    avatarPath: "x-avatar-nasa.jpg",
+  }),
+  xPostItem("earthset", 6, ["space", "moon", "video"], {
+    postId: "2046009031613907029",
+    authorName: "Reid Wiseman",
+    authorHandle: "astro_reid",
+    avatarUrl: "https://pbs.twimg.com/profile_images/1785338156524457984/4K6iJivI_x96.jpg",
+    authorUrl: "https://x.com/astro_reid",
+    text: "Only one chance in this lifetime…\n\nLike watching sunset at the beach from the most foreign seat in the cosmos, I couldn’t resist a cell phone video of Earthset. You can hear the shutter on the Nikon as @Astro_Christina is hammering away on 3-shot brackets and capturing those exceptional Earthset photos through the 400mm lens. @AstroVicGlover was in window 3 watching with @Astro_Jeremy next to him. \n\nI could barely see the Moon through the docking hatch window but the iPhone was the perfect size to catch the view…this is uncropped, uncut with 8x zoom which is quite comparable to the view of the human eye. Enjoy.",
+    entities: [
+      {
+        kind: "mention",
+        start: 202,
+        end: 218,
+      },
+      {
+        kind: "mention",
+        start: 328,
+        end: 343,
+      },
+      {
+        kind: "mention",
+        start: 374,
+        end: 387,
+      },
+    ],
+    publishedDate: "2026-04-19T23:32:20.000Z",
+    media: [
+      {
+        kind: "video",
+        url: "https://pbs.twimg.com/amplify_video_thumb/2046008958511702016/img/ZVCfSz258kuefu7d?format=jpg&name=small",
+        width: 720,
+        height: 1280,
+        durationSeconds: 53.005,
+        path: "x-2046009031613907029-1.jpg",
+      },
+    ],
+    avatarPath: "x-avatar-astro_reid.jpg",
+  }),
+  xPostItem("crew13", 8, ["space", "launch", "photography"], {
+    postId: "2105698284354367897",
+    authorName: "NASA",
+    authorHandle: "NASA",
+    verified: "government",
+    avatarUrl: "https://pbs.twimg.com/profile_images/1321163587679784960/0ZxKlEKB_x96.jpg",
+    squareAvatar: true,
+    authorUrl: "https://x.com/NASA",
+    text: "Destination: @Space_Station📍\n\nNASA’s SpaceX Crew-13 mission has successfully launched! The Dragon spacecraft carrying the crew is set to dock at about 7pm ET (2300 UTC) tonight, kicking off several months of scientific exploration. Watch with us here! go.nasa.gov/4xS9r7L",
+    entities: [
+      {
+        kind: "mention",
+        start: 13,
+        end: 27,
+      },
+      {
+        kind: "url",
+        start: 253,
+        end: 272,
+        url: "https://go.nasa.gov/4xS9r7L",
+      },
+    ],
+    publishedDate: "2026-10-01T16:36:07.000Z",
+    media: [
+      {
+        kind: "photo",
+        url: "https://pbs.twimg.com/media/HTjxa3eW0AAktku?format=jpg&name=small",
+        width: 2048,
+        height: 1113,
+        alt: "A SpaceX Falcon 9 rocket with the company's Dragon spacecraft on top is seen at sunset on the launch pad. The sky is mostly covered with different kinds of clouds: thick, fluffy ones at the bottom and wider, more spread out ones in the rest of the sky. The Sun's light turns the bottom right portion of the sky orange.",
+        path: "x-2105698284354367897-1.jpg",
+      },
+      {
+        kind: "photo",
+        url: "https://pbs.twimg.com/media/HTjxbFWWMAAJ5fH?format=jpg&name=small",
+        width: 2048,
+        height: 1432,
+        alt: "NASA's SpaceX Crew-13 mission members CSA (Canadian Space Agency) astronaut Joshua Kutryk, left, NASA astronauts Luke Delaney, middle left, and Jessica Watkins, middle right, and Roscosmos cosmonaut Sergey Teteryatnikov, right, wave to a crowd (not seen) after walking out of a building.",
+        path: "x-2105698284354367897-2.jpg",
+      },
+      {
+        kind: "photo",
+        url: "https://pbs.twimg.com/media/HTjxbUzW4AAOYxQ?format=jpg&name=small",
+        width: 2048,
+        height: 1269,
+        alt: "A Crew-13 member waves out of a black Tesla's open window as they proceed to the launch pad. The car's license plate reads \"Lucky 13.\"",
+        path: "x-2105698284354367897-3.jpg",
+      },
+      {
+        kind: "photo",
+        url: "https://pbs.twimg.com/media/HTjxbkAXgAAN6Vy?format=jpg&name=small",
+        width: 2048,
+        height: 1262,
+        alt: "A SpaceX Falcon 9 rocket carrying the company's Dragon spacecraft launches. There is a bright column of fire under the rocket as it moves upward. Clouds of vapor spread out below the rocket, almost blending into the similarly shaped clouds in the sky.",
+        path: "x-2105698284354367897-4.jpg",
+      },
+    ],
+    avatarPath: "x-avatar-nasa.jpg",
+  }),
+  xPostItem("landing", 10, ["space", "mars", "video"], {
+    postId: "1363929492138254340",
+    authorName: "ARCHIVED - NASA's Perseverance Mars Rover",
+    authorHandle: "NASAPersevere",
+    verified: "blue",
+    avatarUrl: "https://pbs.twimg.com/profile_images/1379527227436531712/QasZP9s-_x96.jpg",
+    authorUrl: "https://x.com/NASAPersevere",
+    text: "Your front-row seat to my Mars landing is here. Watch how we did it.\n\n#CountdownToMars",
+    entities: [
+      {
+        kind: "hashtag",
+        start: 70,
+        end: 86,
+      },
+    ],
+    publishedDate: "2021-02-22T19:11:46.000Z",
+    media: [
+      {
+        kind: "video",
+        url: "https://pbs.twimg.com/media/Eu2ND-rWgAM-bpS?format=jpg&name=small",
+        width: 2782,
+        height: 1565,
+        durationSeconds: 205.033,
+        path: "x-1363929492138254340-1.jpg",
+      },
+    ],
+    avatarPath: "x-avatar-nasapersevere.jpg",
+  }),
+  xPostItem("first-tweet", 12, ["space", "twitter", "history"], {
+    postId: "1789764999231001051",
+    authorName: "NASA",
+    authorHandle: "NASA",
+    verified: "government",
+    avatarUrl: "https://pbs.twimg.com/profile_images/1321163587679784960/0ZxKlEKB_x96.jpg",
+    squareAvatar: true,
+    authorUrl: "https://x.com/NASA",
+    text: "15 years ago today, astronaut Mike Massimino wrote the first Tweet in space.\n\nHere's to the many more we've shared since then—around the world and off it:",
+    publishedDate: "2024-05-12T21:10:02.000Z",
+    quote: {
+      postId: "1777093627",
+      postUrl: "https://x.com/Astro_Mike/status/1777093627",
+      authorName: "Mike Massimino",
+      authorHandle: "Astro_Mike",
+      verified: "blue",
+      avatarUrl: "https://pbs.twimg.com/profile_images/1235606509163352071/yBzfpSOv_normal.jpg",
+      text: "From orbit: Launch was awesome!! I am feeling great, working hard, & enjoying the magnificent views, the adventure of a lifetime has begun!",
+      publishedDate: "2009-05-12T20:33:01.000Z",
+      avatarPath: "x-avatar-astro_mike.jpg",
     },
-    ["woodworking", "diy"],
-  ),
-  xPostItem(
-    "fort-1903",
-    2,
-    "mara",
-    "2026-01-30T07:05:00.000Z",
-    {
-      text: "Walked out to the old fort this morning, before the ferries start.",
-      media: [photo("compressO-BD0448C2-54B5-4791-B6EF-05629CA6C40C.jpg", 1967, 2934)],
+    avatarPath: "x-avatar-nasa.jpg",
+  }),
+  xPostItem("smoke", 14, ["earth", "wildfire"], {
+    postId: "2077831134700835243",
+    authorName: "NASA Earth",
+    authorHandle: "NASAEarth",
+    verified: "government",
+    avatarUrl: "https://pbs.twimg.com/profile_images/2040064373323083776/2ez7ntt1_x96.jpg",
+    squareAvatar: true,
+    authorUrl: "https://x.com/NASAEarth",
+    text: "Learn more: go.nasa.gov/4poBYit",
+    entities: [
+      {
+        kind: "url",
+        start: 12,
+        end: 31,
+        url: "https://go.nasa.gov/4poBYit",
+      },
+    ],
+    publishedDate: "2026-07-16T19:02:01.000Z",
+    linkCard: {
+      url: "https://go.nasa.gov/4poBYit",
+      domain: "science.nasa.gov",
+      title: "Ontario Wildfire Smoke Moves East - NASA Science",
+      description:
+        "Canadian wildfires sent plumes of smoke streaming over Ontario, Quebec, and parts of the U.S. Midwest and Northeast.",
+      imageUrl: "https://pbs.twimg.com/card_img/2120476673896509440/AMsWSfbB?format=jpg&name=small",
+      imageWidth: 720,
+      imageHeight: 377,
+      large: true,
+      imagePath: "x-2077831134700835243-card.jpg",
     },
-    ["travel", "photography"],
-  ),
-  xPostItem(
-    "roll-1904",
-    8,
-    "wren",
-    "2026-01-12T20:30:00.000Z",
-    {
-      ...linked("Four days, one roll of film. #filmphotography", ["#filmphotography", "hashtag"]),
-      media: [
-        photo("compressO-IMG_4636.jpg", 736, 485),
-        photo("compressO-9BCD88C1-AFC4-483B-9A33-7C6F292BFBB2.jpg", 2832, 4248),
-        photo("compressO-IMG_2618.jpg", 1080, 1920),
-        photo("compressO-IMG_4630.jpg", 650, 1156),
-      ],
+    replyTo: {
+      postId: "2077831131982901667",
+      handle: "NASAEarth",
     },
-    ["film", "photography"],
-  ),
-  xPostItem(
-    "set-1905",
-    10,
-    "radio",
-    "2025-12-09T22:15:00.000Z",
-    {
-      text: "Recorded the whole set on a phone taped to a mic stand. Sound is better than it has any right to be.",
-      media: [
+    avatarPath: "x-avatar-nasaearth.jpg",
+  }),
+  xPostItem("edit-poll", 16, ["twitter", "poll"], {
+    postId: "1511143607385874434",
+    authorName: "Elon Musk",
+    authorHandle: "elonmusk",
+    verified: "blue",
+    avatarUrl: "https://pbs.twimg.com/profile_images/2122506092437504001/NSS4RHyZ_x96.jpg",
+    authorUrl: "https://x.com/elonmusk",
+    text: "Do you want an edit button?",
+    publishedDate: "2022-04-05T00:48:06.000Z",
+    poll: {
+      choices: [
         {
-          ...photo("compressO-IMG_4636.jpg", 736, 485),
-          kind: "video",
-          durationSeconds: 102,
+          label: "yse",
+          votes: 3241597,
+        },
+        {
+          label: "on",
+          votes: 1165167,
         },
       ],
+      endsAt: "2022-04-06T00:48:06.000Z",
+      final: true,
     },
-    ["music", "video"],
-  ),
-  xPostItem(
-    "lamp-1906",
-    12,
-    "ines",
-    "2026-03-01T12:00:00.000Z",
-    {
-      text: "This is the right answer and I will not be taking questions.",
-      quote: {
-        postId: "1800",
-        postUrl: "https://x.com/fieldnotesstudio/status/1800",
-        ...accounts.field,
-        text: "Hot take: the best desk lamp is the one you can aim at the wall, not at the page.",
-        publishedDate: "2026-02-28T15:00:00.000Z",
-        media: [photo("compressO-IMG_4630.jpg", 650, 1156)],
+    avatarPath: "x-avatar-elonmusk.jpg",
+  }),
+  xPostItem("jezero", 18, ["space", "mars"], {
+    postId: "1362508307529785346",
+    authorName: "ARCHIVED - NASA's Perseverance Mars Rover",
+    authorHandle: "NASAPersevere",
+    verified: "blue",
+    avatarUrl: "https://pbs.twimg.com/profile_images/1379527227436531712/QasZP9s-_x96.jpg",
+    authorUrl: "https://x.com/NASAPersevere",
+    text: "And another look behind me. Welcome to Jezero Crater. #CountdownToMars",
+    entities: [
+      {
+        kind: "hashtag",
+        start: 54,
+        end: 70,
       },
-    },
-    ["desk", "lighting"],
-  ),
-  xPostItem(
-    "paper-1907",
-    14,
-    "field",
-    "2026-02-02T10:00:00.000Z",
-    {
-      ...linked(
-        "We wrote up how we test paper for the next notebook run. fieldnotes.example/paper-tests",
-        ["fieldnotes.example/paper-tests", "url", "https://fieldnotes.example/paper-tests"],
-      ),
-      linkCard: {
-        url: "https://fieldnotes.example/paper-tests",
-        domain: "fieldnotes.example",
-        title: "How we test paper: bleed, ghosting and fountain pens",
-        description: "Twelve stocks, three inks, one very patient intern.",
-        imageUrl: "https://pbs.twimg.com/card_img/paper-tests",
-        imageWidth: 1200,
-        imageHeight: 672,
-        imagePath: "compressO-IMG_4638.jpg",
-        large: true,
+    ],
+    publishedDate: "2021-02-18T21:04:29.000Z",
+    media: [
+      {
+        kind: "photo",
+        url: "https://pbs.twimg.com/media/EuiZrefVEAIc0GO?format=jpg&name=small",
+        width: 1280,
+        height: 1010,
+        path: "x-1362508307529785346-1.jpg",
       },
+    ],
+    replyTo: {
+      postId: "1362507436611956736",
+      handle: "NASAPersevere",
     },
-    ["paper", "stationery"],
-  ),
-  xPostItem(
-    "poll-1908",
-    16,
-    "radio",
-    "2026-01-21T18:00:00.000Z",
-    {
-      text: "Which do you actually keep on your desk?",
-      poll: {
-        choices: [
-          { label: "Paper notebook", votes: 1066 },
-          { label: "Sticky notes", votes: 719 },
-          { label: "Index cards", votes: 348 },
-          { label: "Nothing, it's all in my head", votes: 185 },
-        ],
-        endsAt: "2026-01-22T18:00:00.000Z",
-        final: true,
+    avatarPath: "x-avatar-nasapersevere.jpg",
+  }),
+  xPostItem("hello-mars", 20, ["space", "mars", "photography"], {
+    postId: "1362507436611956736",
+    authorName: "ARCHIVED - NASA's Perseverance Mars Rover",
+    authorHandle: "NASAPersevere",
+    verified: "blue",
+    avatarUrl: "https://pbs.twimg.com/profile_images/1379527227436531712/QasZP9s-_x96.jpg",
+    authorUrl: "https://x.com/NASAPersevere",
+    text: "Hello, world. My first look at my forever home. #CountdownToMars",
+    entities: [
+      {
+        kind: "hashtag",
+        start: 48,
+        end: 64,
       },
-    },
-    ["desk", "poll"],
-  ),
-  xPostItem(
-    "reply-1909",
-    18,
-    "mara",
-    "2026-02-09T08:45:00.000Z",
-    {
-      text: "Window desks are undefeated. Mine faces a brick wall and I still count it.",
-      replyTo: { postId: "1901", handle: "tomasrey" },
-    },
-    ["desk"],
-  ),
-  xPostItem(
-    "restock-1910",
-    20,
-    "field",
-    "2026-03-10T11:30:00.000Z",
-    {
-      text: "Restock day: the dot-grid A5 is back, plus a new cover in moss green.",
-      media: [photo("compressO-IMG_2618.jpg", 1080, 1920)],
-    },
-    ["stationery"],
-  ),
+    ],
+    publishedDate: "2021-02-18T21:01:01.000Z",
+    media: [
+      {
+        kind: "photo",
+        url: "https://pbs.twimg.com/media/EuiZR2xUcAMxfsq?format=jpg&name=small",
+        width: 1321,
+        height: 952,
+        path: "x-1362507436611956736-1.jpg",
+      },
+    ],
+    avatarPath: "x-avatar-nasapersevere.jpg",
+  }),
+  xPostItem("voyager", 1, ["space", "earth"], {
+    postId: "1950540964898189409",
+    authorName: "NASA JPL",
+    authorHandle: "NASAJPL",
+    verified: "government",
+    avatarUrl: "https://pbs.twimg.com/profile_images/1967683664789327872/pL3ATPuZ_x96.jpg",
+    squareAvatar: true,
+    authorUrl: "https://x.com/NASAJPL",
+    text: "Our live broadcast may be ending, but NISAR’s journey is just beginning.\n\nGet updates at science.nasa.gov/blogs/nisar",
+    entities: [
+      {
+        kind: "url",
+        start: 89,
+        end: 117,
+        url: "http://science.nasa.gov/blogs/nisar",
+      },
+    ],
+    publishedDate: "2025-07-30T12:56:19.000Z",
+    avatarPath: "x-avatar-nasajpl.jpg",
+  }),
 ];
 
 export const seedItems: SeedItem[] = [

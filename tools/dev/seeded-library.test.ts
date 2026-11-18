@@ -47,7 +47,7 @@ describe("seedLibrary", () => {
         .prepare("SELECT metadata FROM items WHERE id = 'preview-article-image'")
         .get() as { metadata: string };
       expect(JSON.parse(article.metadata).html).toContain("article-lede");
-      const post = db.prepare("SELECT metadata FROM items WHERE id = 'seed-x-roll-1904'").get() as {
+      const post = db.prepare("SELECT metadata FROM items WHERE id = 'seed-x-crew13'").get() as {
         metadata: string;
       };
       const { social } = JSON.parse(post.metadata) as {
@@ -57,7 +57,7 @@ describe("seedLibrary", () => {
       db.close();
       expect(postPaths).toHaveLength(5);
       for (const path of postPaths) {
-        expect(path).toStartWith("assets/items/seed-x-roll-1904/");
+        expect(path).toStartWith("assets/items/seed-x-crew13/");
         await access(join(directory, path));
       }
       for (const item of seedItems) {
