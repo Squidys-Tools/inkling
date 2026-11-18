@@ -38,7 +38,14 @@ async function fixture() {
     save: (input: { fileName: string; kind: "image"; bytes: Buffer }) =>
       library.saveScreenshot(input),
   };
-  return { root, directory, library, options };
+  // Titles are rewritten to "Screenshot - <date>"; the source file name stays in metadata.
+  const importedNames = async () =>
+    Promise.all(
+      (await library.listActiveItems()).map(
+        async (item) => (await library.getItem(item.id))?.metadata.fileName,
+      ),
+    );
+  return { root, directory, library, options, importedNames };
 }
 
 test.skipIf(process.platform === "win32")(
@@ -155,10 +162,7 @@ test("enabled restart imports offline arrivals without reimporting committed fil
     importer = createScreenshotImporter(f.options);
     expect((await importer.getState()).enabled).toBe(true);
     await until(async () => (await f.library.listActiveItems()).length === 2);
-    expect((await f.library.listActiveItems()).map((x) => x.title).sort()).toEqual([
-      "one.png",
-      "two.png",
-    ]);
+    expect((await f.importedNames()).sort()).toEqual(["one.png", "two.png"]);
     await importer.configure(false);
     await importer.close();
     await writeFile(join(f.directory, "three.png"), "three");
@@ -194,7 +198,7 @@ test("links, oversize, hidden and non-image files are ignored; a rejected image 
     await writeFile(join(f.directory, "bad.png"), "rejected");
     await writeFile(join(f.directory, "good.png"), "valid accepted pixels");
     await until(async () => (await f.library.listActiveItems()).length === 1);
-    expect((await f.library.listActiveItems())[0].title).toBe("good.png");
+    expect(await f.importedNames()).toEqual(["good.png"]);
     // The SQLite commit precedes the scan's checkpoint/status publication.
     await importer.scanNow();
     expect((await importer.getState()).status).toBe("error");
@@ -284,7 +288,7 @@ test("close drains an admitted Off through a held save and restart stays off", a
     importer = createScreenshotImporter(f.options);
     expect((await importer.getState()).enabled).toBe(false);
     await importer.scanNow();
-    expect((await f.library.listActiveItems()).map((item) => item.title)).toEqual(["held.png"]);
+    expect(await f.importedNames()).toEqual(["held.png"]);
   } finally {
     release.resolve();
     await importer.close();
