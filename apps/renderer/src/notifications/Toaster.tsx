@@ -19,19 +19,24 @@ export function Toaster() {
   );
 }
 
+// Window focus events, not document.hasFocus(): focus inside an embed's iframe blurs the
+// window, which pauses Base UI's timer, while hasFocus() stays true.
+let windowFocused: boolean | null = null;
 const watchFocus = (change: () => void) => {
-  window.addEventListener("focus", change);
-  window.addEventListener("blur", change);
+  const focus = () => ((windowFocused = true), change());
+  const blur = () => ((windowFocused = false), change());
+  window.addEventListener("focus", focus);
+  window.addEventListener("blur", blur);
   return () => {
-    window.removeEventListener("focus", change);
-    window.removeEventListener("blur", change);
+    window.removeEventListener("focus", focus);
+    window.removeEventListener("blur", blur);
   };
 };
 
 function ToastList() {
   const { toasts } = Toast.useToastManager<NoticeData>();
   // Base UI holds a toast's timer while its window is in the background; the countdown holds with it.
-  const away = !useSyncExternalStore(watchFocus, () => document.hasFocus());
+  const away = !useSyncExternalStore(watchFocus, () => windowFocused ?? document.hasFocus());
   return (
     <Toast.Portal>
       <Toast.Viewport aria-label="Notifications" {...stylex.props(styles.viewport)}>
@@ -51,7 +56,7 @@ function ToastList() {
               }}
               {...stylex.props(toastMarker, styles.toast, error && styles.error)}
             >
-              {subject && !error && <Tile subject={subject} />}
+              {subject && !error && <Tile key={toast.data?.shown} subject={subject} />}
               <Toast.Content {...stylex.props(styles.content)}>
                 <Toast.Title {...stylex.props(styles.title)} />
                 {toast.description && <Toast.Description {...stylex.props(styles.description)} />}
