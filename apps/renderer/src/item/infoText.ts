@@ -1,4 +1,7 @@
-/** Display-only OCR screening; stored text and search indexing stay untouched. */
+/**
+ * Display-only OCR screening; stored text and search indexing stay untouched.
+ * `screenshotHash` marks folder imports, which include photos, so it never exempts.
+ */
 export function infoText(item: {
   kind: string;
   description?: string | null;
@@ -7,8 +10,7 @@ export function infoText(item: {
 }) {
   const caption = item.description?.trim();
   const ocr = item.ocrText.trim();
-  if (item.kind.toLowerCase() !== "image" || item.metadata.screenshotHash)
-    return ocr || caption || "";
+  if (item.kind.toLowerCase() !== "image") return ocr || caption || "";
   if (caption) return caption;
   const tokens = ocr.match(/[\p{L}\p{N}]+/gu) ?? [];
   if (!tokens.length) return "";
