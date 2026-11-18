@@ -73,3 +73,43 @@ test("legacy deterministic captures are never duplicated or resurrected", async 
   expect(count(library, "items")).toBe(1);
   expect(await library.listActiveItems()).toEqual([]);
 });
+
+test("imported screenshots are titled by their moment, keeping the file name searchable", async () => {
+  const { library } = await temporaryLibrary();
+  const fileName = "Screenshot_2026-11-15-11-48-27-05_eb2ba5d78cfea8663119baf123060d17.jpg";
+  expect(await library.saveScreenshot({ ...input, fileName })).toBe(true);
+  const [saved] = await library.listActiveItems();
+  expect(saved.title).toBe("Screenshot - 2026-11-15 11.48.27.jpg");
+  expect(saved.sourceLabel).toBe("Screenshots");
+  expect((await library.getItem(saved.id))?.metadata.fileName).toBe(fileName);
+});
+
+test("reopening retitles legacy imports once and never touches a title the user chose", async () => {
+  const { root, library } = await temporaryLibrary();
+  const legacy = (id: string, title: string, fileName: string, hash: string | null) =>
+    library.db
+      .prepare(`INSERT INTO items (id,kind,title,metadata,created_at,updated_at)
+      VALUES (?, 'image', ?, ?, 1, 1)`)
+      .run(id, title, JSON.stringify({ fileName, ...(hash ? { screenshotHash: hash } : {}) }));
+  legacy("old", "Screenshot 2026-11-15 114827.png", "Screenshot 2026-11-15 114827.png", "a");
+  legacy("mine", "My cat", "Screenshot 2026-11-15 114827.png", "b");
+  legacy("dropped", "Screenshot 2026-11-15 114827.png", "Screenshot 2026-11-15 114827.png", null);
+  library.db
+    .prepare(`INSERT INTO items (id,kind,title,metadata,created_at,updated_at)
+    VALUES ('broken', 'image', 'broken', '{not json', 1, 1)`)
+    .run();
+  await closeLibrary(library);
+  const reopened = await trackedLibrary(join(root, "library.sqlite3"));
+  const titles = async () =>
+    Object.fromEntries(
+      (await reopened.listActiveItems()).map((item) => [item.id, [item.title, item.sourceLabel]]),
+    );
+  expect(await titles()).toEqual({
+    old: ["Screenshot - 2026-11-15 11.48.27.png", "Screenshots"],
+    mine: ["My cat", "Screenshots"],
+    dropped: ["Screenshot 2026-11-15 114827.png", null],
+    broken: ["broken", null],
+  });
+  const found = await reopened.searchItems("screenshot 11.48.27", 20);
+  expect(found.map((item) => item.id)).toContain("old");
+});

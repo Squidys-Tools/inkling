@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { storageFailure } from "./errors.ts";
+import { tidyImportedScreenshots } from "./screenshot-title.ts";
 
 export const SCHEMA_VERSION = 11;
 
@@ -284,6 +285,8 @@ export function openDatabase(databasePath: string, { syncToDisk = true } = {}) {
   db.exec(appSettingsSchema);
   ensureColumns(db, "spaces", [["kind", "TEXT NOT NULL DEFAULT 'smart'"]]);
   const fts5Enabled = setupFts(db);
+  // After the FTS triggers exist, so the new titles are searchable.
+  tidyImportedScreenshots(db);
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   return { db, fts5Enabled };
 }
