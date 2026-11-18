@@ -9,3 +9,4 @@ export const tagMarker = stylex.defineMarker();
 export const scrollAreaMarker = stylex.defineMarker();
 export const scrollTrackMarker = stylex.defineMarker();
 export const posterMarker = stylex.defineMarker();
+export const toastMarker = stylex.defineMarker();

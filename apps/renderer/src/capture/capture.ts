@@ -1,13 +1,13 @@
 import type { ItemDetail } from "@inkling/contracts";
 import { loadScope, reevaluateShownSpace, shownScope, showNewCards } from "../library/cards.ts";
-import { cardFromDetail } from "../library/cardModel.ts";
+import { cardFromDetail, toCardView } from "../library/cardModel.ts";
 import { type LibraryClient, libraryClient } from "../library/connection.ts";
 import { errorMessage } from "../library/errors.ts";
 import { refreshJobs } from "../library/jobs.ts";
 import { spacesStore } from "../library/spaces.ts";
 import { createAtom, useSelector } from "@tanstack/react-store";
 import { type CaptureSpace, finishSpaceCapture } from "./captureSpace.ts";
-import { notifications, notify, notifyError } from "../notifications/toasts.ts";
+import { itemSubject, notifications, notify, notifyError } from "../notifications/toasts.ts";
 
 type CaptureState = { saving: number; error: string | null };
 const captureState = createAtom<CaptureState>({ saving: 0, error: null });
@@ -51,7 +51,14 @@ export async function saveCaptured(
     },
   });
   if (warning) reportCaptureError(warning);
-  else notify("Saved to your library", { id: "capture-saved" });
+  else {
+    const view = toCardView(cardFromDetail(detail));
+    notify("Saved to your library", {
+      id: "capture-saved",
+      description: view.title,
+      subject: itemSubject(view),
+    });
+  }
 }
 
 async function save(
