@@ -10,7 +10,11 @@ test("photo OCR fragments are hidden without replacing stored text", () => {
     "A wolf standing in snow.",
   );
 });
-test("screenshots retain full OCR and genuine photo text remains readable", () => {
+test("a photo from the screenshots folder is screened like any other photo", () => {
+  const ocrText = "I 4s\n1 | 4 z\ni 7 -\n1 \\\n5 La\nSEXES =\n\\ i /\nA]\n7, Ld\nral\n8";
+  expect(infoText({ ...item, ocrText, metadata: { screenshotHash: "from-folder" } })).toBe("");
+});
+test("readable text stays visible, in photos, folder imports and PDFs", () => {
   const ocrText = "Terminal\n$ npm run build\n42 / 100\nResult: OK\n".repeat(30).trim();
   expect(infoText({ ...item, ocrText, metadata: { screenshotHash: "saved-capture" } })).toBe(
     ocrText,
