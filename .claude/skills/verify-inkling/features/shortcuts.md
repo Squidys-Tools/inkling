@@ -1,6 +1,6 @@
 # Keyboard shortcuts
 
-`?` or `Ctrl+/` opens `dialog "Keyboard shortcuts"`, a reference of every command with its binding, rendered from `packages/contracts/src/shortcuts.ts` — the same table that drives the key handler (`shell/useCommands.ts`) and the macOS menu. Status: **driven** on 2026-11-17 (the dialog via the SendKeys fallback, `Ctrl+,`, `n`, `Ctrl+Shift+N`, `Alt+Left`/`Alt+Right`, plus `Ctrl+K` in the search pass). Not driven: `Ctrl+N` (same command as `n`), `Ctrl+O` (native picker), `Ctrl+\` and `Ctrl+/` themselves (`$I press` reaches them; this pass used `?` and `Ctrl+,` instead), the macOS menu path and mouse side-buttons.
+`?` or `Ctrl+/` opens `dialog "Keyboard shortcuts"`, a reference of every command with its binding, rendered from `packages/contracts/src/shortcuts.ts` — the same table that drives the key handler (`shell/useCommands.ts`) and the macOS menu. Status: **driven** on 2026-11-18 (the dialog — all nine rows — `Ctrl+,`, `n`, `Ctrl+Shift+N`, plus `Ctrl+K` in the search pass; `Alt+Left`/`Alt+Right` last driven 2026-11-17). Not driven: `Ctrl+N` (same command as `n`), `Ctrl+O` (native picker), `Ctrl+\` and `Ctrl+/` themselves (`$I press` reaches them; this pass used `?` and `Ctrl+,` instead), the macOS menu path and mouse side-buttons.
 
 ## Sub-features
 
@@ -17,8 +17,8 @@
 
 Preconditions: any launched run; focus off a text field for bare keys (`ad press tab --window-id '{window}'` once if a field was just used).
 
-- **Dialog.** Punctuation keys have no `ad press` name on Windows — use the SendKeys fallback: `$I press 'shift+?'` (or `$I press ctrl+slash`). `dialog "Keyboard shortcuts"` lists an `option "<command>"` per row (Search, New note, New quote, Add files, Show or hide the sidebar, Keyboard shortcuts, Settings, Back, Forward) with `button "Close keyboard shortcuts"` focused. Escape or that button closes it.
-- **Commands.** Each binding is proven by its effect: `$I press ctrl+comma` → `dialog "Settings"`; `$I ad press n --window-id '{window}'` → the note editor (leave with `Back` or Escape — the editor has no `Cancel`); `$I ad press alt+Left|alt+Right --window-id '{window}'` → back/forward between grid and item view; `$I ad press ctrl+shift+n --window-id '{window}'` → the quote form (`Cancel` exists there, in `AddFrame`).
+- **Dialog.** Punctuation keys have no `ad press` name on Windows — use the SendKeys fallback: `$I press 'shift+?'` (or `$I press ctrl+slash`). `dialog "Keyboard shortcuts"` lists an `option "<command>"` per row on Windows (`term "<command>"` on Linux) (Search, New note, New quote, Add files, Show or hide the sidebar, Keyboard shortcuts, Settings, Back, Forward) with `button "Close keyboard shortcuts"` focused. Escape or that button closes it.
+- **Commands.** Each binding is proven by its effect: `$I press ctrl+comma` → `dialog "Settings"`; `$I ad press n --window-id '{window}'` → the note editor (leave with `Back` or Escape — the editor has no `Cancel`); `$I ad press alt+Left|alt+Right --window-id '{window}'` → back/forward between grid and item view; `$I ad press ctrl+shift+n --window-id '{window}'` → the quote form (leave with `Back`; `Discard` and `Save to library` appear only once it is dirty, and the discard dialog's `Cancel` is the only `Cancel` — see [capture-quote](./capture-quote.md)).
 
 ## Gotchas
 
