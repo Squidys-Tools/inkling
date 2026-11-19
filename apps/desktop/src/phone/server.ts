@@ -1,4 +1,5 @@
 import type { LibraryCard } from "@inkling/contracts";
+import { itemKind } from "@inkling/ingestion/item-kind";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { hostname } from "node:os";
@@ -20,15 +21,49 @@ const MAX_CAPTURE_BYTES = 32 * 1024 * 1024;
 const captureSource = "phone";
 const activeScope = { _tag: "Active" } as const;
 
-const phoneCard = (card: LibraryCard) => ({
-  id: card.id,
-  kind: card.kind,
-  title: card.title,
-  description: card.description,
-  sourceUrl: card.sourceUrl,
-  createdAt: card.createdAt,
-  hasThumbnail: card.thumbnailPath !== null,
-});
+const positive = (value: unknown) =>
+  typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+const text = (value: unknown) => (typeof value === "string" ? value : undefined);
+
+function xPost(metadata: LibraryCard["metadata"]) {
+  const social = metadata.social as Record<string, unknown> | undefined;
+  if (social?.provider !== "x") return null;
+  return {
+    name: text(social.authorName)?.trim() ?? "",
+    handle: text(social.authorHandle)?.replace(/^@/u, "") ?? "",
+    text: text(social.text) ?? "",
+  };
+}
+
+function aspectRatio(metadata: LibraryCard["metadata"]) {
+  const width = positive(metadata.mediaWidth);
+  const height = positive(metadata.mediaHeight);
+  return positive(metadata.mediaAspectRatio) ?? (width && height ? width / height : null);
+}
+
+// Only web images: the phone loads a link's preview straight from the site, as desktop's grid does.
+const webImage = (metadata: LibraryCard["metadata"]) =>
+  (Array.isArray(metadata.imageUrls) ? metadata.imageUrls : [])
+    .map(text)
+    .find((url) => url !== undefined && /^https?:\/\//u.test(url)) ?? null;
+
+const phoneCard = (card: LibraryCard) => {
+  const post = xPost(card.metadata);
+  return {
+    id: card.id,
+    kind: card.kind,
+    displayKind: itemKind(card.kind, card.sourceUrl, post !== null),
+    title: card.title,
+    description: card.description,
+    sourceUrl: card.sourceUrl,
+    source: card.sourceLabel,
+    createdAt: card.createdAt,
+    hasThumbnail: card.thumbnailPath !== null,
+    imageUrl: webImage(card.metadata),
+    aspectRatio: aspectRatio(card.metadata),
+    post,
+  };
+};
 
 function send(response: ServerResponse, status: number, value: unknown) {
   const body = Buffer.from(JSON.stringify(value), "utf8");
