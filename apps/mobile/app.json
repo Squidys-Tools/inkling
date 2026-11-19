@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "inkling",
+    "slug": "inkling-mobile",
+    "scheme": "inkling-mobile",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "app.inkling.mobile.dev",
+      "supportsTablet": true,
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.app.inkling.mobile.dev"]
+      }
+    },
+    "plugins": ["expo-dev-client", "@bacons/apple-targets"]
+  }
+}
