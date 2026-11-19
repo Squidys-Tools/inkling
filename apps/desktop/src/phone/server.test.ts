@@ -32,8 +32,10 @@ const card = (id: string, thumbnailPath: string | null): LibraryCard => ({
   updatedAt: 1,
 });
 
-async function start(cards: LibraryCard[]) {
-  const directory = mkdtempSync(join(tmpdir(), "inkling-phone-service-"));
+async function start(
+  cards: LibraryCard[],
+  directory = mkdtempSync(join(tmpdir(), "inkling-phone-service-")),
+) {
   roots.push(directory);
   mkdirSync(join(directory, "assets/items/a"), { recursive: true });
   writeFileSync(join(directory, "assets/items/a/thumbnail.webp"), "webp-bytes");
@@ -42,7 +44,16 @@ async function start(cards: LibraryCard[]) {
     cardsById: async ({ ids }: { ids: readonly string[] }) =>
       cards.filter((c) => ids.includes(c.id)),
     search: async () => cards,
+    captureUrl: async (input: unknown) => save(input),
+    createNote: async (input: unknown) => save(input),
+    saveFile: async (input: unknown) => save(input),
   } as unknown as LibraryClient;
+  const saves: unknown[] = [];
+  const save = async (input: unknown) => {
+    saves.push(input);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return { id: `item-${saves.length}` };
+  };
   const service = await startPhoneService({
     libraryDirectory: directory,
     library: async () => library,
@@ -53,7 +64,13 @@ async function start(cards: LibraryCard[]) {
   const base = `http://${service.addresses[0]}`;
   const get = (path: string, token = service.token(), init: RequestInit = {}) =>
     fetch(`${base}${path}`, { ...init, headers: { Authorization: `Bearer ${token}` } });
-  return { service, get };
+  const post = (body: unknown, path = "/v1/captures") =>
+    fetch(`${base}${path}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${service.token()}` },
+      body: JSON.stringify(body),
+    });
+  return { service, get, post, saves, directory };
 }
 
 test("tailnet addresses are Tailscale's CGNAT and ULA ranges only", () => {
@@ -110,4 +127,28 @@ test("a thumbnail is served by item id and never from outside assets/", async ()
     const response = await get(`/v1/thumbnails/${id}`);
     expect([id, response.status === 200]).toEqual([id, false]);
   }
+});
+
+test("a retried phone capture returns the first save instead of a copy, across restarts", async () => {
+  const first = await start([]);
+  const capture = { id: "cap-1", kind: "url", text: "https://example.com/a" };
+  const answers = await Promise.all([first.post(capture), first.post(capture)]);
+  expect(await Promise.all(answers.map((answer) => answer.json()))).toEqual([
+    { itemId: "item-1" },
+    { itemId: "item-1" },
+  ]);
+  expect(first.saves).toEqual([{ sourceUrl: "https://example.com/a", captureSource: "phone" }]);
+  await first.service.close();
+
+  const again = await start([], first.directory);
+  expect(await (await again.post(capture)).json()).toEqual({ itemId: "item-1" });
+  expect(again.saves).toEqual([]);
+  for (const bad of [
+    { ...capture, id: "../x" },
+    { ...capture, kind: "pdf" },
+    { id: "i", kind: "image", text: "" },
+  ])
+    expect((await again.post(bad)).status).toBe(400);
+  expect((await again.get("/v1/captures")).status).toBe(405);
+  expect((await again.post(capture, "/v1/cards")).status).toBe(405);
 });
