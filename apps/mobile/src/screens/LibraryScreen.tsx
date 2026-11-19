@@ -1,4 +1,13 @@
-import { Button, FlatList, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Button,
+  FlatList,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { hostname, cardTitle } from "../cards";
 import { colors } from "../colors";
 import type { ScreenProps } from "../routes";
@@ -28,27 +37,38 @@ function Banner({ connection, onPair }: { connection: string; onPair: () => void
   return null;
 }
 
+// The large title header floats over the screen; an inset scroll view keeps content below it.
+const Inset = ({ children }: { children: React.ReactNode }) => (
+  <ScrollView style={styles.screen} contentInsetAdjustmentBehavior="automatic">
+    {children}
+  </ScrollView>
+);
+
 export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
   const library = useLibrary();
   const { pairing } = library;
   if (pairing === undefined) return null;
   if (library.tailscale.authURL)
     return (
-      <EmptyState
-        title="Sign in to Tailscale"
-        detail="inkling reaches your desktop over your own tailnet. Sign in once on this phone."
-        actionLabel="Sign in"
-        onAction={() => Linking.openURL(library.tailscale.authURL ?? "")}
-      />
+      <Inset>
+        <EmptyState
+          title="Sign in to Tailscale"
+          detail="inkling reaches your desktop over your own tailnet. Sign in once on this phone."
+          actionLabel="Sign in"
+          onAction={() => Linking.openURL(library.tailscale.authURL ?? "")}
+        />
+      </Inset>
     );
   if (!pairing)
     return (
-      <EmptyState
-        title="Pair with your desktop"
-        detail="Turn on the phone service in inkling on your desktop, then open its pairing link here or enter its address and token."
-        actionLabel="Pair"
-        onAction={() => navigation.navigate("Pair")}
-      />
+      <Inset>
+        <EmptyState
+          title="Pair with your desktop"
+          detail="Turn on the phone service in inkling on your desktop, then open its pairing link here or enter its address and token."
+          actionLabel="Pair"
+          onAction={() => navigation.navigate("Pair")}
+        />
+      </Inset>
     );
 
   const rows = [
