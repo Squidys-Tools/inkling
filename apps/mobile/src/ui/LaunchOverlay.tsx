@@ -22,6 +22,7 @@ const SPILL_MS = 1250;
 const SPILL_FOR = 550;
 const FADE_MS = SPILL_MS + SPILL_FOR;
 const FADE_FOR = 250;
+const SKIP_FOR = 160;
 const DROPS = [-150, -95, -35, 30, 90, 145, 200];
 
 function Drop({ angle, spill }: { angle: number; spill: SharedValue<number> }) {
@@ -78,6 +79,11 @@ export function LaunchOverlay({ onDone }: { onDone: () => void }) {
     return () => timers.forEach(clearTimeout);
   }, [player, pop, word, spill, fade, onDone]);
 
+  const skip = () => {
+    fade.set(withTiming(0, { duration: SKIP_FOR }));
+    setTimeout(onDone, SKIP_FOR);
+  };
+
   const overlay = useAnimatedStyle(() => ({ opacity: fade.value }));
   const mascot = useAnimatedStyle(() => ({
     transform: [{ scale: 0.4 + pop.value * 0.6 }, { translateY: (1 - pop.value) * -40 }],
@@ -91,7 +97,7 @@ export function LaunchOverlay({ onDone }: { onDone: () => void }) {
 
   return (
     <Animated.View style={[StyleSheet.absoluteFill, overlay]}>
-      <Pressable accessibilityLabel="Skip" style={StyleSheet.absoluteFill} onPress={onDone}>
+      <Pressable accessibilityLabel="Skip" style={StyleSheet.absoluteFill} onPress={skip}>
         <Svg style={StyleSheet.absoluteFill}>
           <Defs>
             <LinearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
