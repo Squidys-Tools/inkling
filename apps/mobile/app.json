@@ -15,6 +15,10 @@
       },
       "infoPlist": {
         "EXDevMenuShowFloatingActionButton": false
+      },
+      "icon": {
+        "light": "./assets/icon.png",
+        "dark": "./assets/icon-dark.png"
       }
     },
     "plugins": [
@@ -22,7 +26,19 @@
       "@bacons/apple-targets",
       "expo-secure-store",
       "expo-image",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0c0c0b",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120,
+          "dark": {
+            "backgroundColor": "#0c0c0b",
+            "image": "./assets/splash-icon.png"
+          }
+        }
+      ]
     ]
   }
 }
