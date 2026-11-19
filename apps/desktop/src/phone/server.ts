@@ -170,7 +170,7 @@ export async function startPhoneServiceIfEnabled(
   }
   const service = await startPhoneService({ ...options, hosts });
   console.log(
-    `inkling: phone service on ${service.addresses.join(", ")} with token ${service.token()}`,
+    `inkling: phone service on ${service.addresses.join(", ")}; token in ${join(options.libraryDirectory, "phone_token")}`,
   );
   return service;
 }
