@@ -104,17 +104,69 @@ test("every request needs the phone token, and only GET is answered", async () =
 });
 
 test("cards leave OCR text and asset paths on the desktop", async () => {
-  const { get } = await start([card("a", "assets/items/a/thumbnail.webp")]);
+  const link = {
+    ...card("link", null),
+    kind: "url",
+    sourceUrl: "https://example.com/a",
+    sourceLabel: "example.com",
+    // A local image path stays on the desktop; only the web image goes to the phone.
+    metadata: {
+      imageUrls: ["assets/items/link/cover.jpg", "https://example.com/cover.jpg"],
+      mediaWidth: 300,
+      mediaHeight: 200,
+    },
+  };
+  const x = {
+    ...card("x", null),
+    kind: "url",
+    sourceUrl: "https://x.com/a/status/1",
+    sourceLabel: "x.com",
+    metadata: { social: { provider: "x", authorName: "Ada", authorHandle: "@ada", text: "hello" } },
+  };
+  const { get } = await start([card("a", "assets/items/a/thumbnail.webp"), link, x]);
   const body = await (await get("/v1/cards?limit=5000")).json();
   expect(body.cards).toEqual([
     {
       id: "a",
       kind: "image",
+      displayKind: "Image",
       title: "card a",
       description: null,
       sourceUrl: null,
+      source: null,
       createdAt: 1,
       hasThumbnail: true,
+      imageUrl: null,
+      aspectRatio: null,
+      post: null,
+    },
+    {
+      id: "link",
+      kind: "url",
+      displayKind: "Article",
+      title: "card link",
+      description: null,
+      sourceUrl: "https://example.com/a",
+      source: "example.com",
+      createdAt: 1,
+      hasThumbnail: false,
+      imageUrl: "https://example.com/cover.jpg",
+      aspectRatio: 1.5,
+      post: null,
+    },
+    {
+      id: "x",
+      kind: "url",
+      displayKind: "Post",
+      title: "card x",
+      description: null,
+      sourceUrl: "https://x.com/a/status/1",
+      source: "x.com",
+      createdAt: 1,
+      hasThumbnail: false,
+      imageUrl: null,
+      aspectRatio: null,
+      post: { name: "Ada", handle: "ada", text: "hello" },
     },
   ]);
   expect((await get("/v1/search")).status).toBe(400);

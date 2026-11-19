@@ -1,13 +1,5 @@
-import {
-  Button,
-  FlatList,
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { FlashList } from "@shopify/flash-list";
+import { Button, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { hostname, cardTitle } from "../cards";
 import { useAppearance, useThemedStyles } from "../appearance";
 import type { Palette } from "../colors";
@@ -15,7 +7,7 @@ import type { ScreenProps } from "../routes";
 import { useLibrary } from "../state";
 import { EmptyState } from "../ui/EmptyState";
 import { StatusPill } from "../ui/StatusPill";
-import { Thumbnail, makeTileStyles } from "../ui/Thumbnail";
+import { CardTile, TypedArt } from "../cards/CardTile";
 
 function Banner({ connection, onPair }: { connection: string; onPair: () => void }) {
   const styles = useThemedStyles(makeStyles);
@@ -52,7 +44,6 @@ const Inset = ({ children }: { children: React.ReactNode }) => {
 
 export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
   const styles = useThemedStyles(makeStyles);
-  const tileStyles = useThemedStyles(makeTileStyles);
   const { look } = useAppearance();
   const fieldnotes = look === "fieldnotes";
   const library = useLibrary();
@@ -87,18 +78,17 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
   ];
   const searching = library.shownQuery.trim() !== "";
   return (
-    <FlatList
+    <FlashList
       key={look}
       style={styles.screen}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={[styles.grid, fieldnotes && styles.paperGrid]}
       data={rows}
+      masonry
+      numColumns={2}
       keyExtractor={(row) => row.key}
-      numColumns={fieldnotes ? 2 : 3}
       refreshing={false}
       onRefresh={() => library.refresh(library.query)}
-      initialNumToRender={18}
-      windowSize={5}
       ListHeaderComponent={
         <View style={styles.header}>
           {fieldnotes ? (
@@ -136,13 +126,11 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
       renderItem={({ item: row }) =>
         "entry" in row ? (
           <View style={[styles.cell, fieldnotes && styles.paperCell]}>
-            {fieldnotes ? <Text style={styles.kind}>IN TRANSIT</Text> : null}
-            <View style={[styles.tile, tileStyles.placeholder, fieldnotes && styles.paperTile]}>
-              <Text style={tileStyles.text} numberOfLines={5}>
-                {row.entry.kind === "url" ? hostname(row.entry.text) : row.entry.text}
-              </Text>
-            </View>
-            <Text style={styles.waiting}>Waiting for desktop</Text>
+            <TypedArt
+              label="ON THIS PHONE"
+              title={row.entry.kind === "url" ? hostname(row.entry.text) : row.entry.text}
+              footnote="WAITING FOR DESKTOP"
+            />
           </View>
         ) : (
           <Pressable
@@ -155,20 +143,7 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
             ]}
             onPress={() => navigation.navigate("Item", { card: row.card })}
           >
-            {fieldnotes ? (
-              <Text style={styles.kind}>
-                {row.card.kind === "url" ? "LINK" : row.card.kind.toUpperCase()}
-              </Text>
-            ) : null}
-            <Thumbnail pairing={pairing} card={row.card} />
-            <Text style={[styles.cardTitle, fieldnotes && styles.paperTitle]} numberOfLines={2}>
-              {cardTitle(row.card)}
-            </Text>
-            {fieldnotes && row.card.sourceUrl ? (
-              <Text style={styles.source} numberOfLines={1}>
-                {hostname(row.card.sourceUrl)}
-              </Text>
-            ) : null}
+            <CardTile pairing={pairing} card={row.card} />
           </Pressable>
         )
       }
@@ -179,23 +154,15 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     screen: { backgroundColor: colors.background },
-    grid: { paddingHorizontal: 8, paddingBottom: 24 },
+    grid: { paddingHorizontal: 10, paddingBottom: 24 },
     header: { paddingHorizontal: 4, paddingBottom: 8, gap: 8 },
     statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
     notice: { color: colors.muted, fontSize: 12, flexShrink: 1 },
     banner: { backgroundColor: colors.surface, borderRadius: 12, padding: 12, gap: 4 },
     bannerText: { color: colors.text, fontSize: 14, lineHeight: 20 },
-    cell: { flex: 1 / 3, padding: 4 },
-    tile: { width: "100%", aspectRatio: 1, borderRadius: 10 },
-    cardTitle: { color: colors.text, fontSize: 12, marginTop: 6 },
-    waiting: { color: colors.warning, fontSize: 11, marginTop: 6 },
+    cell: { padding: 5 },
     paperGrid: { paddingHorizontal: 18, paddingBottom: 40 },
-    paperCell: { flex: 1 / 2, paddingHorizontal: 7, paddingBottom: 24 },
-    paperTile: {
-      borderRadius: 4,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-    },
+    paperCell: { paddingHorizontal: 7, paddingBottom: 24 },
     collectionHeading: {
       gap: 12,
       paddingTop: 24,
@@ -219,20 +186,5 @@ const makeStyles = (colors: Palette) =>
       flexShrink: 1,
     },
     count: { color: colors.accent, fontFamily: "Georgia", fontSize: 22, fontStyle: "italic" },
-    kind: {
-      color: colors.muted,
-      fontSize: 9,
-      fontWeight: "600",
-      letterSpacing: 1.4,
-      marginBottom: 8,
-    },
-    paperTitle: {
-      fontFamily: "Georgia",
-      fontSize: 16,
-      lineHeight: 21,
-      marginTop: 10,
-      color: colors.title,
-    },
-    source: { color: colors.muted, fontSize: 11, marginTop: 5 },
     pressed: { opacity: 0.65 },
   });

@@ -9,11 +9,13 @@ import {
   createNativeStackNavigator,
   type NativeStackNavigationProp,
 } from "@react-navigation/native-stack";
+import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Linking } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppearanceProvider, useAppearance } from "./src/appearance";
+import { font, fontFiles } from "./src/fonts";
 import { parsePairingLink } from "./src/pairing-link";
 import type { Routes } from "./src/routes";
 import { ItemScreen } from "./src/screens/ItemScreen";
@@ -56,6 +58,11 @@ function Screens() {
         headerStyle: { backgroundColor: colors.background },
         contentStyle: { backgroundColor: colors.background },
         statusBarStyle: look === "fieldnotes" ? "dark" : "light",
+        headerTitleStyle: {
+          fontFamily: look === "fieldnotes" ? "Georgia" : font.display,
+          color: colors.title,
+        },
+        headerLargeTitleStyle: { fontFamily: font.display, color: colors.title },
       }}
     >
       <Stack.Screen
@@ -63,8 +70,6 @@ function Screens() {
         component={LibraryScreen}
         options={{
           title: look === "fieldnotes" ? "inkling." : "inkling",
-          headerTitleStyle:
-            look === "fieldnotes" ? { fontFamily: "Georgia", fontWeight: "400" } : undefined,
           headerLargeTitle: look !== "fieldnotes",
           headerLargeTitleShadowVisible: false,
           headerShadowVisible: false,
@@ -100,6 +105,7 @@ function Screens() {
 }
 
 function MobileApp() {
+  useFonts(fontFiles);
   const { colors, look } = useAppearance();
   const base = look === "fieldnotes" ? DefaultTheme : DarkTheme;
   const theme = {

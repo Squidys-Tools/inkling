@@ -1,4 +1,4 @@
-import type { PhoneCard } from "./desktop";
+import type { CardKind, PhoneCard } from "./desktop";
 
 export const hostname = (url: string) => {
   try {
@@ -30,3 +30,35 @@ export function savedAgo(at: number, now = Date.now()) {
   }
   return "just now";
 }
+
+/** Desktop's quote attribution line: an em dash and the source. */
+export function quoteAttribution(description: string | null) {
+  const value = description?.trim() ?? "";
+  if (!value) return "";
+  return value.startsWith("—") ? value : `— ${value}`;
+}
+
+export const wordCount = (value: string | null) => {
+  const words = value?.replace(/\s+/gu, " ").trim() ?? "";
+  return words ? words.split(" ").length : 0;
+};
+
+export const fileExtension = (name: string | null) =>
+  /\.([a-z0-9]{1,5})$/iu.exec(name?.trim() ?? "")?.[1]?.toUpperCase() ?? "";
+
+const rawKinds: Record<string, CardKind> = {
+  article: "Article",
+  url: "Article",
+  image: "Image",
+  quote: "Quote",
+  pdf: "PDF",
+  video: "Video",
+  embed: "Video",
+  post: "Post",
+  tweet: "Post",
+  file: "File",
+};
+
+/** Desktop's card kind; a desktop from before it sent one gets the same mapping from the raw kind. */
+export const kindOf = (card: PhoneCard): CardKind =>
+  card.displayKind ?? rawKinds[card.kind] ?? "Note";
