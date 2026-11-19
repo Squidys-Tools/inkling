@@ -98,6 +98,9 @@ function PairingForm({ onPaired }: { onPaired: (pairing: Pairing) => void }) {
         placeholder="100.x.y.z:47620"
         placeholderTextColor={colors.placeholder}
         autoCapitalize="none"
+        autoCorrect={false}
+        textContentType="none"
+        autoComplete="off"
       />
       <TextInput
         style={styles.input}
@@ -106,8 +109,8 @@ function PairingForm({ onPaired }: { onPaired: (pairing: Pairing) => void }) {
         placeholder="phone token"
         placeholderTextColor={colors.placeholder}
         autoCapitalize="none"
-        secureTextEntry
-        textContentType="oneTimeCode"
+        autoCorrect={false}
+        textContentType="none"
         autoComplete="off"
       />
       <Button title="Pair" onPress={pair} />
@@ -181,112 +184,120 @@ export default function App() {
   const queued = pending.map((entry) => ({ entry, key: `pending-${entry.id}` }));
   return (
     <SafeAreaView style={styles.screen}>
-      {/* oxlint-disable-next-line react/style-prop-object -- expo-status-bar takes the style as a string */}
-      <StatusBar style="light" />
-      <View style={styles.header}>
-        <Text style={styles.title}>inkling</Text>
-        <Pressable onPress={() => setSettings(true)}>
-          <Text style={styles.link}>Settings</Text>
-        </Pressable>
-      </View>
-      {tailscale.authURL ? (
-        <Pressable onPress={() => Linking.openURL(tailscale.authURL!)}>
-          <Text style={styles.link}>Sign in to Tailscale</Text>
-        </Pressable>
-      ) : null}
-      {pairing === null ? <PairingForm onPaired={setPairing} /> : null}
-      {pairing ? (
-        <>
-          <TextInput
-            style={styles.input}
-            value={query}
-            onChangeText={setQuery}
-            onSubmitEditing={() => refresh(query)}
-            placeholder="Search your library"
-            placeholderTextColor={colors.placeholder}
-            autoCapitalize="none"
-            returnKeyType="search"
-          />
-          <Text style={styles.muted}>{online ? status : "Connecting to your tailnet…"}</Text>
-          <FlatList
-            data={[...queued, ...cards.map((card) => ({ card, key: card.id }))]}
-            keyExtractor={(row) => row.key}
-            numColumns={3}
-            refreshing={false}
-            onRefresh={() => refresh(query)}
-            initialNumToRender={18}
-            windowSize={5}
-            renderItem={({ item: row }) =>
-              "entry" in row ? (
-                <View style={styles.card}>
-                  <View style={[styles.thumbnail, styles.placeholder]}>
-                    <Text style={styles.tileText} numberOfLines={5}>
-                      {row.entry.kind === "url" ? hostname(row.entry.text) : row.entry.text}
-                    </Text>
-                  </View>
-                  <Text style={styles.muted}>Waiting for desktop</Text>
-                </View>
-              ) : (
-                <Pressable style={styles.card} onPress={() => setOpen(row.card)}>
-                  <Thumbnail pairing={pairing} card={row.card} />
-                  <Text style={styles.cardTitle} numberOfLines={2}>
-                    {cardTitle(row.card)}
-                  </Text>
-                </Pressable>
-              )
-            }
-          />
-        </>
-      ) : null}
-      <Modal visible={open !== null} animationType="slide" onRequestClose={() => setOpen(null)}>
-        {open && pairing ? (
-          <SafeAreaView style={styles.screen}>
-            <Button title="Close" onPress={() => setOpen(null)} />
-            <Thumbnail pairing={pairing} card={open} />
-            <Text style={styles.title}>{cardTitle(open)}</Text>
-            {open.description ? <Text style={styles.body}>{open.description}</Text> : null}
-            {open.sourceUrl ? (
-              <Pressable onPress={() => Linking.openURL(open.sourceUrl!)}>
-                <Text style={styles.link}>{open.sourceUrl}</Text>
-              </Pressable>
-            ) : null}
-          </SafeAreaView>
+      <View style={styles.content}>
+        {/* oxlint-disable-next-line react/style-prop-object -- expo-status-bar takes the style as a string */}
+        <StatusBar style="light" />
+        <View style={styles.header}>
+          <Text style={styles.title}>inkling</Text>
+          <Pressable onPress={() => setSettings(true)}>
+            <Text style={styles.link}>Settings</Text>
+          </Pressable>
+        </View>
+        {tailscale.authURL ? (
+          <Pressable onPress={() => Linking.openURL(tailscale.authURL!)}>
+            <Text style={styles.link}>Sign in to Tailscale</Text>
+          </Pressable>
         ) : null}
-      </Modal>
-      <Modal visible={settings} animationType="slide" onRequestClose={() => setSettings(false)}>
-        <SafeAreaView style={styles.screen}>
-          <Button title="Done" onPress={() => setSettings(false)} />
-          <Text style={styles.heading}>Tailscale</Text>
-          <Text
-            style={styles.body}
-          >{`${tailscale.state} ${(tailscale.ips ?? []).join(", ")}`}</Text>
-          <Text style={styles.heading}>Desktop</Text>
-          <Text style={styles.body}>{pairing?.address ?? "Not paired"}</Text>
-          {pairing ? (
-            <Button
-              title="Forget this desktop"
-              onPress={() => forgetPairing().then(() => setPairing(null))}
+        {pairing === null ? <PairingForm onPaired={setPairing} /> : null}
+        {pairing ? (
+          <>
+            <TextInput
+              style={styles.input}
+              value={query}
+              onChangeText={setQuery}
+              onSubmitEditing={() => refresh(query)}
+              placeholder="Search your library"
+              placeholderTextColor={colors.placeholder}
+              autoCapitalize="none"
+              returnKeyType="search"
             />
+            <Text style={styles.muted}>{online ? status : "Connecting to your tailnet…"}</Text>
+            <FlatList
+              data={[...queued, ...cards.map((card) => ({ card, key: card.id }))]}
+              keyExtractor={(row) => row.key}
+              numColumns={3}
+              refreshing={false}
+              onRefresh={() => refresh(query)}
+              initialNumToRender={18}
+              windowSize={5}
+              renderItem={({ item: row }) =>
+                "entry" in row ? (
+                  <View style={styles.card}>
+                    <View style={[styles.thumbnail, styles.placeholder]}>
+                      <Text style={styles.tileText} numberOfLines={5}>
+                        {row.entry.kind === "url" ? hostname(row.entry.text) : row.entry.text}
+                      </Text>
+                    </View>
+                    <Text style={styles.muted}>Waiting for desktop</Text>
+                  </View>
+                ) : (
+                  <Pressable style={styles.card} onPress={() => setOpen(row.card)}>
+                    <Thumbnail pairing={pairing} card={row.card} />
+                    <Text style={styles.cardTitle} numberOfLines={2}>
+                      {cardTitle(row.card)}
+                    </Text>
+                  </Pressable>
+                )
+              }
+            />
+          </>
+        ) : null}
+        <Modal visible={open !== null} animationType="slide" onRequestClose={() => setOpen(null)}>
+          {open && pairing ? (
+            <SafeAreaView style={styles.screen}>
+              <View style={styles.content}>
+                <Button title="Close" onPress={() => setOpen(null)} />
+                <Thumbnail pairing={pairing} card={open} />
+                <Text style={styles.title}>{cardTitle(open)}</Text>
+                {open.description ? <Text style={styles.body}>{open.description}</Text> : null}
+                {open.sourceUrl ? (
+                  <Pressable onPress={() => Linking.openURL(open.sourceUrl!)}>
+                    <Text style={styles.link}>{open.sourceUrl}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </SafeAreaView>
           ) : null}
-          <Text style={styles.heading}>On-device search model</Text>
-          <Button
-            title="Check"
-            onPress={async () => {
-              if (!modelInstalled()) return setModelCheck("Not installed");
-              const started = Date.now();
-              const vector = await embedQuery("sunset over the ocean");
-              setModelCheck(`${vector.length} dimensions in ${Date.now() - started} ms`);
-            }}
-          />
-          <Text style={styles.body}>{modelCheck}</Text>
-        </SafeAreaView>
-      </Modal>
+        </Modal>
+        <Modal visible={settings} animationType="slide" onRequestClose={() => setSettings(false)}>
+          <SafeAreaView style={styles.screen}>
+            <View style={styles.content}>
+              <Button title="Done" onPress={() => setSettings(false)} />
+              <Text style={styles.heading}>Tailscale</Text>
+              <Text
+                style={styles.body}
+              >{`${tailscale.state} ${(tailscale.ips ?? []).join(", ")}`}</Text>
+              <Text style={styles.heading}>Desktop</Text>
+              <Text style={styles.body}>{pairing?.address ?? "Not paired"}</Text>
+              {pairing ? (
+                <Button
+                  title="Forget this desktop"
+                  onPress={() => forgetPairing().then(() => setPairing(null))}
+                />
+              ) : null}
+              <Text style={styles.heading}>On-device search model</Text>
+              <Button
+                title="Check"
+                onPress={async () => {
+                  if (!modelInstalled()) return setModelCheck("Not installed");
+                  const started = Date.now();
+                  const vector = await embedQuery("sunset over the ocean");
+                  setModelCheck(`${vector.length} dimensions in ${Date.now() - started} ms`);
+                }}
+              />
+              <Text style={styles.body}>{modelCheck}</Text>
+            </View>
+          </SafeAreaView>
+        </Modal>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background, padding: 12 },
+  screen: { flex: 1, backgroundColor: colors.background },
+  // SafeAreaView ignores padding on iOS, so the inset lives on an inner view.
+  content: { flex: 1, padding: 12 },
   // Dev builds float Expo's tools button over the top right corner.
   header: {
     flexDirection: "row",
