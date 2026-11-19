@@ -1,6 +1,6 @@
 # Capture a note
 
-Capture a note saves typed text as a note card in Everything immediately, with a stored `note` row. Status: **driven** on 2026-11-17 (menu click path, Ctrl+Enter save).
+Capture a note saves typed text as a note card in Everything immediately, with a stored `note` row. Status: **driven** on 2026-11-19 (menu click path, Ctrl+Enter save).
 
 ## Sub-features
 

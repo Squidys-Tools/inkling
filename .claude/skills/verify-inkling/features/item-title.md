@@ -1,6 +1,6 @@
 # Rename an item's title
 
-The item view's title is a `button "<title>"`; choosing it opens an inline `textfield "Title"` focused on the current value, and Enter writes `items.title` (`item/TitleField.tsx`). Status: **driven** on 2026-11-17 (field opens, Enter commits, row and card update). Not driven: Escape cancel, clearing to empty (a silent no-op revert), the 500-char limit and paste flattening.
+The item view's title is a `button "<title>"`; choosing it opens an inline `textfield "Title"` focused on the current value, and Enter writes `items.title` (`item/TitleField.tsx`). Status: **driven** on 2026-11-19 (field opens, Enter commits, row and card update). Not driven: Escape cancel, clearing to empty (a silent no-op revert), the 500-char limit and paste flattening.
 
 ## Sub-features
 
@@ -24,4 +24,4 @@ Preconditions: a non-Quote item with a title (a note with no title shows `Untitl
 - The title button's accessible name IS the title, so after a rename the next `ref` must use the new name.
 - Blur commits the edit (`onBlur` saves like Enter): take no focus-moving action between `set-value` and `return`, or the edit saves on the blur instead.
 - `TitleField` is single-line: pasted text flattens newlines and a 500-char cap trims the field — `set-value` over the cap is clipped, so assert on `db`, not on the value you sent.
-- A user's title is theirs: AI enrichment never rewrites a non-empty `title` (product rule), so a manual rename survives later enrichment jobs.
+- A user's title is theirs: enrichment can still replace a non-empty title while it equals the placeholder the pending capture wrote (the auto-derived domain/blank title), but it never rewrites a title the user renamed — a manual rename survives later enrichment jobs.

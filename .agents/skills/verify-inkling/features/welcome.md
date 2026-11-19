@@ -1,6 +1,6 @@
 # Welcome tour
 
-The first launch over an unfinished library opens a five-screen welcome (`#/welcome`) that demos the app's core moves. `Continue` advances, `Back` returns, `Skip` leaves at any point, and the last screen's `Open my library` enters the library. Finishing writes `app_settings.onboarding_completed = '1'`, so the next launch goes straight to the library. Status: **driven** on 2026-11-17 (all five screens, `Open my library`, the persisted flag, the `Show again` replay). Not driven: each screen's animated demo (motion is asserted only by watching the tree settle).
+The first launch over an unfinished library opens a five-screen welcome (`#/welcome`) that demos the app's core moves. `Continue` advances, `Back` returns, `Skip` leaves at any point, and the last screen's `Open my library` enters the library. Finishing writes `app_settings.onboarding_completed = '1'`, so the next launch goes straight to the library. Status: **driven** on 2026-11-19 (all five screens, `Open my library`, the persisted flag, the `Show again` replay, `Skip`). Not driven: each screen's animated demo (motion is asserted only by watching the tree settle).
 
 ## Sub-features
 
