@@ -22,7 +22,7 @@ export function ItemScreen({ route }: ScreenProps<"Item">) {
     >
       <View style={[styles.stage, fieldnotes && styles.paperStage]}>
         <View style={styles.art}>
-          {pairing ? <CardTile pairing={pairing} card={card} /> : null}
+          {pairing ? <CardTile pairing={pairing} card={card} detail /> : null}
         </View>
       </View>
       <View style={styles.details}>

@@ -5,7 +5,15 @@ import { cardTitle, fileExtension, hostname, kindOf, quoteAttribution } from "..
 import type { Palette } from "../colors";
 import type { PhoneCard } from "../desktop";
 
-export function FieldnotesCard({ card, image }: { card: PhoneCard; image: string | null }) {
+export function FieldnotesCard({
+  card,
+  image,
+  detail,
+}: {
+  card: PhoneCard;
+  image: string | null;
+  detail: boolean;
+}) {
   const styles = useThemedStyles(makeStyles);
   const kind = kindOf(card);
   const quote = kind === "Quote";
@@ -26,9 +34,13 @@ export function FieldnotesCard({ card, image }: { card: PhoneCard; image: string
           source={{ uri: image }}
           style={[
             styles.image,
-            { aspectRatio: Math.min(1.6, Math.max(0.7, card.aspectRatio ?? 1)) },
+            {
+              aspectRatio: detail
+                ? (card.aspectRatio ?? 1)
+                : Math.min(1.6, Math.max(0.7, card.aspectRatio ?? 1)),
+            },
           ]}
-          contentFit="cover"
+          contentFit={detail ? "contain" : "cover"}
           transition={180}
         />
       ) : (

@@ -130,13 +130,13 @@ function PostCard({ card }: { card: PhoneCard }) {
   );
 }
 
-function MediaCard({ card, image }: { card: PhoneCard; image: string }) {
+function MediaCard({ card, image, detail }: { card: PhoneCard; image: string; detail: boolean }) {
   const ratio = Math.min(1.8, Math.max(0.62, card.aspectRatio ?? 1));
   return (
     <Image
       source={{ uri: image }}
-      style={[styles.media, { aspectRatio: ratio }]}
-      contentFit="cover"
+      style={[styles.media, { aspectRatio: detail ? (card.aspectRatio ?? 1) : ratio }]}
+      contentFit={detail ? "contain" : "cover"}
       transition={180}
     />
   );
@@ -162,15 +162,23 @@ function typedFor(card: PhoneCard) {
 }
 
 /** A grid card drawn the way desktop draws its kind. */
-export function CardTile({ pairing, card }: { pairing: Pairing; card: PhoneCard }) {
+export function CardTile({
+  pairing,
+  card,
+  detail = false,
+}: {
+  pairing: Pairing;
+  card: PhoneCard;
+  detail?: boolean;
+}) {
   const { look } = useAppearance();
   const image = useCardImage(pairing, card);
-  if (look === "fieldnotes") return <FieldnotesCard card={card} image={image} />;
+  if (look === "fieldnotes") return <FieldnotesCard card={card} image={image} detail={detail} />;
   const kind = kindOf(card);
   if (kind === "Article") return <ArticleCard card={card} image={image} />;
   if (kind === "Quote") return <QuoteCard card={card} />;
   if (kind === "Post") return <PostCard card={card} />;
-  if (image && kind !== "Note") return <MediaCard card={card} image={image} />;
+  if (image && kind !== "Note") return <MediaCard card={card} image={image} detail={detail} />;
   return <TypedArt {...typedFor(card)} />;
 }
 
