@@ -1,5 +1,5 @@
 node_modules/
 .expo/
-ios/
-android/
+/ios/
+/android/
 modules/inkling-native/ios/Frameworks/
