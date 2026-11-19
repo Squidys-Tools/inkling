@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors } from "../colors";
+import { font } from "../fonts";
 import { embedQuery, modelInstalled } from "../embedQuery";
 import type { ScreenProps } from "../routes";
 import { useLibrary } from "../state";
@@ -51,6 +52,7 @@ export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
   const [modelCheck, setModelCheck] = useState("");
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <Text style={styles.heading}>Settings</Text>
       <Section title="Tailscale">
         <Row label="Status" value={library.tailscale.state} />
         <Row label="This phone" value={library.tailscale.ips?.[0] ?? "—"} />
@@ -89,11 +91,25 @@ export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
 }
 
 const styles = StyleSheet.create({
-  screen: { backgroundColor: colors.background },
-  content: { padding: 16, gap: 20 },
+  screen: { backgroundColor: colors.surface },
+  heading: {
+    fontFamily: font.display,
+    fontSize: 22,
+    letterSpacing: -0.4,
+    color: colors.title,
+    marginLeft: 4,
+  },
+  content: { paddingHorizontal: 16, paddingTop: 28, paddingBottom: 40, gap: 20 },
   section: { gap: 6 },
-  sectionTitle: { color: colors.muted, fontSize: 12, fontWeight: "600", marginLeft: 12 },
-  group: { backgroundColor: colors.surface, borderRadius: 14, overflow: "hidden" },
+  sectionTitle: {
+    fontFamily: font.mono,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    color: colors.muted,
+    marginLeft: 12,
+  },
+  group: { backgroundColor: colors.raised, borderRadius: 14, overflow: "hidden" },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",

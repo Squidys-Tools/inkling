@@ -97,7 +97,15 @@ function Screens() {
       <Stack.Screen
         name="Settings"
         component={SettingsScreen}
-        options={{ presentation: "modal", title: "Settings" }}
+        options={{
+          // A drawer over the library: half height first, pulled up for the rest.
+          presentation: "formSheet",
+          sheetAllowedDetents: [0.62, 1],
+          sheetGrabberVisible: true,
+          sheetCornerRadius: 24,
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.surface },
+        }}
       />
       <Stack.Screen
         name="Pair"

@@ -126,7 +126,8 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
 
 const styles = StyleSheet.create({
   screen: { backgroundColor: colors.background },
-  grid: { paddingHorizontal: 10, paddingBottom: 24 },
+  // Room for the floating search bar, so the last cards scroll clear of it.
+  grid: { paddingHorizontal: 10, paddingBottom: 120 },
   header: { paddingHorizontal: 4, paddingBottom: 10, gap: 8 },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   notice: { color: colors.muted, fontFamily: font.mono, fontSize: 11, flexShrink: 1 },
