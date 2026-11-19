@@ -108,6 +108,9 @@ function useLibraryState() {
   const pair = useCallback(async (next: Pairing) => {
     await desktopStatus(next);
     await savePairing(next);
+    // Another desktop's Spaces don't exist on this one.
+    setScope({ kind: "everything" });
+    setSpaces([]);
     setReached(null);
     setPairing(next);
     success();
@@ -115,6 +118,8 @@ function useLibraryState() {
 
   const forget = useCallback(async () => {
     await forgetPairing();
+    setScope({ kind: "everything" });
+    setSpaces([]);
     setPairing(null);
     setCards([]);
     setReached(null);
