@@ -428,12 +428,21 @@ export const seedItems: SeedItem[] = [
   {
     id: "me-clip",
     kind: "video",
-    title: "Saved clip",
-    description: "A 10-second clip from my downloads.",
-    source: "Downloads",
+    title: "Earth rotating from Galileo",
+    description:
+      "A 10-second excerpt of NASA/JPL's December 1990 Earth flyby movie. Public domain.",
+    source: "NASA/JPL · Wikimedia Commons",
+    sourceUrl:
+      "https://commons.wikimedia.org/wiki/File:Earth_rotation_during_Galileo_flyby_(PIA00114).webm",
     file: "saved-clip.mp4",
     index: 4,
-    metadata: { tags: ["video"], mediaWidth: 1280, mediaHeight: 720 },
+    metadata: {
+      tags: ["video", "earth", "space"],
+      mediaWidth: 1280,
+      mediaHeight: 720,
+      durationSeconds: 10,
+      fileSizeBytes: 797289,
+    },
   },
   {
     id: "me-fuji-maple",
