@@ -8,14 +8,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { AppState, Linking } from "react-native";
+import { AppState } from "react-native";
 import InklingNative, {
   type TailscaleStatus,
 } from "../modules/inkling-native/src/InklingNativeModule";
 import { DesktopError, desktopStatus, recentCards, searchCards, type PhoneCard } from "./desktop";
 import { readOutbox, sendOutbox, type OutboxEntry } from "./outbox";
 import { forgetPairing, loadPairing, savePairing, type Pairing } from "./pairing";
-import { parsePairingLink } from "./pairing-link";
 import type { Connection } from "./ui/StatusPill";
 
 const nodeName = "inkling-iphone-sim";
@@ -109,16 +108,6 @@ function useLibraryState() {
       subscription.remove();
     };
   }, [pairing, online, refresh]);
-
-  useEffect(() => {
-    const handle = (link: string | null | undefined) => {
-      const next = link ? parsePairingLink(link) : null;
-      if (next) pair(next).catch(() => setNotice("That pairing link didn't reach a desktop."));
-    };
-    Linking.getInitialURL().then(handle, () => {});
-    const subscription = Linking.addEventListener("url", (event) => handle(event.url));
-    return () => subscription.remove();
-  }, [pair]);
 
   const connection: Connection = online ? (reached ?? "connecting") : "connecting";
   return {

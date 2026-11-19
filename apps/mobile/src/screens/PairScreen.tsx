@@ -4,10 +4,12 @@ import { colors } from "../colors";
 import type { ScreenProps } from "../routes";
 import { useLibrary } from "../state";
 
-export function PairScreen({ navigation }: ScreenProps<"Pair">) {
+export function PairScreen({ navigation, route }: ScreenProps<"Pair">) {
   const library = useLibrary();
-  const [address, setAddress] = useState("");
-  const [token, setToken] = useState("");
+  const link = route.params?.link;
+  const [address, setAddress] = useState(link?.address ?? "");
+  const [token, setToken] = useState(link?.token ?? "");
+  const online = library.tailscale.state === "Running";
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const pair = async () => {
@@ -29,8 +31,9 @@ export function PairScreen({ navigation }: ScreenProps<"Pair">) {
       keyboardShouldPersistTaps="handled"
     >
       <Text style={styles.detail}>
-        Open the pairing link your desktop shows, or enter its tailnet address and the token from
-        its phone_token file.
+        {link
+          ? `Pair with the desktop at ${link.address}? Saves from this phone will go to it.`
+          : "Open the pairing link your desktop shows, or enter its tailnet address and the token from its phone_token file."}
       </Text>
       <View style={styles.group}>
         <TextInput
@@ -58,8 +61,8 @@ export function PairScreen({ navigation }: ScreenProps<"Pair">) {
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button
-        title={busy ? "Pairing…" : "Pair"}
-        disabled={busy || !address || !token}
+        title={online ? (busy ? "Pairing…" : "Pair") : "Waiting for Tailscale…"}
+        disabled={!online || busy || !address || !token}
         onPress={pair}
       />
     </ScrollView>
