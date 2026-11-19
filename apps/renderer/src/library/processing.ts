@@ -3,6 +3,7 @@ import type { Job } from "@inkling/contracts";
 /** What a card shows about its background jobs. Items with nothing running or failed have none. */
 export type Processing = {
   active: boolean;
+  backgroundOnly: boolean;
   message: string | null;
   progressCurrent: number;
   progressTotal: number | null;
@@ -29,6 +30,9 @@ export function summarizeJobs(jobs: readonly Job[]): Processing | null {
   const deciding = active.length > 0 ? active : current.filter((job) => job === failed);
   return {
     active: active.length > 0,
+    backgroundOnly: current
+      .filter((job) => job.status === "failed" || active.includes(job))
+      .every((job) => job.kind === "generate_embedding"),
     message: active.find((job) => job.progressMessage)?.progressMessage ?? null,
     progressCurrent: totals.reduce((sum, job) => sum + job.progressCurrent, 0),
     progressTotal: totals.length
@@ -45,6 +49,7 @@ const same = (left: Processing | undefined, right: Processing | null) =>
   left !== undefined &&
   right !== null &&
   left.active === right.active &&
+  left.backgroundOnly === right.backgroundOnly &&
   left.message === right.message &&
   left.progressCurrent === right.progressCurrent &&
   left.progressTotal === right.progressTotal &&

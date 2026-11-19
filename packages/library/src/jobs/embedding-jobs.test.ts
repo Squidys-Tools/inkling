@@ -12,4 +12,22 @@ test("embedding text keeps the shared document inputs and markdown projection", 
       metadata: { text: "ignored metadata" },
     }),
   ).toBe("Reading list\n\nNomic A local snake_case model & more.\n\nCover text");
+  for (const [metadata, expected] of [
+    [{ text: "Article", extractedText: "Article" }, "Article"],
+    [{ text: "Summary", extractedText: "Article" }, "Summary\n\nArticle"],
+    [{ extractedText: "Article" }, "Article"],
+    [{ text: "Article" }, "Article"],
+    [{ text: "", extractedText: "" }, null],
+  ] as const) {
+    expect(
+      embeddingText({
+        title: "",
+        description: "",
+        body: "",
+        bodyFormat: "md",
+        ocrText: "",
+        metadata,
+      }),
+    ).toBe(expected);
+  }
 });

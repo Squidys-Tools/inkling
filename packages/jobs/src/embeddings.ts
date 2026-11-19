@@ -9,7 +9,8 @@ import models from "./model-manifest.json" with { type: "json" };
 import { startTextInference } from "./text-inference.ts";
 import { maxImagePixels, sharpImageInput } from "./thumbnail.ts";
 
-const maxTokens = 8192;
+// Electron/ONNX crashes above ~4.7k tokens when the attention buffer exceeds 1 GiB.
+const maxTokens = 2048;
 const documentLaneIdleMillis = 30_000;
 const imageEdge = 224;
 const imageMean = [0.4814547, 0.4578275, 0.4082107];
@@ -73,7 +74,7 @@ function floatVectorBytes(vector: Float32Array) {
 // Text longer than the model's window is split into windows that each keep the
 // opening and closing special tokens. At most maxWindows are embedded (about
 // 65k tokens), so a book-length text cannot hold the jobs worker for minutes.
-const maxWindows = 8;
+const maxWindows = 32;
 const windowed = (values: number[]) => {
   if (values.length <= maxTokens) return [values];
   const first = values[0] ?? 0;

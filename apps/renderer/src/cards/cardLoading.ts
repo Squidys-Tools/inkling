@@ -16,7 +16,13 @@ export function loadingPhase(
   view: Pick<CardView, "treatment" | "image" | "createdAt">,
   processing: Processing | undefined,
 ): LoadingPhase | null {
-  if (!processing || view.treatment === "note" || view.treatment === "quote") return null;
+  if (
+    !processing ||
+    processing.backgroundOnly ||
+    view.treatment === "note" ||
+    view.treatment === "quote"
+  )
+    return null;
   if (processing.startedAt - view.createdAt > firstCaptureWindow) return null;
   if (processing.active) return view.image ? "processing" : "captured";
   return processing.failedJob && view.treatment !== "media" && view.treatment !== "post"
