@@ -17,6 +17,7 @@ export const colors = {
   placeholderSurface: "#1b1917",
   accent: "#c27f5b",
   mascot: "#e5ddd2",
+  scrim: "rgba(0, 0, 0, 0.5)",
   mascotNotification: "#3b93f0",
   accentDeep: "#b0714f",
   accentSoft: "#241c16",

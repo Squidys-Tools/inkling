@@ -1,4 +1,4 @@
-import { useIsFocused } from "@react-navigation/native";
+import { type DrawerContentComponentProps, useDrawerStatus } from "@react-navigation/drawer";
 import { SymbolView, type SFSymbol } from "expo-symbols";
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -7,8 +7,7 @@ import { colors, spaceColors } from "../colors";
 import type { Scope } from "../desktop";
 import { font } from "../fonts";
 import { useLibrary } from "../state";
-import type { ScreenProps } from "../routes";
-import { Mascot } from "../ui/Mascot";
+import { Mascot } from "./Mascot";
 
 function Row(props: {
   icon: ReactNode;
@@ -35,21 +34,22 @@ function Row(props: {
 
 const symbol = (name: SFSymbol) => <SymbolView name={name} tintColor={colors.inkSoft} size={18} />;
 
-/** The home list, like t3code's: desktop's sidebar as a page that pushes each collection. */
-export function HomeScreen({ navigation }: ScreenProps<"Home">) {
+/** Desktop's sidebar for the phone: Everything, the Spaces, Archive, and Settings at the foot. */
+export function Sidebar({ navigation }: DrawerContentComponentProps) {
   const library = useLibrary();
   const insets = useSafeAreaInsets();
   const { scope } = library;
   const pick = (next: Scope) => {
     library.selectScope(next);
-    navigation.push("Library");
+    navigation.navigate("Main", { screen: "Library" });
+    navigation.closeDrawer();
   };
   return (
     <View
       style={[styles.sidebar, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 8 }]}
     >
       <View style={styles.brand}>
-        <Mascot size={40} visible={useIsFocused()} />
+        <Mascot size={40} visible={useDrawerStatus() === "open"} />
         <Text style={styles.wordmark}>inkling</Text>
       </View>
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
@@ -97,7 +97,8 @@ export function HomeScreen({ navigation }: ScreenProps<"Home">) {
           hitSlop={10}
           style={styles.settings}
           onPress={() => {
-            navigation.navigate("Settings");
+            navigation.closeDrawer();
+            navigation.navigate("Main", { screen: "Settings" });
           }}
         >
           <SymbolView name="gearshape" tintColor={colors.inkSoft} size={20} />
@@ -122,7 +123,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     letterSpacing: -0.8,
     color: colors.title,
-    paddingRight: 4,
+    paddingRight: 8,
   },
   list: { flex: 1 },
   listContent: { gap: 2, paddingBottom: 16 },
