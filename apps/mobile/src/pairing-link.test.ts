@@ -15,6 +15,7 @@ test("a pairing link gives the desktop address and token, and anything else is i
     ["inkling-mobile://pair?address=100.86.34.42%3A47620", null],
     ["inkling-mobile://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8082", null],
     ["https://example.com/pair?address=a&token=b", null],
+    ["inkling-mobile://pair?address=100.86.34.42%3A47620&token=%E0%A4%A", null],
   ] as const)
     expect([link, parsePairingLink(link)]).toEqual([link, expected]);
 });
