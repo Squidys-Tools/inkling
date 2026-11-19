@@ -67,7 +67,10 @@ function Screens() {
   const library = useLibrary();
   const { scope } = library;
   const searchBar = useRef<SearchBarCommands>(null);
-  useEffect(() => searchBar.current?.clearText(), [scope]);
+  // A new collection replaces the search, so the bar's leftover text goes too.
+  useEffect(() => {
+    if (scope.kind) searchBar.current?.clearText();
+  }, [scope]);
   const title =
     scope.kind === "archived" ? "Archive" : scope.kind === "space" ? scope.space.name : "inkling";
   return (
