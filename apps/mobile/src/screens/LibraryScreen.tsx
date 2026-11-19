@@ -99,7 +99,10 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
                 <Text style={styles.collectionTitle}>
                   {searching ? "Found things." : "Kept things."}
                 </Text>
-                <Text style={styles.count}>{String(library.cards.length).padStart(2, "0")}</Text>
+                <View style={styles.countGroup}>
+                  <Text style={styles.count}>{String(library.cards.length).padStart(2, "0")}</Text>
+                  <Text style={styles.countCaption}>SAVES SHOWN</Text>
+                </View>
               </View>
             </View>
           ) : null}
@@ -185,5 +188,7 @@ const makeStyles = (colors: Palette) =>
       flexShrink: 1,
     },
     count: { color: colors.accent, fontFamily: "Georgia", fontSize: 22, fontStyle: "italic" },
+    countGroup: { alignItems: "flex-end", gap: 4 },
+    countCaption: { color: colors.muted, fontSize: 8, letterSpacing: 0.7 },
     pressed: { opacity: 0.65 },
   });
