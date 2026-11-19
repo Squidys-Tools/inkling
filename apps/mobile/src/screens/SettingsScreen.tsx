@@ -88,7 +88,7 @@ export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
           />
         </Pressable>
         <Text style={styles.title}>{titles[page]}</Text>
-        <View style={styles.round} />
+        <View style={styles.spacer} />
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         {page === "home" ? (
@@ -199,6 +199,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  spacer: { width: 40 },
   title: { color: colors.title, fontSize: 17, fontWeight: "600" },
   content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 22 },
   identity: {
