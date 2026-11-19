@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { Appearance } from "react-native";
 import {
   createContext,
   useContext,
@@ -22,6 +23,9 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   const [look, updateLook] = useState<Look>("inkling");
   const chosen = useRef(false);
   const writes = useRef(Promise.resolve());
+  useEffect(() => {
+    Appearance.setColorScheme(look === "fieldnotes" ? "light" : "dark");
+  }, [look]);
   useEffect(() => {
     let live = true;
     SecureStore.getItemAsync(key).then(

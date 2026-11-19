@@ -20,7 +20,7 @@ export function PairScreen({ navigation, route }: ScreenProps<"Pair">) {
 
 function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) {
   const styles = useThemedStyles(makeStyles);
-  const { colors } = useAppearance();
+  const { colors, look } = useAppearance();
   const library = useLibrary();
   const [address, setAddress] = useState(link?.address ?? "");
   const [token, setToken] = useState(link?.token ?? "");
@@ -53,6 +53,7 @@ function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) 
       <View style={styles.group}>
         <TextInput
           style={styles.input}
+          keyboardAppearance={look === "fieldnotes" ? "light" : "dark"}
           value={address}
           onChangeText={setAddress}
           placeholder="100.x.y.z:47620"
@@ -64,6 +65,7 @@ function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) 
         />
         <TextInput
           style={[styles.input, styles.last]}
+          keyboardAppearance={look === "fieldnotes" ? "light" : "dark"}
           value={token}
           onChangeText={setToken}
           placeholder="Token"
