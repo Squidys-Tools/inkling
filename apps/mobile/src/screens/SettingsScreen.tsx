@@ -6,7 +6,7 @@ import { embedQuery, modelInstalled } from "../embedQuery";
 import { font } from "../fonts";
 import type { ScreenProps } from "../routes";
 import { useLibrary } from "../state";
-import { StatusPill } from "../ui/StatusPill";
+import { StatusPill, tones } from "../ui/StatusPill";
 
 type Page = "home" | "desktop" | "tailscale" | "search";
 const titles: Record<Page, string> = {
@@ -88,7 +88,18 @@ export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
           />
         </Pressable>
         <Text style={styles.title}>{titles[page]}</Text>
-        <View style={styles.spacer} />
+        {page === "desktop" ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Pair with a desktop"
+            style={styles.round}
+            onPress={() => navigation.navigate("Pair")}
+          >
+            <SymbolView name="plus" tintColor={colors.text} size={17} weight="semibold" />
+          </Pressable>
+        ) : (
+          <View style={styles.spacer} />
+        )}
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         {page === "home" ? (
@@ -131,10 +142,25 @@ export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
             </Group>
           </>
         ) : null}
-        {page === "desktop" ? (
-          <Group>
-            <Row label="Address" value={library.pairing?.address ?? "Not paired"} />
-            {library.pairing ? (
+        {page === "desktop" && library.pairing ? (
+          <>
+            <Group title="DESKTOPS">
+              <View style={styles.device}>
+                <View style={[styles.dot, { backgroundColor: tones[library.connection].color }]} />
+                <SymbolView name="desktopcomputer" tintColor={colors.muted} size={16} />
+                <View style={styles.deviceText}>
+                  <Text style={styles.deviceName} numberOfLines={1}>
+                    {library.pairing.address}
+                  </Text>
+                  <Text style={styles.deviceState}>{tones[library.connection].label}</Text>
+                </View>
+              </View>
+            </Group>
+            <Text style={styles.note}>
+              Saves from this phone go to this desktop over your tailnet, and browsing and search
+              read its library.
+            </Text>
+            <Group>
               <Row
                 icon="xmark.circle"
                 label="Forget this desktop"
@@ -142,16 +168,18 @@ export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
                 last
                 onPress={() => library.forget().then(() => navigation.goBack())}
               />
-            ) : (
-              <Row
-                icon="plus.circle"
-                label="Pair with a desktop"
-                tone="accent"
-                last
-                onPress={() => navigation.navigate("Pair")}
-              />
-            )}
-          </Group>
+            </Group>
+          </>
+        ) : null}
+        {page === "desktop" && !library.pairing ? (
+          <View style={styles.empty}>
+            <View style={styles.emptyIcon}>
+              <SymbolView name="desktopcomputer" tintColor={colors.muted} size={22} />
+            </View>
+            <Text style={styles.emptyText}>
+              No desktop paired yet.{"\n"}Tap <Text style={styles.emptyPlus}>+</Text> to add one.
+            </Text>
+          </View>
         ) : null}
         {page === "tailscale" ? (
           <Group>
@@ -222,7 +250,37 @@ const styles = StyleSheet.create({
   identityName: { color: colors.title, fontSize: 17, fontWeight: "600" },
   identityDetail: { color: colors.muted, fontFamily: font.mono, fontSize: 12 },
   section: { gap: 8 },
-  sectionTitle: { color: colors.muted, fontSize: 15, marginLeft: 16 },
+  device: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16 },
+  dot: { width: 9, height: 9, borderRadius: 5 },
+  deviceText: { flex: 1, gap: 2 },
+  deviceName: { color: colors.title, fontSize: 17, fontWeight: "600" },
+  deviceState: { color: colors.muted, fontSize: 13 },
+  note: { color: colors.muted, fontSize: 15, lineHeight: 21, marginHorizontal: 16, marginTop: -8 },
+  empty: {
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: colors.raised,
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  emptyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: { color: colors.muted, fontSize: 15, lineHeight: 21, textAlign: "center" },
+  emptyPlus: { color: colors.title, fontWeight: "700" },
+  sectionTitle: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    marginLeft: 8,
+  },
   group: { backgroundColor: colors.raised, borderRadius: 22, overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", paddingLeft: 16 },
   icon: { width: 28, marginRight: 12, alignItems: "center" },

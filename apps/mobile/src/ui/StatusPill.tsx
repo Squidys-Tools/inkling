@@ -3,7 +3,7 @@ import { colors } from "../colors";
 
 export type Connection = "connected" | "connecting" | "offline" | "repair";
 
-const tones: Record<Connection, { label: string; color: string }> = {
+export const tones: Record<Connection, { label: string; color: string }> = {
   connected: { label: "Connected", color: colors.success },
   connecting: { label: "Connecting", color: colors.warning },
   offline: { label: "Desktop offline", color: colors.muted },
