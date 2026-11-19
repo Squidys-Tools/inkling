@@ -41,6 +41,7 @@ export function Sidebar({ navigation }: DrawerContentComponentProps) {
   const { scope } = library;
   const pick = (next: Scope) => {
     library.selectScope(next);
+    navigation.navigate("Main", { screen: "Library" });
     navigation.closeDrawer();
   };
   return (
