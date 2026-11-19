@@ -1,11 +1,11 @@
 # Edit a note
 
-Edit note reopens a saved note's body in the full-page editor and saves the change in place. Status: **driven** on 2026-11-17 (before notes opened into their item view; re-drive the open step).
+Edit note reopens a saved note's body in the full-page editor and saves the change in place. Status: **driven** on 2026-11-19 (note card opens the item view; `Edit note` reaches the write page; saving stays on the write page).
 
 ## Sub-features
 
 - `edit-open` opens the editor with the existing body.
-- `edit-save` replaces the body and returns to the item view.
+- `edit-save` replaces the body in place; `Back`/`Details` then returns to the item view.
 - `edit-store` updates `body` and `description`, keeps `title` and `created_at`.
 
 ## How to get to it (user POV)

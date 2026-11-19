@@ -1,6 +1,6 @@
 # Tags
 
-The item view's Info panel lists the Regular Spaces an item is filed in (`In` and a swatch per Space), then one `Tags` field: each tag is a token with a remove button, and you type new ones into the field. Typing suggests tags already in the library: prefix matches first, then substring matches, most-used first inside each group. Status: **driven** on 2026-11-18 (add incl. `#`-strip/lowercase normalization, Escape cancel, remove, suggestion listbox `Tags you use` with `option "<tag> <uses>"`). Tag writes also reindex FTS and enqueue `generate_embedding`.
+The item view's Info panel lists the Regular Spaces an item is filed in (`In` and a swatch per Space), then one `Tags` field: each tag is a token with a remove button, and you type new ones into the field. Typing suggests tags already in the library: prefix matches first, then substring matches, most-used first inside each group. Status: **driven** on 2026-11-19 (add via `Add a tag` combobox + Enter persisted to `metadata.tags`, `Remove tag <name>` deleted it; earlier: normalization, Escape cancel, suggestion listbox `Tags you use`). Tag writes also reindex FTS and enqueue `generate_embedding`.
 
 ## Sub-features
 

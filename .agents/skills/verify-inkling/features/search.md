@@ -1,6 +1,6 @@
 # Search
 
-Search narrows the library to items matching a query, shows an empty state with Clear search when nothing matches, and can save the query as a Smart Space. Status: **driven** on 2026-11-17. The `/` shortcut focuses the same field through `$I press slash` (the SendKeys fallback — `ad press` has no `/` key name on Windows).
+Search narrows the library to items matching a query, shows an empty state with Clear search when nothing matches, and can save the query as a Smart Space. Status: **driven** on 2026-11-19 (query narrows, empty state + Clear search, Save as Space persists `kind='smart'`). The `/` shortcut focuses the same field through `$I press slash` (the SendKeys fallback — `ad press` has no `/` key name on Windows).
 
 ## Sub-features
 

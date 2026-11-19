@@ -1,6 +1,6 @@
 # Keyboard shortcuts
 
-`?` or `Ctrl+/` opens `dialog "Keyboard shortcuts"`, a reference of every command with its binding, rendered from `packages/contracts/src/shortcuts.ts` — the same table that drives the key handler (`shell/useCommands.ts`) and the macOS menu. Status: **driven** on 2026-11-18 (the dialog — all nine rows — `Ctrl+,`, `n`, `Ctrl+Shift+N`, plus `Ctrl+K` in the search pass; `Alt+Left`/`Alt+Right` last driven 2026-11-17). Not driven: `Ctrl+N` (same command as `n`), `Ctrl+O` (native picker), `Ctrl+\` and `Ctrl+/` themselves (`$I press` reaches them; this pass used `?` and `Ctrl+,` instead), the macOS menu path and mouse side-buttons.
+`?` or `Ctrl+/` opens `dialog "Keyboard shortcuts"`, a reference of every command with its binding, rendered from `packages/contracts/src/shortcuts.ts` — the same table that drives the key handler (`shell/useCommands.ts`) and the macOS menu. Status: **driven** on 2026-11-19 (the dialog — all nine rows — `Ctrl+,`, `Ctrl+K` in the search pass, `Alt+Left` blocked inside the shortcuts dialog and passed through the Settings sheet). Earlier passes: `n`, `Ctrl+Shift+N` on 2026-11-18, `Alt+Left`/`Alt+Right` nav on 2026-11-17. Not driven: `Ctrl+N` (same command as `n`), `Ctrl+O` (native picker), `Ctrl+\` and `Ctrl+/` themselves (`$I press` reaches them; this pass used `?` and `Ctrl+,` instead), the macOS menu path and mouse side-buttons.
 
 ## Sub-features
 
@@ -24,6 +24,6 @@ Preconditions: any launched run; focus off a text field for bare keys (`ad press
 
 - Bare keys (`n`, `/`, `?`) only fire outside editable fields — `useHotkeys` `ignoreInputs` applies unless the binding has `mod` or `alt`. A paste-probe tab order can leave focus in `Search your mind`.
 - On Windows, `ad press` names only letters, digits and named keys — `,`, `/`, `?`, `\`, `-`, `=` all fail `INVALID_ARGS`. `$I press <combo>` sends them via SendKeys after activating the run's window by pid; it accepts the same modifier+key spelling (and names like `comma`, `slash`, `question`). On Linux `ad press` takes xdotool names (`ctrl+comma`, `ctrl+slash`, `shift+slash`) directly.
-- While `/welcome` shows, every shortcut is suppressed (`useCommands` returns early); while a dialog is open only back/forward still run — and through the Settings sheet they navigate its URL section.
+- While `/welcome` shows, every shortcut is suppressed (`useCommands` returns early); while a dialog is open the Settings sheet is the exception — `useCommands.ts` special-cases `settings-sheet` so back/forward still run and move through history (the sheet leaves rather than switching panels); the Keyboard shortcuts dialog and the confirm dialogs block them (proven 2026-11-19: `alt+Left` inside the shortcuts dialog left the dialog open and did not navigate).
 - The handler runs commands, not text: `ad press n` while a form's field is focused types `n` instead of opening the note editor.
 - macOS gives Cmd shortcuts to the menu, not the key handler — verify that path on a Mac, not here.

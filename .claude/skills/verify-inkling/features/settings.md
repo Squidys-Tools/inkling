@@ -1,6 +1,6 @@
 # Settings sheet
 
-The `Settings` button or `Ctrl+,` opens a settings sheet over the current page: `dialog "Settings"` with a `complementary "Settings sections"` rail (General, Appearance, Library, Browser extension, Screenshots, Updates) and a `region "<Section>"` panel; the open section lives in the URL search params. Status: **driven** on 2026-11-17 (open via button and `Ctrl+,`, rail and General/Appearance panels, welcome replay, Escape close). Not driven: `Close settings`, the other panels' controls and every setting mutation except the Appearance readback in [grid-zoom](./grid-zoom.md).
+The `Settings` button or `Ctrl+,` opens a settings sheet over the current page: `dialog "Settings"` with a `complementary "Settings sections"` rail (General, Appearance, Library, Browser extension, Screenshots, Updates) and a `region "<Section>"` panel; the open section lives in the URL search params. Status: **driven** on 2026-11-19 (open via button and `Ctrl+,`, rail and General/Appearance/Browser extension panels, welcome replay, Escape close). Not driven: `Close settings`, the other panels' controls and every setting mutation except the Appearance readback in [grid-zoom](./grid-zoom.md).
 
 ## Sub-features
 

@@ -1,6 +1,6 @@
 # Capture a link
 
-Capture a link saves a URL as a card at once, then fills in title and description in the background. Status: **driven** on 2026-11-17. Like the deep-link and receiver captures it fetches the URL (network); this is the networked capture driven through the add tile.
+Capture a link saves a URL as a card at once, then fills in title and description in the background. Status: **driven** on 2026-11-19. Like the deep-link and receiver captures it fetches the URL (network); this is the networked capture driven through the add tile.
 
 ## Sub-features
 
@@ -24,4 +24,4 @@ Preconditions: seeded library; the machine can reach `https://example.com/`.
 - The card is named `Article: <title>` for an ordinary page and its title changes after enrichment, so re-resolve it by the current title. A saved video-provider URL (YouTube or Vimeo — the only mapped providers) becomes a `Video:` card instead — don't substitute one into the recipe.
 - Offline, the card keeps the domain title (partial result) and the job fails or retries: check `jobs.status`.
 - Read `db` before repeating a save so you do not capture twice.
-- A link capture queues exactly one job, `enrich_url`; `generate_embedding` is chained after enrichment succeeds — and for an x.com URL a silent `x_post_media` job too. Links never get a poster job (`video_poster` is for saved video files only). Wait on the specific `enrich_url` row.
+- A link capture queues exactly one job, `enrich_url`; `generate_embedding` is chained after enrichment succeeds — and for a qualifying x.com status URL whose post lacks media a silent `x_post_media` job too. The row stays `kind='url'` even when the card displays as `Video:` (the card kind is display-derived). Links never get a poster job (`video_poster` is for saved video files only). Wait on the specific `enrich_url` row.

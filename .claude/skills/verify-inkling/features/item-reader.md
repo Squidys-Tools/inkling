@@ -1,6 +1,6 @@
 # Item reader
 
-A `Read` control opens a clean reading view of a url item's extracted article at `/item/<id>/read` (`pages/ReaderPage.tsx`, `reader/`). The view shows the title, a `site · author · N min read` byline whose site name is a link to the original, the article body, a closing `Saved from <site>` line with an `Open original` link, a `Back (Esc)` button top-left, and a floating controls pill over the article's lower edge carrying the `Typeface` picker and the `Text size` buttons (`reader/ReaderControls.tsx`; the pill steps out while scrolling down and returns on scroll-up or at the end). Status: **driven** on 2026-11-18 (item-view `Read`, document view, typeface switch read back on the picked `menuitem`'s `selected` state, Escape exit, pill placement). Not driven: scroll position memory and the controls pill's fade on scroll-down, the external navigation of the site and `Open original` links, the `group "Text size"` buttons (`Smaller (text size)`/`Larger (text size)`), and media embeds inside the article (a `Play "<title>" from YouTube` button renders for embedded videos; playing needs the network).
+A `Read` control opens a clean reading view of a url item's extracted article at `/item/<id>/read` (`pages/ReaderPage.tsx`, `reader/`). The view shows the title, a `site · author · N min read` byline whose site name is a link to the original, the article body, a closing `Saved from <site>` line with an `Open original` link, a `Back (Esc)` button top-left, and a floating controls pill over the article's lower edge carrying the `Typeface` picker and the `Text size` buttons (`reader/ReaderControls.tsx`; the pill steps out while scrolling down and returns on scroll-up or at the end). Status: **driven** on 2026-11-19 (item-view `Read`, document view, in-content and footer links, Escape exit). Not driven: the controls pill's fade on scroll-down, the external navigation of the site and `Open original` links, the `group "Text size"` buttons (`Smaller (text size)`/`Larger (text size)`), and media embeds inside the article (a `Play “<title>” from YouTube` button — curly quotes — renders for embedded videos; playing needs the network). The reader does not remember scroll position; nothing to drive there.
 
 ## Sub-features
 
@@ -10,7 +10,7 @@ A `Read` control opens a clean reading view of a url item's extracted article at
 
 ## How to get to it (user POV)
 
-- Hover or focus a link/article card and choose **Read**, or open the item and choose **Read** in its toolbar. Escape leaves.
+- Hover or focus a link/article card and choose **Read**, or open the item and choose **Read** in its Info actions. Escape leaves.
 
 ## Driving it with agent-desktop
 
@@ -24,5 +24,5 @@ Preconditions: an item with readable content — the card's `Read` is `states=di
 ## Gotchas
 
 - The `Typeface` combobox opens on `click` (DoDefaultAction) or `expand` — `expand` on an open popup reports `AlreadyInState`/`not_delivered` with `retry:safe`, so re-snapshot rather than retry blindly.
-- On the card, `Read` is `states=disabled` when there is no extracted text; on the item view it is absent entirely — `ref button Read` on the item view means it will open.
+- On the card, `Read` is `states=disabled` when there is no extracted text; in the card's context menu and the item view it is absent entirely — `ref button Read` on the item view means it will open.
 - `Escape`/`Back (Esc)` is a single `history.back()` — the same step `Alt+Left` takes: opened from a card it lands on the grid, opened from the item view it lands on the item view.

@@ -1,6 +1,6 @@
 # Capture a quote
 
-Capture a quote saves quote text with an optional attribution as a quote card. Status: **driven** on 2026-11-15.
+Capture a quote saves quote text with an optional attribution as a quote card. Status: **driven** on 2026-11-19 (the redesigned page: `New quote` heading, multiline quote text, dirty status line).
 
 ## Sub-features
 
@@ -16,7 +16,7 @@ Capture a quote saves quote text with an optional attribution as a quote card. S
 
 Preconditions: seeded library; leave `Source URL` empty to stay offline.
 
-- **Open.** `$I ad expand "$($I ref menubutton Add)"`, then `$I ad click "$($I ref menuitem Quote)"`. Route `#/add/quote`; textfields `Quote text`, `Attribution`, `Source URL`; `Back` button. `Discard` and `Save to library` appear once any field has text, and Save stays disabled until quote text is set.
+- **Open.** `$I ad expand "$($I ref menubutton Add)"`, then `$I ad click "$($I ref menuitem Quote)"`. Route `#/add/quote` under `heading "New quote"`; a multiline `Quote text` textfield plus `Attribution` and `Source URL`; `Back` button. Once any field has text the status line reads `New quote` · `Ctrl ↵ saves · Esc discards`, and `Discard`/`Save to library` appear — Save stays disabled until quote text is set.
 - **Fill.** `$I ad set-value "$($I ref textfield 'Quote text')" 'Small steps cross oceans'` and `$I ad set-value "$($I ref textfield Attribution)" 'Ada Probe, Notes'`. `$I shot q1`.
 - **Save.** `$I ad click "$($I ref button 'Save to library')"`, or Ctrl+Enter from any field (Enter from `Attribution` or `Source URL`).
 - **Discard.** Escape with text opens an `alertdialog` `Discard this quote?` (`Cancel` focused); `Discard` empties the fields and stays. Escape on an empty page goes back.
