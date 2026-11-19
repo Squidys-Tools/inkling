@@ -16,6 +16,8 @@ export const colors = {
   placeholder: "#5e5850",
   placeholderSurface: "#1b1917",
   accent: "#c27f5b",
+  mascot: "#e5ddd2",
+  mascotNotification: "#3b93f0",
   accentDeep: "#b0714f",
   accentSoft: "#241c16",
   success: "#7fa08d",

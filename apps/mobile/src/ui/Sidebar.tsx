@@ -1,4 +1,4 @@
-import type { DrawerContentComponentProps } from "@react-navigation/drawer";
+import { type DrawerContentComponentProps, useDrawerStatus } from "@react-navigation/drawer";
 import { SymbolView, type SFSymbol } from "expo-symbols";
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -7,6 +7,7 @@ import { colors, spaceColors } from "../colors";
 import type { Scope } from "../desktop";
 import { font } from "../fonts";
 import { useLibrary } from "../state";
+import { Mascot } from "./Mascot";
 
 function Row(props: {
   icon: ReactNode;
@@ -47,7 +48,10 @@ export function Sidebar({ navigation }: DrawerContentComponentProps) {
     <View
       style={[styles.sidebar, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 8 }]}
     >
-      <Text style={styles.wordmark}>inkling</Text>
+      <View style={styles.brand}>
+        <Mascot size={40} visible={useDrawerStatus() === "open"} />
+        <Text style={styles.wordmark}>inkling</Text>
+      </View>
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         <Row
           icon={symbol("square.grid.3x3")}
@@ -106,14 +110,19 @@ export function Sidebar({ navigation }: DrawerContentComponentProps) {
 }
 
 const styles = StyleSheet.create({
+  brand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 6,
+    marginBottom: 18,
+  },
   sidebar: { flex: 1, backgroundColor: colors.surface, paddingHorizontal: 14 },
   wordmark: {
     fontFamily: font.display,
     fontSize: 28,
     letterSpacing: -0.8,
     color: colors.title,
-    paddingHorizontal: 10,
-    marginBottom: 18,
   },
   list: { flex: 1 },
   listContent: { gap: 2, paddingBottom: 16 },
