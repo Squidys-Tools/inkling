@@ -30,3 +30,18 @@ export function savedAgo(at: number, now = Date.now()) {
   }
   return "just now";
 }
+
+/** Desktop's quote attribution line: an em dash and the source. */
+export function quoteAttribution(description: string | null) {
+  const value = description?.trim() ?? "";
+  if (!value) return "";
+  return value.startsWith("—") ? value : `— ${value}`;
+}
+
+export const wordCount = (value: string | null) => {
+  const words = value?.replace(/\s+/gu, " ").trim() ?? "";
+  return words ? words.split(" ").length : 0;
+};
+
+export const fileExtension = (name: string | null) =>
+  /\.([a-z0-9]{1,5})$/iu.exec(name?.trim() ?? "")?.[1]?.toUpperCase() ?? "";

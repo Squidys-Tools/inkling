@@ -2,14 +2,24 @@ import { File, Paths } from "expo-file-system";
 import InklingNative from "../modules/inkling-native/src/InklingNativeModule";
 import type { Pairing } from "./pairing";
 
+export type CardKind = "Article" | "Image" | "Note" | "Quote" | "PDF" | "Video" | "Post" | "File";
+
 export type PhoneCard = {
   id: string;
   kind: string;
+  /** The desktop's card treatment for this item. */
+  displayKind: CardKind;
   title: string | null;
   description: string | null;
   sourceUrl: string | null;
+  /** The site or app the item came from, as desktop labels it. */
+  source: string | null;
   createdAt: number;
   hasThumbnail: boolean;
+  /** The saved page's preview image on the web, for links without a thumbnail of their own. */
+  imageUrl: string | null;
+  aspectRatio: number | null;
+  post: { name: string; handle: string; text: string } | null;
 };
 
 /** Desktop was reached and refused the request; a network failure throws something else. */

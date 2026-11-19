@@ -11,9 +11,17 @@
       "bundleIdentifier": "app.inkling.mobile.dev",
       "supportsTablet": true,
       "entitlements": {
-        "com.apple.security.application-groups": ["group.app.inkling.mobile.dev"]
+        "com.apple.security.application-groups": [
+          "group.app.inkling.mobile.dev"
+        ]
       }
     },
-    "plugins": ["expo-dev-client", "@bacons/apple-targets", "expo-secure-store", "expo-image"]
+    "plugins": [
+      "expo-dev-client",
+      "@bacons/apple-targets",
+      "expo-secure-store",
+      "expo-image",
+      "expo-font"
+    ]
   }
 }

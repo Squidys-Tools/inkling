@@ -8,11 +8,13 @@ import {
   createNativeStackNavigator,
   type NativeStackNavigationProp,
 } from "@react-navigation/native-stack";
+import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Linking } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { colors } from "./src/colors";
+import { font, fontFiles } from "./src/fonts";
 import { parsePairingLink } from "./src/pairing-link";
 import type { Routes } from "./src/routes";
 import { ItemScreen } from "./src/screens/ItemScreen";
@@ -60,7 +62,13 @@ const settingsButton = () => <SettingsButton />;
 function Screens() {
   const library = useLibrary();
   return (
-    <Stack.Navigator screenOptions={{ headerTintColor: colors.accent }}>
+    <Stack.Navigator
+      screenOptions={{
+        headerTintColor: colors.accent,
+        headerTitleStyle: { fontFamily: font.display, color: colors.title },
+        headerLargeTitleStyle: { fontFamily: font.display, color: colors.title },
+      }}
+    >
       <Stack.Screen
         name="Library"
         component={LibraryScreen}
@@ -101,6 +109,7 @@ function Screens() {
 }
 
 export default function App() {
+  useFonts(fontFiles);
   useEffect(() => {
     const subscription = Linking.addEventListener("url", (event) => openPairingLink(event.url));
     return () => subscription.remove();

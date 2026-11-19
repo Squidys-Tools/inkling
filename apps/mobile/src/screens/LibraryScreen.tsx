@@ -1,20 +1,13 @@
-import {
-  Button,
-  FlatList,
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { hostname, cardTitle } from "../cards";
+import { FlashList } from "@shopify/flash-list";
+import { Button, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { TypedArt, CardTile } from "../cards/CardTile";
+import { cardTitle, hostname } from "../cards";
 import { colors } from "../colors";
+import { font } from "../fonts";
 import type { ScreenProps } from "../routes";
 import { useLibrary } from "../state";
 import { EmptyState } from "../ui/EmptyState";
 import { StatusPill } from "../ui/StatusPill";
-import { Thumbnail, tileStyles } from "../ui/Thumbnail";
 
 function Banner({ connection, onPair }: { connection: string; onPair: () => void }) {
   if (connection === "repair")
@@ -23,7 +16,7 @@ function Banner({ connection, onPair }: { connection: string; onPair: () => void
         <Text style={styles.bannerText}>
           This desktop's token changed. Pair again to keep browsing.
         </Text>
-        <Button title="Pair again" onPress={onPair} />
+        <Button title="Pair again" color={colors.accent} onPress={onPair} />
       </View>
     );
   if (connection === "offline")
@@ -77,17 +70,16 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
   ];
   const searching = library.shownQuery.trim() !== "";
   return (
-    <FlatList
+    <FlashList
       style={styles.screen}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.grid}
       data={rows}
+      masonry
+      numColumns={2}
       keyExtractor={(row) => row.key}
-      numColumns={3}
       refreshing={false}
       onRefresh={() => library.refresh(library.query)}
-      initialNumToRender={18}
-      windowSize={5}
       ListHeaderComponent={
         <View style={styles.header}>
           <View style={styles.statusRow}>
@@ -112,22 +104,19 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
       renderItem={({ item: row }) =>
         "entry" in row ? (
           <View style={styles.cell}>
-            <View style={[styles.tile, tileStyles.placeholder]}>
-              <Text style={tileStyles.text} numberOfLines={5}>
-                {row.entry.kind === "url" ? hostname(row.entry.text) : row.entry.text}
-              </Text>
-            </View>
-            <Text style={styles.waiting}>Waiting for desktop</Text>
+            <TypedArt
+              label="ON THIS PHONE"
+              title={row.entry.kind === "url" ? hostname(row.entry.text) : row.entry.text}
+              footnote="WAITING FOR DESKTOP"
+            />
           </View>
         ) : (
           <Pressable
             style={styles.cell}
+            accessibilityLabel={cardTitle(row.card)}
             onPress={() => navigation.navigate("Item", { card: row.card })}
           >
-            <Thumbnail pairing={pairing} card={row.card} />
-            <Text style={styles.cardTitle} numberOfLines={2}>
-              {cardTitle(row.card)}
-            </Text>
+            <CardTile pairing={pairing} card={row.card} />
           </Pressable>
         )
       }
@@ -137,14 +126,11 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
 
 const styles = StyleSheet.create({
   screen: { backgroundColor: colors.background },
-  grid: { paddingHorizontal: 8, paddingBottom: 24 },
-  header: { paddingHorizontal: 4, paddingBottom: 8, gap: 8 },
+  grid: { paddingHorizontal: 10, paddingBottom: 24 },
+  header: { paddingHorizontal: 4, paddingBottom: 10, gap: 8 },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  notice: { color: colors.muted, fontSize: 12, flexShrink: 1 },
-  banner: { backgroundColor: colors.surface, borderRadius: 12, padding: 12, gap: 4 },
+  notice: { color: colors.muted, fontFamily: font.mono, fontSize: 11, flexShrink: 1 },
+  banner: { backgroundColor: colors.surface, borderRadius: 14, padding: 12, gap: 4 },
   bannerText: { color: colors.text, fontSize: 14, lineHeight: 20 },
-  cell: { flex: 1 / 3, padding: 4 },
-  tile: { width: "100%", aspectRatio: 1, borderRadius: 10 },
-  cardTitle: { color: colors.text, fontSize: 12, marginTop: 6 },
-  waiting: { color: colors.warning, fontSize: 11, marginTop: 6 },
+  cell: { padding: 5 },
 });
