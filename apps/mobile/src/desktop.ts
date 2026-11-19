@@ -12,6 +12,13 @@ export type PhoneCard = {
   hasThumbnail: boolean;
 };
 
+/** Desktop was reached and refused the request; a network failure throws something else. */
+export class DesktopError extends Error {
+  constructor(readonly status: number) {
+    super(`desktop answered ${status}`);
+  }
+}
+
 async function request(pairing: Pairing, method: "GET" | "POST", path: string, body?: unknown) {
   const response = await InklingNative.tailnetRequest(
     pairing.address,
@@ -20,7 +27,7 @@ async function request(pairing: Pairing, method: "GET" | "POST", path: string, b
     pairing.token,
     body === undefined ? null : JSON.stringify(body),
   );
-  if (response.status !== 200) throw new Error(`desktop answered ${response.status}`);
+  if (response.status !== 200) throw new DesktopError(response.status);
   return response;
 }
 

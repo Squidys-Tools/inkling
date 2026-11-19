@@ -1,6 +1,6 @@
 import { Directory, File } from "expo-file-system";
 import InklingNative from "../modules/inkling-native/src/InklingNativeModule";
-import { uploadCapture } from "./desktop";
+import { DesktopError, uploadCapture } from "./desktop";
 import type { Pairing } from "./pairing";
 
 const APP_GROUP = "group.app.inkling.mobile.dev";
@@ -31,20 +31,28 @@ export function readOutbox(): OutboxEntry[] {
 /** Sends each queued capture oldest first; an entry leaves the outbox only after desktop saved it. */
 export async function sendOutbox(pairing: Pairing) {
   const outbox = outboxDirectory();
-  if (!outbox) return 0;
+  if (!outbox) return { sent: 0, refused: 0 };
   let sent = 0;
+  let refused = 0;
   for (const entry of readOutbox().reverse()) {
     const payload = entry.file ? new File(outbox, entry.file) : null;
-    await uploadCapture(pairing, {
-      id: entry.id,
-      kind: entry.kind,
-      text: entry.text,
-      file: payload?.exists ? await payload.base64() : undefined,
-    });
+    try {
+      await uploadCapture(pairing, {
+        id: entry.id,
+        kind: entry.kind,
+        text: entry.text,
+        file: payload?.exists ? await payload.base64() : undefined,
+      });
+    } catch (error) {
+      // A capture desktop refuses (too large, unknown kind) stays queued without blocking the rest.
+      if (!(error instanceof DesktopError) || error.status >= 500) throw error;
+      refused += 1;
+      continue;
+    }
     // The record goes first, so a crash between the two never leaves a record without its file.
     new File(outbox, `${entry.id}.json`).delete();
     if (payload?.exists) payload.delete();
     sent += 1;
   }
-  return sent;
+  return { sent, refused };
 }

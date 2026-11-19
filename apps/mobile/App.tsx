@@ -140,15 +140,25 @@ export default function App() {
   const refresh = useCallback(
     async (text: string) => {
       if (!pairing || !online) return;
+      let upload = "";
       try {
-        const sent = await sendOutbox(pairing);
-        setPending(readOutbox());
-        setCards(await fetchCards(pairing, text));
-        setStatus(sent ? `Sent ${sent} saved item${sent === 1 ? "" : "s"} to desktop` : "");
+        const { sent, refused } = await sendOutbox(pairing);
+        upload = [
+          sent ? `Sent ${sent} saved item${sent === 1 ? "" : "s"} to desktop` : "",
+          refused ? `Desktop couldn't save ${refused}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
         // Desktop fills in titles and thumbnails in background jobs after the save.
         if (sent) setTimeout(() => fetchCards(pairing, text).then(setCards, () => {}), settleDelay);
+      } catch {
+        upload = "Saves are waiting for desktop";
+      }
+      setPending(readOutbox());
+      try {
+        setCards(await fetchCards(pairing, text));
+        setStatus(upload);
       } catch (reason) {
-        setPending(readOutbox());
         setStatus(`Desktop not reachable: ${String(reason)}`);
       }
     },
