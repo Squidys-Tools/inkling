@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import type { ReadableStream } from "node:stream/web";
 import { appContentTypes } from "../app-content-types.ts";
 import { serveAssetFile } from "../asset-response.ts";
@@ -101,8 +102,8 @@ export async function startPhoneService({
         Connection: "close",
       });
       if (!asset.body) return response.end();
-      Readable.fromWeb(asset.body as unknown as ReadableStream).pipe(response);
-      return;
+      // Awaited so a read failure mid-stream reaches respond's catch instead of crashing main.
+      return pipeline(Readable.fromWeb(asset.body as unknown as ReadableStream), response);
     }
     send(response, 404, { error: "not-found" });
   }
