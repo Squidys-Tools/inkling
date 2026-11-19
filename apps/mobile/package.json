@@ -22,6 +22,7 @@
     "expo-dev-client": "58.0.21",
     "expo-file-system": "58.0.14",
     "expo-font": "58.0.12",
+    "expo-glass-effect": "58.0.5",
     "expo-haptics": "58.0.8",
     "expo-image": "58.0.18",
     "expo-secure-store": "58.0.3",

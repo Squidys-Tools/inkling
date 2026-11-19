@@ -1,4 +1,5 @@
 import { type DrawerContentComponentProps, useDrawerStatus } from "@react-navigation/drawer";
+import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { SymbolView, type SFSymbol } from "expo-symbols";
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -31,6 +32,8 @@ function Row(props: {
     </Pressable>
   );
 }
+
+const glass = isLiquidGlassAvailable();
 
 const symbol = (name: SFSymbol) => <SymbolView name={name} tintColor={colors.inkSoft} size={18} />;
 
@@ -95,13 +98,19 @@ export function Sidebar({ navigation }: DrawerContentComponentProps) {
           accessibilityRole="button"
           accessibilityLabel="Settings"
           hitSlop={10}
-          style={styles.gear}
           onPress={() => {
             navigation.closeDrawer();
             navigation.navigate("Main", { screen: "Settings" });
           }}
         >
-          <SymbolView name="gearshape" tintColor={colors.inkSoft} size={24} />
+          <GlassView
+            isInteractive
+            glassEffectStyle="regular"
+            style={[styles.settings, !glass && styles.settingsFallback]}
+          >
+            <SymbolView name="gearshape" tintColor={colors.inkSoft} size={20} />
+            <Text style={styles.footerLabel}>Settings</Text>
+          </GlassView>
         </Pressable>
       </View>
     </View>
@@ -159,9 +168,18 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
     paddingHorizontal: 10,
     paddingTop: 10,
   },
-  gear: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  footerLabel: { color: colors.inkSoft, fontSize: 16 },
+  settings: {
+    flexDirection: "row",
+    gap: 8,
+    height: 44,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingsFallback: { backgroundColor: colors.raised },
 });
