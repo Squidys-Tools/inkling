@@ -1,4 +1,5 @@
 import type { LibraryCard } from "@inkling/contracts";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { hostname } from "node:os";
 import { join } from "node:path";
@@ -15,6 +16,8 @@ import { tailnetAddresses } from "./tailnet.ts";
 const phoneServicePort = 47_620;
 const READ_TIMEOUT = 10_000;
 const MAX_PAGE = 200;
+const MAX_CAPTURE_BYTES = 32 * 1024 * 1024;
+const captureSource = "phone";
 const activeScope = { _tag: "Active" } as const;
 
 const phoneCard = (card: LibraryCard) => ({
@@ -37,13 +40,100 @@ function send(response: ServerResponse, status: number, value: unknown) {
   response.end(body);
 }
 
+type PhoneCapture = { id: string; kind: string; text: string; file?: string };
+
+async function readJson(request: IncomingMessage) {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of request as AsyncIterable<Buffer>) {
+    size += chunk.length;
+    if (size > MAX_CAPTURE_BYTES) return undefined;
+    chunks.push(chunk);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+const isCapture = (value: unknown): value is PhoneCapture => {
+  const capture = value as PhoneCapture | null;
+  return (
+    typeof capture?.id === "string" &&
+    /^[\w-]{1,64}$/u.test(capture.id) &&
+    typeof capture.text === "string" &&
+    (capture.kind === "url" || capture.kind === "note" || capture.kind === "image") &&
+    (capture.kind !== "image" || typeof capture.file === "string")
+  );
+};
+
+/** Phone capture ids already saved, so a retried upload returns the same item instead of a copy. */
+async function openCaptureLedger(path: string) {
+  let saved: Record<string, string> = {};
+  try {
+    saved = JSON.parse(await readFile(path, "utf8")) as Record<string, string>;
+  } catch {}
+  let queue = Promise.resolve();
+  return {
+    lookup: (id: string) => (Object.hasOwn(saved, id) ? saved[id] : undefined),
+    // One capture at a time: a retry that races its original must find the first save here.
+    run: <T>(task: () => Promise<T>) => {
+      const result = queue.then(task);
+      queue = result.then(
+        () => {},
+        () => {},
+      );
+      return result;
+    },
+    async record(id: string, itemId: string) {
+      saved = { ...saved, [id]: itemId };
+      await writeFile(`${path}.tmp`, JSON.stringify(saved));
+      await rename(`${path}.tmp`, path);
+    },
+  };
+}
+
+// The Share Sheet hands over image bytes without a type, so read it from the file header.
+function imageType(bytes: Buffer) {
+  if (bytes.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])))
+    return { extension: "jpg", mimeType: "image/jpeg" };
+  if (
+    bytes
+      .subarray(4, 12)
+      .toString("latin1")
+      .match(/^ftyp(heic|heix|mif1)/u)
+  )
+    return { extension: "heic", mimeType: "image/heic" };
+  if (bytes.subarray(0, 4).toString("latin1") === "GIF8")
+    return { extension: "gif", mimeType: "image/gif" };
+  if (bytes.subarray(8, 12).toString("latin1") === "WEBP")
+    return { extension: "webp", mimeType: "image/webp" };
+  return { extension: "png", mimeType: "image/png" };
+}
+
+function saveCapture(client: LibraryClient, capture: PhoneCapture) {
+  if (capture.kind === "url") return client.captureUrl({ sourceUrl: capture.text, captureSource });
+  if (capture.kind === "note")
+    return client.createNote({ body: capture.text, metadata: { captureSource } });
+  const bytes = Buffer.from(capture.file ?? "", "base64");
+  const type = imageType(bytes);
+  const name = capture.text.trim() || "Image from phone";
+  return client.saveFile({
+    fileName: /\.\w{3,4}$/u.test(name) ? name : `${name}.${type.extension}`,
+    mimeType: type.mimeType,
+    kind: "image",
+    bytes,
+  });
+}
+
 const pageLimit = (value: string | null) => {
   const limit = Number(value ?? 50);
   return Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, MAX_PAGE) : 50;
 };
 
 /**
- * Read-only service for the phone app. It listens only on the given hosts (the
+ * The phone app's service: it reads the library and saves the phone's captures. It listens only on the given hosts (the
  * tailnet addresses by default) and answers only requests holding its token.
  */
 export async function startPhoneService({
@@ -59,14 +149,30 @@ export async function startPhoneService({
 }) {
   const token = await openPairingToken(join(libraryDirectory, "phone_token"));
   const assetsDirectory = join(libraryDirectory, "assets");
+  const ledger = await openCaptureLedger(join(libraryDirectory, "phone_captures.json"));
 
   async function respond(request: IncomingMessage, response: ServerResponse) {
-    if (request.method !== "GET") return send(response, 405, { error: "method-not-allowed" });
+    const url = new URL(request.url ?? "/", "http://phone.invalid");
+    const writes = url.pathname === "/v1/captures";
+    if (request.method !== (writes ? "POST" : "GET"))
+      return send(response, 405, { error: "method-not-allowed" });
     const presented = bearerToken(request.headers);
     if (!presented || !tokensEqual(presented, token.current()))
       return send(response, 401, { error: "unauthorized" });
-    const url = new URL(request.url ?? "/", "http://phone.invalid");
     const client = await library();
+
+    if (writes) {
+      const capture = await readJson(request);
+      if (!isCapture(capture)) return send(response, 400, { error: "invalid-capture" });
+      const itemId = await ledger.run(async () => {
+        const known = ledger.lookup(capture.id);
+        if (known) return known;
+        const { id } = await saveCapture(client, capture);
+        await ledger.record(capture.id, id);
+        return id;
+      });
+      return send(response, 200, { itemId });
+    }
 
     if (url.pathname === "/v1/status") {
       const { total } = await client.cards({ scope: activeScope, cursor: null, limit: 1 });

@@ -36,7 +36,8 @@ public class InklingNativeModule: Module {
     }
 
     // Dials the peer through the embedded node's netstack: no system DNS, ATS or proxy involved.
-    AsyncFunction("tailnetGet") { (address: String, path: String, token: String) -> [String: Any] in
+    AsyncFunction("tailnetRequest") {
+      (address: String, method: String, path: String, token: String, body: String?) -> [String: Any] in
       guard let handle = await self.node?.tailscale else { throw CocoaError(.featureUnsupported) }
       var conn: Int32 = 0
       guard tailscale_dial(handle, "tcp", address, &conn) == 0 else {
@@ -44,9 +45,18 @@ public class InklingNativeModule: Module {
       }
       defer { close(conn) }
       let host = address.split(separator: ":").first.map(String.init) ?? address
-      let request = Array(
-        "GET \(path) HTTP/1.0\r\nHost: \(host)\r\nAuthorization: Bearer \(token)\r\n\r\n".utf8)
-      _ = request.withUnsafeBytes { write(conn, $0.baseAddress, $0.count) }
+      let payload = Array((body ?? "").utf8)
+      var header = "\(method) \(path) HTTP/1.0\r\nHost: \(host)\r\nAuthorization: Bearer \(token)\r\n"
+      if body != nil {
+        header += "Content-Type: application/json\r\nContent-Length: \(payload.count)\r\n"
+      }
+      let request = Array("\(header)\r\n".utf8) + payload
+      var sent = 0
+      while sent < request.count {
+        let count = request[sent...].withUnsafeBytes { write(conn, $0.baseAddress, $0.count) }
+        if count <= 0 { throw CocoaError(.fileWriteUnknown) }
+        sent += count
+      }
       var response = Data()
       var buffer = [UInt8](repeating: 0, count: 16384)
       while true {
