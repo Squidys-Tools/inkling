@@ -38,7 +38,7 @@ export async function sendOutbox(pairing: Pairing) {
     await uploadCapture(pairing, {
       id: entry.id,
       kind: entry.kind,
-      text: entry.kind === "image" ? "" : entry.text,
+      text: entry.text,
       file: payload?.exists ? await payload.base64() : undefined,
     });
     // The record goes first, so a crash between the two never leaves a record without its file.

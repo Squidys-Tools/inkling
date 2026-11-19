@@ -40,7 +40,7 @@ function send(response: ServerResponse, status: number, value: unknown) {
   response.end(body);
 }
 
-type PhoneCapture = { id: string; kind: string; text: string; file?: string; mimeType?: string };
+type PhoneCapture = { id: string; kind: string; text: string; file?: string };
 
 async function readJson(request: IncomingMessage) {
   const chunks: Buffer[] = [];
@@ -63,7 +63,7 @@ const isCapture = (value: unknown): value is PhoneCapture => {
     typeof capture?.id === "string" &&
     /^[\w-]{1,64}$/u.test(capture.id) &&
     typeof capture.text === "string" &&
-    (capture.kind === "url" || capture.kind === "text" || capture.kind === "image") &&
+    (capture.kind === "url" || capture.kind === "note" || capture.kind === "image") &&
     (capture.kind !== "image" || typeof capture.file === "string")
   );
 };
@@ -94,15 +94,36 @@ async function openCaptureLedger(path: string) {
   };
 }
 
+// The Share Sheet hands over image bytes without a type, so read it from the file header.
+function imageType(bytes: Buffer) {
+  if (bytes.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])))
+    return { extension: "jpg", mimeType: "image/jpeg" };
+  if (
+    bytes
+      .subarray(4, 12)
+      .toString("latin1")
+      .match(/^ftyp(heic|heix|mif1)/u)
+  )
+    return { extension: "heic", mimeType: "image/heic" };
+  if (bytes.subarray(0, 4).toString("latin1") === "GIF8")
+    return { extension: "gif", mimeType: "image/gif" };
+  if (bytes.subarray(8, 12).toString("latin1") === "WEBP")
+    return { extension: "webp", mimeType: "image/webp" };
+  return { extension: "png", mimeType: "image/png" };
+}
+
 function saveCapture(client: LibraryClient, capture: PhoneCapture) {
   if (capture.kind === "url") return client.captureUrl({ sourceUrl: capture.text, captureSource });
-  if (capture.kind === "text")
+  if (capture.kind === "note")
     return client.createNote({ body: capture.text, metadata: { captureSource } });
+  const bytes = Buffer.from(capture.file ?? "", "base64");
+  const type = imageType(bytes);
+  const name = capture.text.trim() || "Image from phone";
   return client.saveFile({
-    fileName: capture.text || "Image from phone.png",
-    mimeType: capture.mimeType ?? "image/png",
+    fileName: /\.\w{3,4}$/u.test(name) ? name : `${name}.${type.extension}`,
+    mimeType: type.mimeType,
     kind: "image",
-    bytes: Buffer.from(capture.file ?? "", "base64"),
+    bytes,
   });
 }
 

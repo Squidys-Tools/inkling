@@ -143,6 +143,13 @@ test("a retried phone capture returns the first save instead of a copy, across r
   const again = await start([], first.directory);
   expect(await (await again.post(capture)).json()).toEqual({ itemId: "item-1" });
   expect(again.saves).toEqual([]);
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0]).toString("base64");
+  await again.post({ id: "cap-2", kind: "image", text: "IMG_0005", file: jpeg });
+  await again.post({ id: "cap-3", kind: "note", text: "a shared line" });
+  expect(again.saves).toEqual([
+    { fileName: "IMG_0005.jpg", mimeType: "image/jpeg", kind: "image", bytes: expect.anything() },
+    { body: "a shared line", metadata: { captureSource: "phone" } },
+  ]);
   for (const bad of [
     { ...capture, id: "../x" },
     { ...capture, kind: "pdf" },

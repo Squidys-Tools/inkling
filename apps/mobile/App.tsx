@@ -30,6 +30,22 @@ import { readOutbox, sendOutbox, type OutboxEntry } from "./src/outbox";
 import { forgetPairing, loadPairing, savePairing, type Pairing } from "./src/pairing";
 
 const nodeName = "inkling-iphone-sim";
+const settleDelay = 5000;
+
+const hostname = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./u, "");
+  } catch {
+    return url;
+  }
+};
+
+const fetchCards = (pairing: Pairing, text: string) =>
+  text.trim() ? searchCards(pairing, text) : recentCards(pairing);
+
+const cardTitle = (card: PhoneCard) =>
+  card.title ??
+  (card.sourceUrl ? hostname(card.sourceUrl) : (card.description?.split("\n")[0] ?? "Note"));
 
 function Thumbnail({ pairing, card }: { pairing: Pairing; card: PhoneCard }) {
   const [uri, setUri] = useState<string | null>(null);
@@ -44,11 +60,16 @@ function Thumbnail({ pairing, card }: { pairing: Pairing; card: PhoneCard }) {
       live = false;
     };
   }, [pairing, card.id, card.hasThumbnail]);
-  return uri ? (
-    <Image source={{ uri }} style={styles.thumbnail} />
-  ) : (
+  if (uri) return <Image source={{ uri }} style={styles.thumbnail} />;
+  return (
     <View style={[styles.thumbnail, styles.placeholder]}>
-      <Text style={styles.kind}>{card.kind}</Text>
+      <Text style={styles.tileText} numberOfLines={5}>
+        {card.kind === "note" || card.kind === "quote"
+          ? card.description
+          : card.sourceUrl
+            ? hostname(card.sourceUrl)
+            : "Processing…"}
+      </Text>
     </View>
   );
 }
@@ -122,9 +143,10 @@ export default function App() {
       try {
         const sent = await sendOutbox(pairing);
         setPending(readOutbox());
-        const found = text.trim() ? await searchCards(pairing, text) : await recentCards(pairing);
-        setCards(found);
+        setCards(await fetchCards(pairing, text));
         setStatus(sent ? `Sent ${sent} saved item${sent === 1 ? "" : "s"} to desktop` : "");
+        // Desktop fills in titles and thumbnails in background jobs after the save.
+        if (sent) setTimeout(() => fetchCards(pairing, text).then(setCards, () => {}), settleDelay);
       } catch (reason) {
         setPending(readOutbox());
         setStatus(`Desktop not reachable: ${String(reason)}`);
@@ -180,24 +202,25 @@ export default function App() {
             data={[...queued, ...cards.map((card) => ({ card, key: card.id }))]}
             keyExtractor={(row) => row.key}
             numColumns={3}
+            refreshing={false}
+            onRefresh={() => refresh(query)}
             initialNumToRender={18}
             windowSize={5}
             renderItem={({ item: row }) =>
               "entry" in row ? (
                 <View style={styles.card}>
                   <View style={[styles.thumbnail, styles.placeholder]}>
-                    <Text style={styles.kind}>{row.entry.kind}</Text>
+                    <Text style={styles.tileText} numberOfLines={5}>
+                      {row.entry.kind === "url" ? hostname(row.entry.text) : row.entry.text}
+                    </Text>
                   </View>
-                  <Text style={styles.cardTitle} numberOfLines={2}>
-                    {row.entry.kind === "image" ? "Image" : row.entry.text}
-                  </Text>
                   <Text style={styles.muted}>Waiting for desktop</Text>
                 </View>
               ) : (
                 <Pressable style={styles.card} onPress={() => setOpen(row.card)}>
                   <Thumbnail pairing={pairing} card={row.card} />
                   <Text style={styles.cardTitle} numberOfLines={2}>
-                    {row.card.title ?? row.card.sourceUrl ?? row.card.kind}
+                    {cardTitle(row.card)}
                   </Text>
                 </Pressable>
               )
@@ -210,7 +233,7 @@ export default function App() {
           <SafeAreaView style={styles.screen}>
             <Button title="Close" onPress={() => setOpen(null)} />
             <Thumbnail pairing={pairing} card={open} />
-            <Text style={styles.title}>{open.title ?? open.kind}</Text>
+            <Text style={styles.title}>{cardTitle(open)}</Text>
             {open.description ? <Text style={styles.body}>{open.description}</Text> : null}
             {open.sourceUrl ? (
               <Pressable onPress={() => Linking.openURL(open.sourceUrl!)}>
@@ -254,7 +277,13 @@ export default function App() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background, padding: 12 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  // Dev builds float Expo's tools button over the top right corner.
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingRight: __DEV__ ? 64 : 0,
+  },
   title: { color: colors.title, fontSize: 22, fontWeight: "600", marginVertical: 8 },
   heading: { color: colors.accent, fontSize: 15, fontWeight: "600", marginTop: 16 },
   body: { color: colors.text, fontSize: 14, marginVertical: 4 },
@@ -276,6 +305,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  kind: { color: colors.muted, fontSize: 12 },
+  tileText: { color: colors.text, fontSize: 12, padding: 8, textAlign: "center" },
   cardTitle: { color: colors.text, fontSize: 12, marginTop: 4 },
 });
