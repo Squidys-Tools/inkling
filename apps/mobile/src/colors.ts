@@ -9,4 +9,7 @@ export const colors = {
   border: "#3a3531",
   placeholder: "#6b635b",
   placeholderSurface: "#24201d",
+  success: "#7fb77e",
+  warning: "#d9a95b",
+  danger: "#d9705b",
 } as const;
