@@ -12,6 +12,9 @@
       "supportsTablet": true,
       "entitlements": {
         "com.apple.security.application-groups": ["group.app.inkling.mobile.dev"]
+      },
+      "infoPlist": {
+        "EXDevMenuShowFloatingActionButton": false
       }
     },
     "plugins": [
