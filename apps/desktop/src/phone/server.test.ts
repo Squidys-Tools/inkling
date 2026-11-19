@@ -40,7 +40,33 @@ async function start(
   mkdirSync(join(directory, "assets/items/a"), { recursive: true });
   writeFileSync(join(directory, "assets/items/a/thumbnail.webp"), "webp-bytes");
   const library = {
-    cards: async () => ({ cards, next: null, total: cards.length }),
+    cards: async ({ scope }: { scope: unknown }) => {
+      scopes.push(scope);
+      return { cards, next: null, total: cards.length };
+    },
+    spaces: async () => [
+      {
+        id: "s1",
+        name: "Read later",
+        color: "blue",
+        kind: "regular",
+        query: {},
+        position: 0,
+        createdAt: 1,
+        updatedAt: 1,
+        itemCount: 3,
+      },
+      {
+        id: "s2",
+        name: "Mountains",
+        color: "green",
+        kind: "smart",
+        query: { text: "mountain" },
+        position: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ],
     cardsById: async ({ ids }: { ids: readonly string[] }) =>
       cards.filter((c) => ids.includes(c.id)),
     search: async () => cards,
@@ -49,6 +75,7 @@ async function start(
     saveFile: async (input: unknown) => save(input),
   } as unknown as LibraryClient;
   const saves: unknown[] = [];
+  const scopes: unknown[] = [];
   // The first save waits for a second request to reach the service, so a retry overlaps it.
   let requests = 0;
   let secondRequest = () => {};
@@ -77,7 +104,7 @@ async function start(
       headers: { Authorization: `Bearer ${service.token()}` },
       body: JSON.stringify(body),
     });
-  return { service, get, post, saves, directory };
+  return { service, get, post, saves, scopes, directory };
 }
 
 test("tailnet addresses are Tailscale's CGNAT and ULA ranges only", () => {
@@ -221,4 +248,20 @@ test("a retried phone capture returns the first save instead of a copy, across r
     expect((await again.post(bad)).status).toBe(400);
   expect((await again.get("/v1/captures")).status).toBe(405);
   expect((await again.post(capture, "/v1/cards")).status).toBe(405);
+});
+
+test("the sidebar's Spaces and Archive reach the phone as card scopes", async () => {
+  const { get, scopes } = await start([]);
+  expect(await (await get("/v1/spaces")).json()).toEqual({
+    spaces: [
+      { id: "s1", name: "Read later", color: "blue", kind: "regular", itemCount: 3 },
+      { id: "s2", name: "Mountains", color: "green", kind: "smart", itemCount: null },
+    ],
+  });
+  for (const path of ["/v1/cards", "/v1/cards?archived=1", "/v1/cards?space=s2"]) await get(path);
+  expect(scopes).toEqual([
+    { _tag: "Active" },
+    { _tag: "Archived" },
+    { _tag: "Space", spaceId: "s2" },
+  ]);
 });

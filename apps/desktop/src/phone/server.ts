@@ -21,6 +21,14 @@ const MAX_CAPTURE_BYTES = 32 * 1024 * 1024;
 const captureSource = "phone";
 const activeScope = { _tag: "Active" } as const;
 
+/** `?archived=1` or `?space=<id>` pick what the sidebar picked; everything else is the active library. */
+function cardScope(params: URLSearchParams) {
+  const space = params.get("space");
+  if (space) return { _tag: "Space", spaceId: space } as const;
+  if (params.get("archived") === "1") return { _tag: "Archived" } as const;
+  return activeScope;
+}
+
 const positive = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 const text = (value: unknown) => (typeof value === "string" ? value : undefined);
@@ -213,9 +221,21 @@ export async function startPhoneService({
       const { total } = await client.cards({ scope: activeScope, cursor: null, limit: 1 });
       return send(response, 200, { device: hostname(), items: total });
     }
+    if (url.pathname === "/v1/spaces") {
+      const spaces = await client.spaces({});
+      return send(response, 200, {
+        spaces: spaces.map(({ id, name, color, kind, itemCount }) => ({
+          id,
+          name,
+          color,
+          kind,
+          itemCount: itemCount ?? null,
+        })),
+      });
+    }
     if (url.pathname === "/v1/cards") {
       const page = await client.cards({
-        scope: activeScope,
+        scope: cardScope(url.searchParams),
         cursor: url.searchParams.get("cursor"),
         limit: pageLimit(url.searchParams.get("limit")),
       });
