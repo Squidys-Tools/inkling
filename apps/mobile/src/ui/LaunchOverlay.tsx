@@ -20,6 +20,8 @@ import { Mascot, nativeMotion } from "./Mascot";
 // Same image and width as the native splash in app.json, so the hand-off doesn't jump.
 const icon = require("../../assets/splash-icon.png");
 const SIZE = 120;
+// The engine draws the blob smaller within its frame than the icon does.
+const LIVE_SCALE = 1.6;
 const WAKE_MS = 250;
 const EXCITE_MS = 1100;
 const BURST_MS = 1250;
@@ -106,7 +108,7 @@ export function LaunchOverlay({ onDone }: { onDone: () => void }) {
             <Drop key={angle} angle={angle} burst={burst} />
           ))}
           <Animated.View style={[styles.figure, live]}>
-            <Mascot size={SIZE} visible live player={player} />
+            <Mascot size={SIZE * LIVE_SCALE} visible live player={player} />
           </Animated.View>
           <Animated.View style={[styles.figure, still]}>
             <Image source={icon} style={styles.icon} />
