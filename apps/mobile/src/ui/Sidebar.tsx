@@ -40,7 +40,7 @@ export function Sidebar({ navigation }: DrawerContentComponentProps) {
   const insets = useSafeAreaInsets();
   const { scope } = library;
   const pick = (next: Scope) => {
-    library.setScope(next);
+    library.selectScope(next);
     navigation.closeDrawer();
   };
   return (

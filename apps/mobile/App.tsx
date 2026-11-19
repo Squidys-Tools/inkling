@@ -7,9 +7,10 @@ import {
   useNavigation,
 } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import type { SearchBarCommands } from "react-native-screens";
 import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Linking, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -65,6 +66,8 @@ const sidebar = (props: DrawerContentComponentProps) => <Sidebar {...props} />;
 function Screens() {
   const library = useLibrary();
   const { scope } = library;
+  const searchBar = useRef<SearchBarCommands>(null);
+  useEffect(() => searchBar.current?.clearText(), [scope]);
   const title =
     scope.kind === "archived" ? "Archive" : scope.kind === "space" ? scope.space.name : "inkling";
   return (
@@ -87,6 +90,7 @@ function Screens() {
           headerLeft: sidebarButton,
           headerSearchBarOptions: library.pairing
             ? {
+                ref: searchBar,
                 placeholder: "Search your library",
                 autoCapitalize: "none",
                 hideWhenScrolling: false,

@@ -99,6 +99,12 @@ function useLibraryState() {
     [pairing, online, scope],
   );
 
+  // A collection picked in the sidebar replaces the search, which only covers the whole library.
+  const selectScope = useCallback((next: Scope) => {
+    setQuery("");
+    setScope(next);
+  }, []);
+
   const pair = useCallback(async (next: Pairing) => {
     await desktopStatus(next);
     await savePairing(next);
@@ -138,7 +144,7 @@ function useLibraryState() {
     query,
     setQuery,
     scope,
-    setScope,
+    selectScope,
     spaces,
     total,
     refresh,
