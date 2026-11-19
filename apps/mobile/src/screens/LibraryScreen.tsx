@@ -79,7 +79,6 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
   const searching = library.shownQuery.trim() !== "";
   return (
     <FlashList
-      key={look}
       style={styles.screen}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={[styles.grid, fieldnotes && styles.paperGrid]}
