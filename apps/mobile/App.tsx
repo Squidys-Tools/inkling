@@ -13,6 +13,8 @@ export default function App() {
   const [tailscale, setTailscale] = useState<TailscaleStatus>({ state: "Stopped" });
   const [query, setQuery] = useState(PARITY_QUERIES[0]);
   const [embedding, setEmbedding] = useState("");
+  const [peerUrl, setPeerUrl] = useState("");
+  const [peerReply, setPeerReply] = useState("");
 
   const refreshOutbox = useCallback(() => setOutbox(readOutbox()), []);
   useEffect(() => {
@@ -69,6 +71,14 @@ export default function App() {
         {tailscale.ips?.length ? <Text style={styles.mono}>ips: {tailscale.ips.join(", ")}</Text> : null}
         {tailscale.error ? <Text style={styles.mono}>error: {tailscale.error}</Text> : null}
         <Button title="Start node" onPress={() => InklingNative.startTailscale("inkling-iphone-sim")} />
+        <TextInput style={styles.input} value={peerUrl} onChangeText={setPeerUrl} autoCapitalize="none" />
+        <Button
+          title="Fetch from desktop"
+          onPress={() =>
+            InklingNative.tailnetGet(peerUrl, "/").then(setPeerReply, (error) => setPeerReply(`error: ${String(error)}`))
+          }
+        />
+        {peerReply ? <Text style={styles.mono} selectable>{peerReply}</Text> : null}
       </Section>
 
       <Section title="Nomic query embedding">

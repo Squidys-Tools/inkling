@@ -35,6 +35,27 @@ public class InklingNativeModule: Module {
         ids: ids.map(Int64.init), typeIds: typeIds.map(Int64.init))
     }
 
+    // Dials the peer through the embedded node's netstack: no system DNS, ATS or proxy involved.
+    AsyncFunction("tailnetGet") { (address: String, path: String) -> String in
+      guard let handle = await self.node?.tailscale else { throw CocoaError(.featureUnsupported) }
+      var conn: Int32 = 0
+      guard tailscale_dial(handle, "tcp", address, &conn) == 0 else {
+        throw CocoaError(.fileReadUnknown)
+      }
+      defer { close(conn) }
+      let host = address.split(separator: ":").first.map(String.init) ?? address
+      let request = Array("GET \(path) HTTP/1.0\r\nHost: \(host)\r\n\r\n".utf8)
+      _ = request.withUnsafeBytes { write(conn, $0.baseAddress, $0.count) }
+      var response = Data()
+      var buffer = [UInt8](repeating: 0, count: 4096)
+      while true {
+        let count = read(conn, &buffer, buffer.count)
+        if count <= 0 { break }
+        response.append(buffer, count: count)
+      }
+      return String(decoding: response, as: UTF8.self)
+    }
+
     AsyncFunction("tailscaleStatus") { () -> [String: Any] in
       guard let node = self.node else { return ["state": "Stopped"] }
       let data = try await node.statusJSON()
