@@ -49,14 +49,21 @@ async function start(
     saveFile: async (input: unknown) => save(input),
   } as unknown as LibraryClient;
   const saves: unknown[] = [];
+  // The first save waits for a second request to reach the service, so a retry overlaps it.
+  let requests = 0;
+  let secondRequest = () => {};
+  const overlapped = new Promise<void>((resolve) => (secondRequest = resolve));
   const save = async (input: unknown) => {
     saves.push(input);
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    if (saves.length === 1) await overlapped;
     return { id: `item-${saves.length}` };
   };
   const service = await startPhoneService({
     libraryDirectory: directory,
-    library: async () => library,
+    library: async () => {
+      if (++requests === 2) secondRequest();
+      return library;
+    },
     hosts: ["127.0.0.1"],
     port: 0,
   });
@@ -150,6 +157,10 @@ test("a retried phone capture returns the first save instead of a copy, across r
     { fileName: "IMG_0005.jpg", mimeType: "image/jpeg", kind: "image", bytes: expect.anything() },
     { body: "a shared line", metadata: { captureSource: "phone" } },
   ]);
+  // regression: an id naming an Object.prototype member was taken as already saved.
+  expect(await (await again.post({ ...capture, id: "constructor" })).json()).toEqual({
+    itemId: "item-3",
+  });
   for (const bad of [
     { ...capture, id: "../x" },
     { ...capture, kind: "pdf" },

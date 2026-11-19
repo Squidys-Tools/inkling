@@ -76,7 +76,7 @@ async function openCaptureLedger(path: string) {
   } catch {}
   let queue = Promise.resolve();
   return {
-    lookup: (id: string) => saved[id],
+    lookup: (id: string) => (Object.hasOwn(saved, id) ? saved[id] : undefined),
     // One capture at a time: a retry that races its original must find the first save here.
     run: <T>(task: () => Promise<T>) => {
       const result = queue.then(task);
