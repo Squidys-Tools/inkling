@@ -1,12 +1,24 @@
 import { useState } from "react";
 import { Button, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { colors } from "../colors";
+import type { Pairing } from "../pairing";
 import type { ScreenProps } from "../routes";
 import { useLibrary } from "../state";
 
 export function PairScreen({ navigation, route }: ScreenProps<"Pair">) {
-  const library = useLibrary();
   const link = route.params?.link;
+  // A link opened while the sheet is up remounts the form with its fields.
+  return (
+    <PairForm
+      key={link ? `${link.address} ${link.token}` : "manual"}
+      link={link}
+      onPaired={() => navigation.goBack()}
+    />
+  );
+}
+
+function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) {
+  const library = useLibrary();
   const [address, setAddress] = useState(link?.address ?? "");
   const [token, setToken] = useState(link?.token ?? "");
   const online = library.tailscale.state === "Running";
@@ -17,7 +29,7 @@ export function PairScreen({ navigation, route }: ScreenProps<"Pair">) {
     setError("");
     try {
       await library.pair({ address: address.trim(), token: token.trim() });
-      navigation.goBack();
+      onPaired();
     } catch {
       setError("Couldn't reach a desktop with that address and token. Check both and try again.");
     } finally {
