@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { StyleSheet, Text, View } from "react-native";
-import { fileExtension, hostname, quoteAttribution, wordCount } from "../cards";
+import { fileExtension, hostname, kindOf, quoteAttribution, wordCount } from "../cards";
 import { colors } from "../colors";
 import type { PhoneCard } from "../desktop";
 import { font } from "../fonts";
@@ -117,7 +117,8 @@ function MediaCard({ card, image }: { card: PhoneCard; image: string }) {
 }
 
 function typedFor(card: PhoneCard) {
-  if (card.displayKind === "Note") {
+  const kind = kindOf(card);
+  if (kind === "Note") {
     const words = wordCount(card.description);
     return {
       label: "NOTE",
@@ -125,11 +126,11 @@ function typedFor(card: PhoneCard) {
       footnote: words ? `${words} WORDS` : undefined,
     };
   }
-  if (card.displayKind === "PDF")
+  if (kind === "PDF")
     return { label: "PDF", title: card.title?.replace(/\.[^.]+$/u, "") ?? "Document" };
   return {
-    label: fileExtension(card.title) || card.displayKind.toUpperCase(),
-    title: card.title ?? card.displayKind,
+    label: fileExtension(card.title) || kind.toUpperCase(),
+    title: card.title ?? kind,
     footnote: card.hasThumbnail ? undefined : "PROCESSING",
   };
 }
@@ -137,10 +138,11 @@ function typedFor(card: PhoneCard) {
 /** A grid card drawn the way desktop draws its kind. */
 export function CardTile({ pairing, card }: { pairing: Pairing; card: PhoneCard }) {
   const image = useCardImage(pairing, card);
-  if (card.displayKind === "Article") return <ArticleCard card={card} image={image} />;
-  if (card.displayKind === "Quote") return <QuoteCard card={card} />;
-  if (card.displayKind === "Post") return <PostCard card={card} />;
-  if (image && card.displayKind !== "Note") return <MediaCard card={card} image={image} />;
+  const kind = kindOf(card);
+  if (kind === "Article") return <ArticleCard card={card} image={image} />;
+  if (kind === "Quote") return <QuoteCard card={card} />;
+  if (kind === "Post") return <PostCard card={card} />;
+  if (image && kind !== "Note") return <MediaCard card={card} image={image} />;
   return <TypedArt {...typedFor(card)} />;
 }
 

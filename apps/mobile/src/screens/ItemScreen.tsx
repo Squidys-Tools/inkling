@@ -1,6 +1,6 @@
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { CardTile } from "../cards/CardTile";
-import { cardTitle, hostname, savedAgo } from "../cards";
+import { cardTitle, hostname, kindOf, savedAgo } from "../cards";
 import { colors } from "../colors";
 import { font } from "../fonts";
 import type { ScreenProps } from "../routes";
@@ -9,6 +9,7 @@ import { useLibrary } from "../state";
 export function ItemScreen({ route }: ScreenProps<"Item">) {
   const { pairing } = useLibrary();
   const { card } = route.params;
+  const kind = kindOf(card);
   return (
     <ScrollView
       style={styles.screen}
@@ -21,15 +22,10 @@ export function ItemScreen({ route }: ScreenProps<"Item">) {
         </View>
       </View>
       <View style={styles.details}>
-        <Text style={styles.kind}>{card.displayKind.toUpperCase()}</Text>
+        <Text style={styles.kind}>{kind.toUpperCase()}</Text>
         <Text style={styles.title}>{cardTitle(card)}</Text>
         <Text style={styles.meta}>{`Saved ${savedAgo(card.createdAt)}`}</Text>
-        {card.description && card.displayKind !== "Note" ? (
-          <Text style={styles.body}>{card.description}</Text>
-        ) : null}
-        {card.displayKind === "Note" && card.description ? (
-          <Text style={styles.body}>{card.description}</Text>
-        ) : null}
+        {card.description ? <Text style={styles.body}>{card.description}</Text> : null}
         {card.sourceUrl?.startsWith("http") ? (
           <Pressable style={styles.open} onPress={() => Linking.openURL(card.sourceUrl ?? "")}>
             <Text

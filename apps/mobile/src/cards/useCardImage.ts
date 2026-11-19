@@ -16,5 +16,5 @@ export function useCardImage(pairing: Pairing, card: PhoneCard) {
       live = false;
     };
   }, [pairing, card.id, card.hasThumbnail]);
-  return card.hasThumbnail ? thumbnail : card.imageUrl;
+  return card.hasThumbnail ? thumbnail : (card.imageUrl ?? null);
 }
