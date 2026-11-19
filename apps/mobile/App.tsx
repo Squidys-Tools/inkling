@@ -117,10 +117,8 @@ function Screens() {
         name="Settings"
         component={SettingsScreen}
         options={{
-          presentation: "formSheet",
-          sheetAllowedDetents: [0.62, 1],
-          sheetGrabberVisible: true,
-          sheetCornerRadius: 24,
+          // A full page over the library, closed with its own button, like Claude's settings.
+          presentation: "modal",
           headerShown: false,
           contentStyle: { backgroundColor: colors.surface },
         }}
