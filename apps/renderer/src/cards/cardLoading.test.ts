@@ -1,9 +1,30 @@
 import { describe, expect, it } from "bun:test";
 import { loadingPhase, startsReveal } from "./cardLoading.ts";
 import type { Processing } from "../library/jobs.ts";
+import { summarizeJobs } from "../library/processing.ts";
+
+const summary = (...states: [string, "pending" | "processing" | "failed" | "completed"][]) =>
+  summarizeJobs(
+    states.map(([kind, status], index) => ({
+      id: `j${index}`,
+      itemId: "item",
+      kind,
+      status,
+      createdAt: 1000,
+      startedAt: null,
+      completedAt: null,
+      retryCount: 0,
+      maxRetries: 3,
+      errorMessage: "no",
+      progressCurrent: 0,
+      progressTotal: null,
+      progressMessage: null,
+    })),
+  )!;
 
 const running: Processing = {
   active: true,
+  backgroundOnly: false,
   message: null,
   progressCurrent: 0,
   progressTotal: null,
@@ -20,6 +41,21 @@ describe("loadingPhase", () => {
     expect(loadingPhase({ treatment: "article", image: "a.png", createdAt: 1000 }, running)).toBe(
       "processing",
     );
+    for (const status of ["pending", "processing"] as const) {
+      const embedding = summary(["generate_embedding", status], ["enrich_url", "completed"]);
+      expect(embedding.active).toBe(true);
+      for (const image of [undefined, "a.png"]) {
+        expect(
+          loadingPhase({ treatment: "article", image, createdAt: 1000 }, embedding),
+        ).toBeNull();
+      }
+      expect(
+        loadingPhase(
+          { treatment: "article", image: "a.png", createdAt: 1000 },
+          summary(["generate_embedding", status], ["enrich_url", "pending"]),
+        ),
+      ).toBe("processing");
+    }
   });
 
   it("shows a failure only once nothing is still running", () => {
@@ -32,6 +68,17 @@ describe("loadingPhase", () => {
         { ...failed, active: true },
       ),
     ).toBe("processing");
+    const embedding = summary(["generate_embedding", "failed"]);
+    expect(embedding.failedJob).toEqual({ id: "j0", message: "no" });
+    expect(
+      loadingPhase({ treatment: "article", image: "a.png", createdAt: 1000 }, embedding),
+    ).toBeNull();
+    expect(
+      loadingPhase(
+        { treatment: "article", image: "a.png", createdAt: 1000 },
+        summary(["generate_embedding", "failed"], ["enrich_url", "failed"]),
+      ),
+    ).toBe("failed");
   });
 
   it("keeps a failed picture whole, with the corner badge", () => {

@@ -27,21 +27,21 @@ const encoder = (ids: number[]) => ({
   encode: () => ({ ids, token_type_ids: ids.map((_, index) => Number(index === ids.length - 1)) }),
 });
 
-test("text within the 8192-token window stays one unchanged window", () => {
-  const values = Array.from({ length: 8192 }, (_, index) => index);
+test("text within the 2048-token window stays one unchanged window", () => {
+  const values = Array.from({ length: 2048 }, (_, index) => index);
   const windows = textTokenWindows(encoder(values), "document");
 
   expect(windows).toHaveLength(1);
   expect(windows[0].ids).toEqual(values);
-  expect(windows[0].mask).toEqual(new Array(8192).fill(1));
+  expect(windows[0].mask).toEqual(new Array(2048).fill(1));
 });
 
-test("text past the 8192-token window is split so every token is embedded", () => {
+test("text past the 2048-token window is split so every token is embedded", () => {
   // 20,000 tokens: an opening and closing special token around 19,998 of text.
   const values = Array.from({ length: 20_000 }, (_, index) => index);
   const windows = textTokenWindows(encoder(values), "large document");
 
-  expect(windows.map((window) => window.ids.length)).toEqual([8192, 8192, 3620]);
+  expect(windows.map((window) => window.ids.length)).toEqual([...new Array(9).fill(2048), 1586]);
   for (const window of windows) {
     expect(window.ids[0]).toBe(0);
     expect(window.ids.at(-1)).toBe(19_999);
@@ -80,15 +80,15 @@ test("text-query embeddings do not download model assets during search", async (
   }
 });
 
-test("very long text embeds at most eight windows, like a capped document", () => {
+test("very long text embeds at most 32 windows, preserving about 65k body tokens", () => {
   const values = Array.from({ length: 100_000 }, (_, index) => index);
   const windows = textTokenWindows(encoder(values), "book");
 
-  expect(windows).toHaveLength(8);
-  expect(windows.every((window) => window.ids.length === 8192)).toBe(true);
+  expect(windows).toHaveLength(32);
+  expect(windows.every((window) => window.ids.length === 2048)).toBe(true);
   expect(windows.at(-1)?.ids.at(-1)).toBe(99_999);
   const body = windows.flatMap((window) => window.ids.slice(1, -1));
-  expect(body).toEqual(values.slice(1, 1 + 8 * 8190));
+  expect(body).toEqual(values.slice(1, 1 + 32 * 2046));
 });
 
 test("onnxruntime started with the worker's environment keeps no device ID or telemetry queue", async () => {

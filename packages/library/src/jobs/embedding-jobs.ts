@@ -24,6 +24,7 @@ export function embeddingText(
 
   if (body == null) {
     for (const key of ["text", "extractedText"]) {
+      if (key === "extractedText" && item.metadata.extractedText === item.metadata.text) continue;
       const value = String(item.metadata[key] ?? "").trim();
       if (value) parts.push(value);
     }

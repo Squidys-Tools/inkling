@@ -39,6 +39,7 @@ describe("job summaries", () => {
     ]);
     expect(summary).toEqual({
       active: true,
+      backgroundOnly: false,
       message: "Reading page 1",
       progressCurrent: 1,
       progressTotal: 3,
@@ -63,6 +64,10 @@ describe("job summaries", () => {
     const first = withJobs(new Map(), ["a"], running);
     expect(withJobs(first, ["a"], running)).toBe(first);
     expect(withJobs(first, ["a"], []).has("a")).toBe(false);
+    const embeddings = [{ ...running[0]!, kind: "generate_embedding" }];
+    const background = withJobs(first, ["a"], embeddings);
+    expect(background).not.toBe(first);
+    expect(background.get("a")?.backgroundOnly).toBe(true);
   });
 
   it("passes a retried job's new failure message through to the card", () => {
