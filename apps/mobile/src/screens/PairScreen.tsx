@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { colors } from "../colors";
+import { useAppearance, useThemedStyles } from "../appearance";
+import type { Palette } from "../colors";
 import type { Pairing } from "../pairing";
 import type { ScreenProps } from "../routes";
 import { useLibrary } from "../state";
@@ -18,6 +19,8 @@ export function PairScreen({ navigation, route }: ScreenProps<"Pair">) {
 }
 
 function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useAppearance();
   const library = useLibrary();
   const [address, setAddress] = useState(link?.address ?? "");
   const [token, setToken] = useState(link?.token ?? "");
@@ -73,6 +76,7 @@ function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) 
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button
+        color={colors.accent}
         title={online ? (busy ? "Pairing…" : "Pair") : "Waiting for Tailscale…"}
         disabled={!online || busy || !address || !token}
         onPress={pair}
@@ -81,19 +85,20 @@ function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) 
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { backgroundColor: colors.background },
-  content: { padding: 16, gap: 14 },
-  detail: { color: colors.muted, fontSize: 14, lineHeight: 20 },
-  group: { backgroundColor: colors.surface, borderRadius: 14, overflow: "hidden" },
-  input: {
-    color: colors.text,
-    fontSize: 15,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    borderBottomColor: colors.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  last: { borderBottomWidth: 0 },
-  error: { color: colors.danger, fontSize: 13 },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    screen: { backgroundColor: colors.background },
+    content: { padding: 16, gap: 14 },
+    detail: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+    group: { backgroundColor: colors.surface, borderRadius: 14, overflow: "hidden" },
+    input: {
+      color: colors.text,
+      fontSize: 15,
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      borderBottomColor: colors.border,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    last: { borderBottomWidth: 0 },
+    error: { color: colors.danger, fontSize: 13 },
+  });

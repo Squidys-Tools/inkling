@@ -1,6 +1,7 @@
 import {
   createNavigationContainerRef,
   DarkTheme,
+  DefaultTheme,
   NavigationContainer,
   useNavigation,
 } from "@react-navigation/native";
@@ -12,7 +13,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Linking } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { colors } from "./src/colors";
+import { AppearanceProvider, useAppearance } from "./src/appearance";
 import { parsePairingLink } from "./src/pairing-link";
 import type { Routes } from "./src/routes";
 import { ItemScreen } from "./src/screens/ItemScreen";
@@ -31,18 +32,6 @@ function openPairingLink(link: string | null | undefined) {
   if (pairing && navigation.isReady()) navigation.navigate("Pair", { link: pairing });
 }
 
-const theme = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    primary: colors.accent,
-    background: colors.background,
-    card: colors.background,
-    text: colors.title,
-    border: colors.border,
-  },
-};
-
 function SettingsButton() {
   const navigation = useNavigation<NativeStackNavigationProp<Routes>>();
   return (
@@ -59,14 +48,24 @@ const settingsButton = () => <SettingsButton />;
 
 function Screens() {
   const library = useLibrary();
+  const { colors, look } = useAppearance();
   return (
-    <Stack.Navigator screenOptions={{ headerTintColor: colors.accent }}>
+    <Stack.Navigator
+      screenOptions={{
+        headerTintColor: colors.accent,
+        headerStyle: { backgroundColor: colors.background },
+        contentStyle: { backgroundColor: colors.background },
+        statusBarStyle: look === "fieldnotes" ? "dark" : "light",
+      }}
+    >
       <Stack.Screen
         name="Library"
         component={LibraryScreen}
         options={{
-          title: "inkling",
-          headerLargeTitle: true,
+          title: look === "fieldnotes" ? "inkling." : "inkling",
+          headerTitleStyle:
+            look === "fieldnotes" ? { fontFamily: "Georgia", fontWeight: "400" } : undefined,
+          headerLargeTitle: look !== "fieldnotes",
           headerLargeTitleShadowVisible: false,
           headerShadowVisible: false,
           headerLeft: settingsButton,
@@ -100,7 +99,20 @@ function Screens() {
   );
 }
 
-export default function App() {
+function MobileApp() {
+  const { colors, look } = useAppearance();
+  const base = look === "fieldnotes" ? DefaultTheme : DarkTheme;
+  const theme = {
+    ...base,
+    colors: {
+      ...base.colors,
+      primary: colors.accent,
+      background: colors.background,
+      card: colors.background,
+      text: colors.title,
+      border: colors.border,
+    },
+  };
   useEffect(() => {
     const subscription = Linking.addEventListener("url", (event) => openPairingLink(event.url));
     return () => subscription.remove();
@@ -113,11 +125,18 @@ export default function App() {
           theme={theme}
           onReady={() => Linking.getInitialURL().then(openPairingLink, () => {})}
         >
-          {/* oxlint-disable-next-line react/style-prop-object -- expo-status-bar takes the style as a string */}
-          <StatusBar style="light" />
+          <StatusBar style={look === "fieldnotes" ? "dark" : "light"} />
           <Screens />
         </NavigationContainer>
       </LibraryProvider>
     </SafeAreaProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AppearanceProvider>
+      <MobileApp />
+    </AppearanceProvider>
   );
 }

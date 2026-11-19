@@ -1,26 +1,30 @@
 import { StyleSheet, Text, View } from "react-native";
-import { colors } from "../colors";
+import { useAppearance } from "../appearance";
+import type { Palette } from "../colors";
 
 export type Connection = "connected" | "connecting" | "offline" | "repair";
 
-const tones: Record<Connection, { label: string; color: string }> = {
-  connected: { label: "Connected", color: colors.success },
-  connecting: { label: "Connecting", color: colors.warning },
-  offline: { label: "Desktop offline", color: colors.muted },
-  repair: { label: "Pair again", color: colors.danger },
+const tones: Record<Connection, { label: string; color: keyof Palette }> = {
+  connected: { label: "Connected", color: "success" },
+  connecting: { label: "Connecting", color: "warning" },
+  offline: { label: "Desktop offline", color: "muted" },
+  repair: { label: "Pair again", color: "danger" },
 };
 
 export function StatusPill({ connection }: { connection: Connection }) {
+  const { colors, look } = useAppearance();
   const tone = tones[connection];
+  const color = colors[tone.color];
   return (
-    <View style={[styles.pill, { borderColor: tone.color }]}>
-      <View style={[styles.dot, { backgroundColor: tone.color }]} />
-      <Text style={[styles.label, { color: tone.color }]}>{tone.label}</Text>
+    <View style={[styles.pill, { borderColor: color }, look === "fieldnotes" && styles.quiet]}>
+      <View style={[styles.dot, { backgroundColor: color }]} />
+      <Text style={[styles.label, { color }]}>{tone.label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  quiet: { borderWidth: 0, paddingHorizontal: 0 },
   pill: {
     flexDirection: "row",
     alignItems: "center",

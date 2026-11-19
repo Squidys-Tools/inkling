@@ -1,8 +1,9 @@
 import { SymbolView, type SFSymbol } from "expo-symbols";
 import { Pressable } from "react-native";
-import { colors } from "../colors";
+import { useAppearance } from "../appearance";
 
 export function SymbolButton(props: { name: SFSymbol; label: string; onPress: () => void }) {
+  const { colors } = useAppearance();
   return (
     <Pressable
       accessibilityRole="button"

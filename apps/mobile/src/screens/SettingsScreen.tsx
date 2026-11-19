@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { colors } from "../colors";
+import { useAppearance, useThemedStyles } from "../appearance";
+import type { Palette } from "../colors";
 import { embedQuery, modelInstalled } from "../embedQuery";
 import type { ScreenProps } from "../routes";
 import { useLibrary } from "../state";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -20,6 +22,7 @@ function Row(props: {
   tone?: "danger" | "accent";
   onPress?: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const label = (
     <Text
       style={[
@@ -47,10 +50,38 @@ function Row(props: {
 }
 
 export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
+  const styles = useThemedStyles(makeStyles);
+  const { look, setLook } = useAppearance();
   const library = useLibrary();
   const [modelCheck, setModelCheck] = useState("");
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <Section title="Appearance">
+        <View accessibilityRole="radiogroup" accessibilityLabel="Appearance">
+          {(["inkling", "fieldnotes"] as const).map((option) => (
+            <Pressable
+              key={option}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: look === option }}
+              accessibilityLabel={option === "fieldnotes" ? "Fieldnotes" : "Inkling"}
+              onPress={() => setLook(option)}
+              style={styles.row}
+            >
+              <View style={styles.lookText}>
+                <Text style={styles.label}>
+                  {option === "fieldnotes" ? "Fieldnotes" : "Inkling"}
+                </Text>
+                <Text style={styles.lookDetail}>
+                  {option === "fieldnotes"
+                    ? "Paper, ink & a little margin."
+                    : "The original dark library."}
+                </Text>
+              </View>
+              <Text style={styles.accent}>{look === option ? "✓" : "○"}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Section>
       <Section title="Tailscale">
         <Row label="Status" value={library.tailscale.state} />
         <Row label="This phone" value={library.tailscale.ips?.[0] ?? "—"} />
@@ -88,24 +119,27 @@ export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { backgroundColor: colors.background },
-  content: { padding: 16, gap: 20 },
-  section: { gap: 6 },
-  sectionTitle: { color: colors.muted, fontSize: 12, fontWeight: "600", marginLeft: 12 },
-  group: { backgroundColor: colors.surface, borderRadius: 14, overflow: "hidden" },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    borderBottomColor: colors.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
-  },
-  label: { color: colors.text, fontSize: 15 },
-  value: { color: colors.muted, fontSize: 15, flexShrink: 1, textAlign: "right" },
-  danger: { color: colors.danger },
-  accent: { color: colors.accent },
-});
+const makeStyles = (colors: Palette) =>
+  StyleSheet.create({
+    screen: { backgroundColor: colors.background },
+    content: { padding: 16, gap: 20 },
+    section: { gap: 6 },
+    sectionTitle: { color: colors.muted, fontSize: 12, fontWeight: "600", marginLeft: 12 },
+    group: { backgroundColor: colors.surface, borderRadius: 14, overflow: "hidden" },
+    row: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      borderBottomColor: colors.border,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      gap: 12,
+    },
+    label: { color: colors.text, fontSize: 15 },
+    value: { color: colors.muted, fontSize: 15, flexShrink: 1, textAlign: "right" },
+    danger: { color: colors.danger },
+    accent: { color: colors.accent },
+    lookText: { flex: 1, gap: 4 },
+    lookDetail: { color: colors.muted, fontSize: 13 },
+  });

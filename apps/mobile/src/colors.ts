@@ -13,3 +13,20 @@ export const colors = {
   warning: "#d9a95b",
   danger: "#d9705b",
 } as const;
+
+export type Palette = { [Key in keyof typeof colors]: string };
+
+export const fieldnotesColors: Palette = {
+  background: "#f5f1e8",
+  title: "#243b32",
+  surface: "#fffcf5",
+  accent: "#995134",
+  text: "#2e3b34",
+  muted: "#6a7064",
+  border: "#d8d6c9",
+  placeholder: "#797d71",
+  placeholderSurface: "#e8e9dc",
+  success: "#3e694b",
+  warning: "#8b631f",
+  danger: "#ae4033",
+};
