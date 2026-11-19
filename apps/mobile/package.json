@@ -1,7 +1,13 @@
 {
   "name": "@inkling/mobile",
   "version": "0.0.0",
+  "private": true,
   "main": "index.ts",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild -p ios --clean"
+  },
   "dependencies": {
     "@bacons/apple-targets": "5.0.0",
     "@huggingface/tokenizers": "0.2.0",
@@ -15,11 +21,5 @@
   "devDependencies": {
     "@types/react": "~19.3.0",
     "typescript": "~6.0.3"
-  },
-  "scripts": {
-    "start": "expo start --dev-client",
-    "ios": "expo run:ios",
-    "prebuild": "expo prebuild -p ios --clean"
-  },
-  "private": true
+  }
 }

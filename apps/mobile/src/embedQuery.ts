@@ -8,7 +8,8 @@ const TEXT_DIMENSION = 768;
 
 let tokenizer: Promise<Tokenizer> | undefined;
 
-const modelFile = () => new File(Paths.document, "models/nomic-embed-text-v1.5/onnx/model_int8.onnx");
+const modelFile = () =>
+  new File(Paths.document, "models/nomic-embed-text-v1.5/onnx/model_int8.onnx");
 const tokenizerFile = () => new File(Paths.document, "models/nomic-embed-text-v1.5/tokenizer.json");
 
 export const modelInstalled = () => modelFile().exists && tokenizerFile().exists;
@@ -24,7 +25,9 @@ function openTokenizer() {
 }
 
 export async function embedQuery(text: string) {
-  const encoding = (await openTokenizer()).encode(`search_query: ${text.trim()}`, { return_token_type_ids: true });
+  const encoding = (await openTokenizer()).encode(`search_query: ${text.trim()}`, {
+    return_token_type_ids: true,
+  });
   const ids = encoding.ids;
   const hidden = await InklingNative.textHiddenStates(
     decodeURI(modelFile().uri.replace("file://", "")),

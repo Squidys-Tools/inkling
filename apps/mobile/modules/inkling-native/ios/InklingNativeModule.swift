@@ -36,7 +36,7 @@ public class InklingNativeModule: Module {
     }
 
     // Dials the peer through the embedded node's netstack: no system DNS, ATS or proxy involved.
-    AsyncFunction("tailnetGet") { (address: String, path: String) -> String in
+    AsyncFunction("tailnetGet") { (address: String, path: String, token: String) -> [String: Any] in
       guard let handle = await self.node?.tailscale else { throw CocoaError(.featureUnsupported) }
       var conn: Int32 = 0
       guard tailscale_dial(handle, "tcp", address, &conn) == 0 else {
@@ -44,16 +44,23 @@ public class InklingNativeModule: Module {
       }
       defer { close(conn) }
       let host = address.split(separator: ":").first.map(String.init) ?? address
-      let request = Array("GET \(path) HTTP/1.0\r\nHost: \(host)\r\n\r\n".utf8)
+      let request = Array(
+        "GET \(path) HTTP/1.0\r\nHost: \(host)\r\nAuthorization: Bearer \(token)\r\n\r\n".utf8)
       _ = request.withUnsafeBytes { write(conn, $0.baseAddress, $0.count) }
       var response = Data()
-      var buffer = [UInt8](repeating: 0, count: 4096)
+      var buffer = [UInt8](repeating: 0, count: 16384)
       while true {
         let count = read(conn, &buffer, buffer.count)
         if count <= 0 { break }
         response.append(buffer, count: count)
       }
-      return String(decoding: response, as: UTF8.self)
+      guard let split = response.range(of: Data("\r\n\r\n".utf8)) else {
+        throw CocoaError(.fileReadCorruptFile)
+      }
+      let head = String(decoding: response[..<split.lowerBound], as: UTF8.self)
+      let status = head.split(separator: " ").dropFirst().first.flatMap { Int($0) } ?? 0
+      let body = Data(response[split.upperBound...])
+      return ["status": status, "text": String(decoding: body, as: UTF8.self), "base64": body.base64EncodedString()]
     }
 
     AsyncFunction("tailscaleStatus") { () -> [String: Any] in

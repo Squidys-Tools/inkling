@@ -1,9 +1,15 @@
 import { Directory, File } from "expo-file-system";
 import InklingNative from "../modules/inkling-native/src/InklingNativeModule";
 
-export const APP_GROUP = "group.app.inkling.mobile.dev";
+const APP_GROUP = "group.app.inkling.mobile.dev";
 
-export type OutboxEntry = { id: string; kind: string; text: string; createdAt: number; file?: string };
+export type OutboxEntry = {
+  id: string;
+  kind: string;
+  text: string;
+  createdAt: number;
+  file?: string;
+};
 
 export function readOutbox(): OutboxEntry[] {
   const root = InklingNative.appGroupPath(APP_GROUP);
