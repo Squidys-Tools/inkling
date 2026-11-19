@@ -13,7 +13,7 @@ void AccessibilityInfo.isReduceMotionEnabled().then((value) => {
   reduced = value;
 });
 
-const nativeMotion: MotionEnvironment = {
+export const nativeMotion: MotionEnvironment = {
   reducedMotion: () => reduced,
   hidden: () => AppState.currentState !== "active",
   requestFrame: (callback) => requestAnimationFrame(callback),
@@ -32,11 +32,13 @@ const nativeMotion: MotionEnvironment = {
 };
 
 // Desktop's engine and player; only the painting differs, SVG here instead of a canvas.
-const player = new MascotPlayer(nativeMotion, { state: "inkling-drift", expression: "neutre" });
+const sidebarPlayer = new MascotPlayer(nativeMotion, {
+  state: "inkling-drift",
+  expression: "neutre",
+});
 const view = `${-DEMI_VIEWBOX} ${-DEMI_VIEWBOX} ${DEMI_VIEWBOX * 2} ${DEMI_VIEWBOX * 2}`;
 
-function Figure({ frame }: { frame: BotFrame }) {
-  const ink = colors.mascot;
+function Figure({ frame, ink }: { frame: BotFrame; ink: string }) {
   const dots = frame.dots.map((dot, i) =>
     dot.d ? (
       <Path
@@ -125,13 +127,25 @@ function Figure({ frame }: { frame: BotFrame }) {
 }
 
 /** Desktop's ink-blot mascot for the sidebar. It moves only while `visible`; a tap wakes it. */
-export function Mascot({ size, visible }: { size: number; visible: boolean }) {
+export function Mascot({
+  size,
+  visible,
+  player = sidebarPlayer,
+  ink = colors.mascot,
+  live = false,
+}: {
+  size: number;
+  visible: boolean;
+  player?: MascotPlayer;
+  ink?: string;
+  live?: boolean;
+}) {
   const [frame, setFrame] = useState(() => player.current);
   useEffect(() => {
-    const painter = player.attach(setFrame);
+    const painter = player.attach(setFrame, { live });
     painter.setVisible(visible);
     return painter.detach;
-  }, [visible]);
+  }, [player, visible, live]);
   return (
     <Pressable
       accessibilityElementsHidden
@@ -139,7 +153,7 @@ export function Mascot({ size, visible }: { size: number; visible: boolean }) {
       onPress={() => player.wake()}
     >
       <Svg width={size} height={size} viewBox={view}>
-        <Figure frame={frame} />
+        <Figure frame={frame} ink={ink} />
       </Svg>
     </Pressable>
   );

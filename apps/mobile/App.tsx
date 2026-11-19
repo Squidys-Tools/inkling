@@ -14,7 +14,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { SearchBarCommands } from "react-native-screens";
 import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { interpolate, useAnimatedStyle } from "react-native-reanimated";
@@ -28,6 +28,7 @@ import { LibraryScreen } from "./src/screens/LibraryScreen";
 import { PairScreen } from "./src/screens/PairScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { LibraryProvider, useLibrary } from "./src/state";
+import { LaunchOverlay } from "./src/ui/LaunchOverlay";
 import { Sidebar } from "./src/ui/Sidebar";
 import { SymbolButton } from "./src/ui/SymbolButton";
 
@@ -148,6 +149,8 @@ function MainCard() {
 }
 
 export default function App() {
+  const [launching, setLaunching] = useState(true);
+  const finishLaunch = useCallback(() => setLaunching(false), []);
   useFonts(fontFiles);
   useEffect(() => {
     const subscription = Linking.addEventListener("url", (event) => openPairingLink(event.url));
@@ -181,6 +184,7 @@ export default function App() {
           </NavigationContainer>
         </LibraryProvider>
       </SafeAreaProvider>
+      {launching ? <LaunchOverlay onDone={finishLaunch} /> : null}
     </GestureHandlerRootView>
   );
 }
