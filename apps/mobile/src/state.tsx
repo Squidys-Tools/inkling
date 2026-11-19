@@ -12,7 +12,16 @@ import { AppState } from "react-native";
 import InklingNative, {
   type TailscaleStatus,
 } from "../modules/inkling-native/src/InklingNativeModule";
-import { DesktopError, desktopStatus, recentCards, searchCards, type PhoneCard } from "./desktop";
+import {
+  DesktopError,
+  desktopStatus,
+  listSpaces,
+  recentCards,
+  searchCards,
+  type PhoneCard,
+  type Scope,
+  type Space,
+} from "./desktop";
 import { readOutbox, sendOutbox, type OutboxEntry } from "./outbox";
 import { forgetPairing, loadPairing, savePairing, type Pairing } from "./pairing";
 import type { Connection } from "./ui/StatusPill";
@@ -20,8 +29,8 @@ import type { Connection } from "./ui/StatusPill";
 const nodeName = "inkling-iphone-sim";
 const settleDelay = 5000;
 
-const fetchCards = (pairing: Pairing, text: string) =>
-  text.trim() ? searchCards(pairing, text) : recentCards(pairing);
+const fetchCards = (pairing: Pairing, text: string, scope: Scope) =>
+  text.trim() ? searchCards(pairing, text) : recentCards(pairing, scope);
 
 const success = () =>
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -35,6 +44,9 @@ function useLibraryState() {
   const [pending, setPending] = useState<OutboxEntry[]>(readOutbox);
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
+  const [scope, setScope] = useState<Scope>({ kind: "everything" });
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
   const queryRef = useRef(query);
 
   useEffect(() => {
@@ -66,12 +78,17 @@ function useLibraryState() {
         if (sent) {
           success();
           // Desktop fills in titles and thumbnails in background jobs after the save.
-          setTimeout(() => fetchCards(pairing, text).then(setCards, () => {}), settleDelay);
+          setTimeout(() => fetchCards(pairing, text, scope).then(setCards, () => {}), settleDelay);
         }
       } catch {}
       setPending(readOutbox());
       try {
-        setCards(await fetchCards(pairing, text));
+        setCards(await fetchCards(pairing, text, scope));
+        listSpaces(pairing).then(setSpaces, () => {});
+        desktopStatus(pairing).then(
+          (status) => setTotal(status.items),
+          () => {},
+        );
         setShownQuery(text);
         setReached("connected");
         setNotice(sentNotice);
@@ -79,7 +96,7 @@ function useLibraryState() {
         setReached(error instanceof DesktopError && error.status === 401 ? "repair" : "offline");
       }
     },
-    [pairing, online],
+    [pairing, online, scope],
   );
 
   const pair = useCallback(async (next: Pairing) => {
@@ -120,6 +137,10 @@ function useLibraryState() {
     notice,
     query,
     setQuery,
+    scope,
+    setScope,
+    spaces,
+    total,
     refresh,
     pair,
     forget,

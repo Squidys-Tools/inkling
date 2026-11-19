@@ -47,8 +47,35 @@ const json = async <T>(pairing: Pairing, path: string) =>
 export const desktopStatus = (pairing: Pairing) =>
   json<{ device: string; items: number }>(pairing, "/v1/status");
 
-export const recentCards = (pairing: Pairing) =>
-  json<{ cards: PhoneCard[] }>(pairing, "/v1/cards?limit=200").then((page) => page.cards);
+export type Space = {
+  id: string;
+  name: string;
+  color: "blue" | "orange" | "green" | "pink" | "purple" | "yellow";
+  kind: "smart" | "regular";
+  itemCount: number | null;
+};
+
+/** What the sidebar shows: the whole library, the Archive, or one Space. */
+export type Scope = { kind: "everything" } | { kind: "archived" } | { kind: "space"; space: Space };
+
+const scopeQuery = (scope: Scope) =>
+  scope.kind === "archived"
+    ? "&archived=1"
+    : scope.kind === "space"
+      ? `&space=${encodeURIComponent(scope.space.id)}`
+      : "";
+
+export const recentCards = (pairing: Pairing, scope: Scope) =>
+  json<{ cards: PhoneCard[] }>(pairing, `/v1/cards?limit=200${scopeQuery(scope)}`).then(
+    (page) => page.cards,
+  );
+
+/** A desktop from before the sidebar answers 404 here, and simply has no Spaces to show. */
+export const listSpaces = (pairing: Pairing) =>
+  json<{ spaces: Space[] }>(pairing, "/v1/spaces").then(
+    (page) => page.spaces,
+    () => [],
+  );
 
 export const searchCards = (pairing: Pairing, query: string) =>
   json<{ cards: PhoneCard[] }>(pairing, `/v1/search?q=${encodeURIComponent(query)}&limit=200`).then(

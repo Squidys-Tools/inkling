@@ -41,3 +41,13 @@ export const colors = {
   badge: "rgba(14, 14, 12, 0.72)",
   badgeInk: "#d8d2c6",
 } as const;
+
+// Desktop's Space swatches (spaceColor in tokens.stylex.ts).
+export const spaceColors = {
+  orange: "#b0714f",
+  green: "#7f9a8c",
+  blue: "#8e9bbf",
+  pink: "#c98b8b",
+  purple: "#a88ab5",
+  yellow: "#c9b27a",
+} as const;
