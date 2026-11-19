@@ -86,6 +86,8 @@ function PairingForm({ onPaired }: { onPaired: (pairing: Pairing) => void }) {
         placeholderTextColor={colors.placeholder}
         autoCapitalize="none"
         secureTextEntry
+        textContentType="oneTimeCode"
+        autoComplete="off"
       />
       <Button title="Pair" onPress={pair} />
       {error ? <Text style={styles.muted}>{error}</Text> : null}

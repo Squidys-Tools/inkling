@@ -99,7 +99,7 @@ function saveCapture(client: LibraryClient, capture: PhoneCapture) {
   if (capture.kind === "text")
     return client.createNote({ body: capture.text, metadata: { captureSource } });
   return client.saveFile({
-    fileName: capture.text || `${capture.id}.png`,
+    fileName: capture.text || "Image from phone.png",
     mimeType: capture.mimeType ?? "image/png",
     kind: "image",
     bytes: Buffer.from(capture.file ?? "", "base64"),
