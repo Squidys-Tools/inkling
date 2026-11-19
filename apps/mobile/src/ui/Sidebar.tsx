@@ -95,14 +95,13 @@ export function Sidebar({ navigation }: DrawerContentComponentProps) {
           accessibilityRole="button"
           accessibilityLabel="Settings"
           hitSlop={10}
-          style={styles.settings}
+          style={styles.gear}
           onPress={() => {
             navigation.closeDrawer();
             navigation.navigate("Main", { screen: "Settings" });
           }}
         >
-          <SymbolView name="gearshape" tintColor={colors.inkSoft} size={20} />
-          <Text style={styles.footerLabel}>Settings</Text>
+          <SymbolView name="gearshape" tintColor={colors.inkSoft} size={24} />
         </Pressable>
       </View>
     </View>
@@ -157,21 +156,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 10,
     marginVertical: 12,
   },
-  footerLabel: { color: colors.inkSoft, fontSize: 16 },
   footer: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-end",
     paddingHorizontal: 10,
     paddingTop: 10,
   },
-  settings: {
-    flexDirection: "row",
-    gap: 8,
-    height: 44,
-    paddingHorizontal: 14,
-    borderRadius: 22,
-    backgroundColor: colors.raised,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  gear: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
 });

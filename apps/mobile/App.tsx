@@ -1,4 +1,8 @@
-import { createDrawerNavigator, type DrawerContentComponentProps } from "@react-navigation/drawer";
+import {
+  createDrawerNavigator,
+  type DrawerContentComponentProps,
+  useDrawerProgress,
+} from "@react-navigation/drawer";
 import {
   createNavigationContainerRef,
   DarkTheme,
@@ -14,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import Animated, { interpolate, useAnimatedStyle } from "react-native-reanimated";
 import { colors } from "./src/colors";
 import { font, fontFiles } from "./src/fonts";
 import { parsePairingLink } from "./src/pairing-link";
@@ -128,6 +133,20 @@ function Screens() {
   );
 }
 
+/** The library slides aside as a rounded page that stays in view, like Obsidian's. */
+function MainCard() {
+  const progress = useDrawerProgress();
+  const card = useAnimatedStyle(() => ({
+    borderRadius: interpolate(progress.value, [0, 1], [0, 44]),
+    borderWidth: interpolate(progress.value, [0, 1], [0, 1]),
+  }));
+  return (
+    <Animated.View style={[styles.card, card]}>
+      <Screens />
+    </Animated.View>
+  );
+}
+
 export default function App() {
   const [launching, setLaunching] = useState(true);
   const finishLaunch = useCallback(() => setLaunching(false), []);
@@ -151,15 +170,14 @@ export default function App() {
               drawerContent={sidebar}
               screenOptions={{
                 headerShown: false,
-                // A sidebar over the library, which stays the main page behind it.
-                drawerType: "front",
-                overlayColor: colors.scrim,
+                drawerType: "slide",
+                overlayColor: "transparent",
                 sceneStyle: { backgroundColor: colors.surface },
                 swipeEdgeWidth: 48,
                 drawerStyle: styles.drawer,
               }}
             >
-              <Drawer.Screen name="Main" component={Screens} />
+              <Drawer.Screen name="Main" component={MainCard} />
             </Drawer.Navigator>
           </NavigationContainer>
         </LibraryProvider>
@@ -171,8 +189,14 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
+  card: {
+    flex: 1,
+    overflow: "hidden",
+    backgroundColor: colors.background,
+    borderColor: colors.borderStrong,
+  },
   drawer: {
-    width: "82%",
+    width: "84%",
     backgroundColor: colors.surface,
   },
 });
