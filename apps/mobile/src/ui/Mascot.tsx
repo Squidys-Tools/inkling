@@ -73,7 +73,14 @@ function Figure({ frame }: { frame: BotFrame }) {
     <>
       <Defs>
         {/* The eyes and the notch are holes through the body, as on desktop. */}
-        <Mask id="body" maskUnits="userSpaceOnUse">
+        <Mask
+          id="body"
+          maskUnits="userSpaceOnUse"
+          x={-DEMI_VIEWBOX}
+          y={-DEMI_VIEWBOX}
+          width={DEMI_VIEWBOX * 2}
+          height={DEMI_VIEWBOX * 2}
+        >
           <Path d={frame.bodyPath} fill="white" />
           {frame.eyes.map((eye, i) => (
             <Path key={i} d={eye.d} transform={eye.matrix} fill="black" fillOpacity={eye.alpha} />

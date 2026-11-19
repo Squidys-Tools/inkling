@@ -123,6 +123,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     letterSpacing: -0.8,
     color: colors.title,
+    paddingRight: 4,
   },
   list: { flex: 1 },
   listContent: { gap: 2, paddingBottom: 16 },
