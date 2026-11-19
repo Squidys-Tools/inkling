@@ -58,7 +58,7 @@ function SidebarButton() {
   const stack = useNavigation();
   return (
     <SymbolButton
-      name="line.3.horizontal"
+      name="sidebar.left"
       label="Open sidebar"
       onPress={() => stack.dispatch(DrawerActions.openDrawer())}
     />
@@ -77,13 +77,16 @@ function Screens() {
     if (scope.kind) searchBar.current?.clearText();
   }, [scope]);
   const title =
-    scope.kind === "archived" ? "Archive" : scope.kind === "space" ? scope.space.name : "inkling";
+    scope.kind === "archived"
+      ? "Archive"
+      : scope.kind === "space"
+        ? scope.space.name
+        : "Everything";
   return (
     <Stack.Navigator
       screenOptions={{
         headerTintColor: colors.accent,
-        headerTitleStyle: { fontFamily: font.display, color: colors.title },
-        headerLargeTitleStyle: { fontFamily: font.display, color: colors.title },
+        headerTitleStyle: { fontFamily: font.display, fontSize: 16, color: colors.title },
       }}
     >
       <Stack.Screen
@@ -91,10 +94,7 @@ function Screens() {
         component={LibraryScreen}
         options={{
           title,
-          headerLargeTitle: true,
-          headerLargeTitleShadowVisible: false,
           headerShadowVisible: false,
-          // The sidebar button sits on the left: dev builds float Expo's tools button over the top right.
           headerLeft: sidebarButton,
           headerSearchBarOptions: library.pairing
             ? {

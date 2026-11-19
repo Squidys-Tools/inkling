@@ -29,7 +29,7 @@ function Banner({ connection, onPair }: { connection: string; onPair: () => void
   return null;
 }
 
-// The large title header floats over the screen; an inset scroll view keeps content below it.
+// The header floats over the screen; an inset scroll view keeps content below it.
 const Inset = ({ children }: { children: React.ReactNode }) => (
   <ScrollView style={styles.screen} contentInsetAdjustmentBehavior="automatic">
     {children}
