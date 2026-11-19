@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, {
   Easing,
+  ReduceMotion,
   type SharedValue,
   useAnimatedStyle,
   useSharedValue,
@@ -57,7 +58,12 @@ export function LaunchOverlay({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     if (nativeMotion.reducedMotion()) {
       pop.value = 1;
-      fade.value = withDelay(600, withTiming(0, { duration: FADE_FOR }));
+      word.value = 1;
+      fade.value = withDelay(
+        600,
+        withTiming(0, { duration: FADE_FOR, reduceMotion: ReduceMotion.Never }),
+        ReduceMotion.Never,
+      );
       const done = setTimeout(onDone, 600 + FADE_FOR);
       return () => clearTimeout(done);
     }
