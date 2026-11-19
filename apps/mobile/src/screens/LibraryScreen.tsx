@@ -7,7 +7,6 @@ import { font } from "../fonts";
 import type { ScreenProps } from "../routes";
 import { useLibrary } from "../state";
 import { EmptyState } from "../ui/EmptyState";
-import { StatusPill } from "../ui/StatusPill";
 
 function Banner({ connection, onPair }: { connection: string; onPair: () => void }) {
   if (connection === "repair")
@@ -82,10 +81,7 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
       onRefresh={() => library.refresh(library.query)}
       ListHeaderComponent={
         <View style={styles.header}>
-          <View style={styles.statusRow}>
-            <StatusPill connection={library.connection} />
-            {library.notice ? <Text style={styles.notice}>{library.notice}</Text> : null}
-          </View>
+          {library.notice ? <Text style={styles.notice}>{library.notice}</Text> : null}
           <Banner connection={library.connection} onPair={() => navigation.navigate("Pair")} />
         </View>
       }
@@ -129,7 +125,6 @@ const styles = StyleSheet.create({
   // Room for the floating search bar, so the last cards scroll clear of it.
   grid: { paddingHorizontal: 10, paddingBottom: 120 },
   header: { paddingHorizontal: 4, paddingBottom: 10, gap: 8 },
-  statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   notice: { color: colors.muted, fontFamily: font.mono, fontSize: 11, flexShrink: 1 },
   banner: { backgroundColor: colors.surface, borderRadius: 14, padding: 12, gap: 4 },
   bannerText: { color: colors.text, fontSize: 14, lineHeight: 20 },

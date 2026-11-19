@@ -1,4 +1,8 @@
-import { createDrawerNavigator, type DrawerContentComponentProps } from "@react-navigation/drawer";
+import {
+  createDrawerNavigator,
+  type DrawerContentComponentProps,
+  useDrawerProgress,
+} from "@react-navigation/drawer";
 import {
   createNavigationContainerRef,
   DarkTheme,
@@ -13,6 +17,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef } from "react";
 import { Linking, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, { interpolate, useAnimatedStyle } from "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { colors } from "./src/colors";
 import { font, fontFiles } from "./src/fonts";
@@ -129,6 +134,21 @@ function Screens() {
   );
 }
 
+/** The library becomes a rounded card pushed aside while the sidebar is open. */
+function MainCard() {
+  const progress = useDrawerProgress();
+  const card = useAnimatedStyle(() => ({
+    borderRadius: interpolate(progress.value, [0, 1], [0, 38]),
+    borderWidth: interpolate(progress.value, [0, 1], [0, 1]),
+    transform: [{ scale: interpolate(progress.value, [0, 1], [1, 0.97]) }],
+  }));
+  return (
+    <Animated.View style={[styles.card, card]}>
+      <Screens />
+    </Animated.View>
+  );
+}
+
 export default function App() {
   useFonts(fontFiles);
   useEffect(() => {
@@ -153,11 +173,12 @@ export default function App() {
                 // The library slides aside to show the sidebar, as Claude's and ChatGPT's apps do.
                 drawerType: "slide",
                 overlayColor: "transparent",
+                sceneStyle: { backgroundColor: colors.surface },
                 swipeEdgeWidth: 48,
                 drawerStyle: styles.drawer,
               }}
             >
-              <Drawer.Screen name="Main" component={Screens} />
+              <Drawer.Screen name="Main" component={MainCard} />
             </Drawer.Navigator>
           </NavigationContainer>
         </LibraryProvider>
@@ -167,11 +188,15 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.window },
+  root: { flex: 1, backgroundColor: colors.surface },
+  card: {
+    flex: 1,
+    overflow: "hidden",
+    backgroundColor: colors.background,
+    borderColor: colors.borderStrong,
+  },
   drawer: {
     width: "78%",
-    backgroundColor: colors.window,
-    borderRightColor: colors.border,
-    borderRightWidth: StyleSheet.hairlineWidth,
+    backgroundColor: colors.surface,
   },
 });

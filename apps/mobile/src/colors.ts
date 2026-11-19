@@ -51,3 +51,13 @@ export const spaceColors = {
   purple: "#a88ab5",
   yellow: "#c9b27a",
 } as const;
+
+// The same swatches as faint fills, for Space rows in the sidebar.
+export const spaceTints = {
+  orange: "rgba(176, 113, 79, 0.16)",
+  green: "rgba(127, 154, 140, 0.16)",
+  blue: "rgba(142, 155, 191, 0.16)",
+  pink: "rgba(201, 139, 139, 0.16)",
+  purple: "rgba(168, 138, 181, 0.16)",
+  yellow: "rgba(201, 178, 122, 0.16)",
+} as const;

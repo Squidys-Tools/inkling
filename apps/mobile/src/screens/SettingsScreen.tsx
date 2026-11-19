@@ -5,6 +5,7 @@ import { font } from "../fonts";
 import { embedQuery, modelInstalled } from "../embedQuery";
 import type { ScreenProps } from "../routes";
 import { useLibrary } from "../state";
+import { StatusPill } from "../ui/StatusPill";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -58,6 +59,10 @@ export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
         <Row label="This phone" value={library.tailscale.ips?.[0] ?? "—"} />
       </Section>
       <Section title="Desktop">
+        <View style={styles.row}>
+          <Text style={styles.label}>Connection</Text>
+          <StatusPill connection={library.connection} />
+        </View>
         <Row label="Address" value={library.pairing?.address ?? "Not paired"} />
         {library.pairing ? (
           <Row
