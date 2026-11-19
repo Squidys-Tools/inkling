@@ -70,7 +70,7 @@ function Screens() {
         component={LibraryScreen}
         options={{
           title: look === "fieldnotes" ? "inkling." : "inkling",
-          headerLargeTitle: look !== "fieldnotes",
+          headerLargeTitle: false,
           headerLargeTitleShadowVisible: false,
           headerShadowVisible: false,
           headerLeft: settingsButton,
