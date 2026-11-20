@@ -27,9 +27,9 @@ final class ShareViewController: UIViewController {
       return .init(kind: "url", text: url.absoluteString)
     }
     if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier),
-      let data = try? await loadData(provider, UTType.image.identifier)
+      let file = try? await loadFile(provider, UTType.image.identifier)
     {
-      return .init(kind: "image", text: provider.suggestedName ?? "Image", file: data)
+      return .init(kind: "image", text: provider.suggestedName ?? "Image", file: file)
     }
     if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier),
       let text = try? await provider.loadItem(forTypeIdentifier: UTType.plainText.identifier)
@@ -40,12 +40,19 @@ final class ShareViewController: UIViewController {
     return nil
   }
 
-  private func loadData(_ provider: NSItemProvider, _ type: String) async throws -> Data {
+  // A file, not Data: a large photo held in memory gets the extension killed.
+  private func loadFile(_ provider: NSItemProvider, _ type: String) async throws -> URL {
     try await withCheckedThrowingContinuation { continuation in
-      _ = provider.loadDataRepresentation(forTypeIdentifier: type) { data, error in
-        if let data { continuation.resume(returning: data) } else {
-          continuation.resume(throwing: error ?? CocoaError(.fileReadUnknown))
+      _ = provider.loadFileRepresentation(forTypeIdentifier: type) { url, error in
+        // iOS deletes `url` when this callback returns, so the copy has to happen inside it.
+        guard let url else {
+          return continuation.resume(throwing: error ?? CocoaError(.fileReadUnknown))
         }
+        let copy = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        do {
+          try FileManager.default.copyItem(at: url, to: copy)
+          continuation.resume(returning: copy)
+        } catch { continuation.resume(throwing: error) }
       }
     }
   }
@@ -67,7 +74,7 @@ enum Outbox {
   struct Entry {
     let kind: String
     let text: String
-    var file: Data? = nil
+    var file: URL? = nil
   }
 
   static func write(_ entry: Entry) throws {
@@ -84,7 +91,7 @@ enum Outbox {
     ]
     if let file = entry.file {
       let name = "\(id).bin"
-      try file.write(to: root.appendingPathComponent(name), options: .atomic)
+      try FileManager.default.moveItem(at: file, to: root.appendingPathComponent(name))
       record["file"] = name
     }
     // The JSON lands last and atomically, so the app never reads a capture without its file.

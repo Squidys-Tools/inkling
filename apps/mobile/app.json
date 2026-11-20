@@ -12,8 +12,29 @@
       "supportsTablet": true,
       "entitlements": {
         "com.apple.security.application-groups": ["group.app.inkling.mobile.dev"]
+      },
+      "infoPlist": {
+        "EXDevMenuShowFloatingActionButton": false
+      },
+      "icon": {
+        "light": "./assets/icon.png",
+        "dark": "./assets/icon-dark.png"
       }
     },
-    "plugins": ["expo-dev-client", "@bacons/apple-targets", "expo-secure-store"]
+    "plugins": [
+      "expo-dev-client",
+      "@bacons/apple-targets",
+      "expo-secure-store",
+      "expo-image",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0c0c0b",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120
+        }
+      ]
+    ]
   }
 }

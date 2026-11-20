@@ -1,11 +1,16 @@
 import * as SecureStore from "expo-secure-store";
+import { isPairing, type Pairing } from "./pairing-link";
 
-export type Pairing = { address: string; token: string };
+export type { Pairing };
+
 const key = "inkling.desktop";
 
+/** A pairing saved before the phone used Tailscale Serve has no URL, and reads as unpaired. */
 export async function loadPairing(): Promise<Pairing | null> {
   const saved = await SecureStore.getItemAsync(key);
-  return saved ? (JSON.parse(saved) as Pairing) : null;
+  if (!saved) return null;
+  const pairing: unknown = JSON.parse(saved);
+  return isPairing(pairing) ? pairing : null;
 }
 
 export const savePairing = (pairing: Pairing) =>
