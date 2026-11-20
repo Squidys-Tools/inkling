@@ -75,7 +75,7 @@ export function cardsView(result: Atom.PullResult<PhoneCard, unknown>): CardsVie
     const empty = Cause.squash(result.cause) instanceof Cause.NoSuchElementError;
     const previous = Option.getOrUndefined(result.previousSuccess);
     return {
-      cards: previous?.value.items ?? [],
+      cards: empty ? [] : (previous?.value.items ?? []),
       more: false,
       loading,
       failed: !empty && !Cause.hasInterruptsOnly(result.cause),
