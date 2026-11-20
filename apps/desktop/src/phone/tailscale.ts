@@ -77,8 +77,10 @@ export function serveRootTargets(json: string, servePort: number) {
   return Object.entries(config?.Web ?? {})
     .filter(([hostPort]) => hostPort.endsWith(`:${servePort}`))
     .flatMap(([, site]) => {
-      const proxy = site.Handlers?.["/"]?.Proxy;
-      if (proxy === undefined) return [];
+      const root = site.Handlers?.["/"];
+      if (root === undefined) return [];
+      // A file or text root has no Proxy and can't be probed, so it counts as taken.
+      const proxy = root.Proxy ?? "";
       const port = /^(?:https?:\/\/)?(?:127\.0\.0\.1|localhost|\[::1\]):(\d+)\/?$/u.exec(
         proxy,
       )?.[1];
@@ -86,9 +88,9 @@ export function serveRootTargets(json: string, servePort: number) {
     });
 }
 
-const listening = (port: number) =>
+const answers = (host: string, port: number) =>
   new Promise<boolean>((resolve) => {
-    const socket = createConnection({ host: "127.0.0.1", port });
+    const socket = createConnection({ host, port });
     const settle = (live: boolean) => {
       socket.destroy();
       resolve(live);
@@ -98,6 +100,10 @@ const listening = (port: number) =>
     socket.once("error", () => settle(false));
     socket.once("timeout", () => settle(false));
   });
+
+// A root proxy may name 127.0.0.1, localhost or [::1], so a server on either loopback counts.
+const listening = async (port: number) =>
+  (await answers("127.0.0.1", port)) || (await answers("::1", port));
 
 /**
  * Publishes the loopback server at `localPort` on the tailnet at https://<machine>.ts.net:8443.

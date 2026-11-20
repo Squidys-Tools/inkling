@@ -117,6 +117,10 @@ test("Serve is published only where no other live server answers, and the CLI is
     // A file or remote handler can't be probed, so it counts as taken.
     [serve("/var/www"), [null]],
     [
+      JSON.stringify({ Web: { "box.ts.net:8443": { Handlers: { "/": { Path: "/var/www" } } } } }),
+      [null],
+    ],
+    [
       JSON.stringify({
         Web: { "box.ts.net:443": { Handlers: { "/": { Proxy: "http://127.0.0.1:1" } } } },
       }),
