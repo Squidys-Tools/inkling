@@ -1,6 +1,6 @@
 // Adapted from t3code's apps/mobile/src/lib/typography.ts and components/ui/AppText.tsx
 // (MIT, Copyright (c) 2026 T3 Tools Inc.), restyled with StyleSheet over inkling's palette.
-import { StyleSheet, Text, type TextProps } from "react-native";
+import { StyleSheet, Text, type TextProps, useWindowDimensions } from "react-native";
 import { colors } from "../colors";
 
 const typography = StyleSheet.create({
@@ -19,5 +19,8 @@ export type TextRole = keyof typeof typography;
 export function AppText({ variant = "body", style, ...props }: TextProps & { variant?: TextRole }) {
   return <Text style={[styles.base, typography[variant], style]} {...props} />;
 }
+
+/** Icons beside text grow with Dynamic Type, up to twice their size, so labels never dwarf them. */
+export const useIconScale = () => Math.min(useWindowDimensions().fontScale, 2);
 
 const styles = StyleSheet.create({ base: { color: colors.text } });

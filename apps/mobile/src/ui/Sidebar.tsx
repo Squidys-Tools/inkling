@@ -12,6 +12,7 @@ import { AsyncResult } from "effect/reactivity";
 import { selectScope } from "../state/actions";
 import { useRegistry } from "../state/hooks";
 import { scopeAtom, spacesAtom, totalAtom } from "../state/library";
+import { useIconScale } from "./AppText";
 import { Mascot } from "./Mascot";
 
 function Row(props: {
@@ -39,7 +40,24 @@ function Row(props: {
 
 const glass = isLiquidGlassAvailable();
 
-const symbol = (name: SFSymbol) => <SymbolView name={name} tintColor={colors.inkSoft} size={18} />;
+function Glyph({ name, size = 18 }: { name: SFSymbol; size?: number }) {
+  return (
+    <SymbolView name={name} tintColor={colors.inkSoft} size={Math.round(size * useIconScale())} />
+  );
+}
+
+function Swatch({ color, filled }: { color: string; filled: boolean }) {
+  const side = Math.round(14 * useIconScale());
+  return (
+    <View
+      style={[
+        styles.swatch,
+        { width: side, height: side, borderColor: color },
+        filled && { backgroundColor: color },
+      ]}
+    />
+  );
+}
 
 /** Desktop's sidebar for the phone: Everything, the Spaces, Archive, and Settings at the foot. */
 export function Sidebar({ navigation }: DrawerContentComponentProps) {
@@ -63,7 +81,7 @@ export function Sidebar({ navigation }: DrawerContentComponentProps) {
       </View>
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         <Row
-          icon={symbol("square.grid.3x3")}
+          icon={<Glyph name="square.grid.3x3" />}
           label="Everything"
           count={total}
           active={scope.kind === "everything"}
@@ -73,15 +91,7 @@ export function Sidebar({ navigation }: DrawerContentComponentProps) {
         {spaces.map((space) => (
           <Row
             key={space.id}
-            icon={
-              <View
-                style={[
-                  styles.swatch,
-                  { borderColor: spaceColors[space.color] },
-                  space.kind === "regular" && { backgroundColor: spaceColors[space.color] },
-                ]}
-              />
-            }
+            icon={<Swatch color={spaceColors[space.color]} filled={space.kind === "regular"} />}
             label={space.name}
             count={space.itemCount}
             active={scope.kind === "space" && scope.space.id === space.id}
@@ -93,7 +103,7 @@ export function Sidebar({ navigation }: DrawerContentComponentProps) {
         ) : null}
         <View style={styles.rule} />
         <Row
-          icon={symbol("archivebox")}
+          icon={<Glyph name="archivebox" />}
           label="Archive"
           active={scope.kind === "archived"}
           onPress={() => pick({ kind: "archived" })}
@@ -114,7 +124,7 @@ export function Sidebar({ navigation }: DrawerContentComponentProps) {
             glassEffectStyle="regular"
             style={[styles.settings, !glass && styles.settingsFallback]}
           >
-            <SymbolView name="gearshape" tintColor={colors.inkSoft} size={20} />
+            <Glyph name="gearshape" size={20} />
             <Text style={styles.footerLabel}>Settings</Text>
           </GlassView>
         </Pressable>
@@ -150,7 +160,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   active: { backgroundColor: colors.raised },
-  icon: { width: 22, alignItems: "center" },
+  icon: { minWidth: 22, alignItems: "center" },
   label: { flex: 1, color: colors.inkSoft, fontSize: 17 },
   activeLabel: { color: colors.title, fontWeight: "600" },
   count: { fontFamily: font.mono, fontSize: 12, color: colors.muted },
@@ -163,7 +173,7 @@ const styles = StyleSheet.create({
     marginTop: 18,
     marginBottom: 6,
   },
-  swatch: { width: 14, height: 14, borderRadius: 4, borderWidth: 1.5 },
+  swatch: { borderRadius: 4, borderWidth: 1.5 },
   empty: { color: colors.faint, fontSize: 13, paddingHorizontal: 10, paddingVertical: 6 },
   rule: {
     height: StyleSheet.hairlineWidth,

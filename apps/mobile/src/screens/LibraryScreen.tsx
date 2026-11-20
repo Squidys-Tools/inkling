@@ -126,6 +126,12 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
         <View style={styles.header}>
           {pairing ? null : pairPrompt}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+          {search && view.cards.length > 0 ? (
+            // iOS hides the header title while the search bar is active, so results name their query.
+            <Text style={styles.notice}>
+              {`${view.cards.length}${view.more ? "+" : ""} for “${search}”`}
+            </Text>
+          ) : null}
           <Banner connection={connection} onPair={() => navigation.navigate("Pair")} />
         </View>
       }
