@@ -103,6 +103,7 @@
       "files": [
         "packages/ui/src/tokens.stylex.ts",
         "apps/desktop/src/chrome.ts",
+        "apps/mobile/src/colors.ts",
         "packages/jobs/**",
         "**/*.test.ts",
         "tools/**",

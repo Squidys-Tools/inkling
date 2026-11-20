@@ -10,6 +10,7 @@ import { outsideCaptures } from "./capture/outside-captures.ts";
 import { libraryDirectory as resolveLibraryDirectory } from "./data-directory.ts";
 import { registerFrameReferer } from "./frame-referer.ts";
 import { mainLibraryClient } from "./library-client.ts";
+import { startPhoneServiceIfEnabled } from "./phone/server.ts";
 import { installMenu } from "./menu.ts";
 import { registerNativeHandlers } from "./native-handlers.ts";
 import { startProcesses } from "./processes.ts";
@@ -41,6 +42,7 @@ const captures = outsideCaptures({ libraryDirectory, library: libraryClient.clie
 
 let mainWindow: BrowserWindow | undefined;
 let library: ReturnType<typeof startProcesses> | undefined;
+let phone: Awaited<ReturnType<typeof startPhoneServiceIfEnabled>>;
 
 function createWindow() {
   const { options } = windowChrome(platform);
@@ -181,6 +183,10 @@ if (!app.requestSingleInstanceLock()) {
       mainWindow: () => mainWindow,
     });
     void captures.start();
+    startPhoneServiceIfEnabled({ libraryDirectory, library: libraryClient.client }).then(
+      (service) => (phone = service),
+      (error: unknown) => console.error("inkling: the phone service did not start", error),
+    );
     captures.receive(process.argv);
     createWindow();
 
@@ -196,6 +202,7 @@ if (!app.requestSingleInstanceLock()) {
           // Close admission first, then drain private exports and captures before storage.
           await native.stop();
           await captures.stop();
+          await phone?.close();
           await library?.stop();
         },
         () => app.quit(),

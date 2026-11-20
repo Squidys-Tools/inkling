@@ -26,6 +26,10 @@
     },
     "extension": {
       "entry": ["src/options.ts", "src/background.ts", "src/popup/main.tsx"]
+    },
+    "apps/mobile": {
+      "entry": ["index.ts", "targets/*/expo-target.config.js"],
+      "ignoreDependencies": ["expo-updates", "expo-system-ui"]
     }
   }
 }
