@@ -167,7 +167,8 @@ function MainCard() {
 export default function App() {
   const [launching, setLaunching] = useState(true);
   const finishLaunch = useCallback(() => setLaunching(false), []);
-  useFonts(fontFiles);
+  // Under the launch overlay; a font that fails to load falls back to the system face.
+  const [fontsLoaded, fontError] = useFonts(fontFiles);
   useEffect(() => {
     const subscription = Linking.addEventListener("url", (event) => openPairingLink(event.url));
     return () => subscription.remove();
@@ -177,37 +178,39 @@ export default function App() {
       <SafeAreaProvider>
         <RegistryProvider>
           <LibrarySync />
-          <NavigationContainer
-            ref={navigation}
-            theme={theme}
-            onReady={() => {
-              openWaitingLink();
-              Linking.getInitialURL().then(openPairingLink, () => {});
-            }}
-          >
-            {/* oxlint-disable-next-line react/style-prop-object -- expo-status-bar takes the style as a string */}
-            <StatusBar style="light" />
-            <Drawer.Navigator
-              drawerContent={sidebar}
-              screenOptions={{
-                headerShown: false,
-                drawerType: "slide",
-                overlayColor: "transparent",
-                sceneStyle: { backgroundColor: colors.surface },
-                swipeEdgeWidth: 48,
-                drawerStyle: styles.drawer,
+          {fontsLoaded || fontError ? (
+            <NavigationContainer
+              ref={navigation}
+              theme={theme}
+              onReady={() => {
+                openWaitingLink();
+                Linking.getInitialURL().then(openPairingLink, () => {});
               }}
             >
-              <Drawer.Screen
-                name="Main"
-                component={MainCard}
-                // Only the library opens the sidebar by swiping; elsewhere the edge swipe goes back.
-                options={({ route }) => ({
-                  swipeEnabled: (getFocusedRouteNameFromRoute(route) ?? "Library") === "Library",
-                })}
-              />
-            </Drawer.Navigator>
-          </NavigationContainer>
+              {/* oxlint-disable-next-line react/style-prop-object -- expo-status-bar takes the style as a string */}
+              <StatusBar style="light" />
+              <Drawer.Navigator
+                drawerContent={sidebar}
+                screenOptions={{
+                  headerShown: false,
+                  drawerType: "slide",
+                  overlayColor: "transparent",
+                  sceneStyle: { backgroundColor: colors.surface },
+                  swipeEdgeWidth: 48,
+                  drawerStyle: styles.drawer,
+                }}
+              >
+                <Drawer.Screen
+                  name="Main"
+                  component={MainCard}
+                  // Only the library opens the sidebar by swiping; elsewhere the edge swipe goes back.
+                  options={({ route }) => ({
+                    swipeEnabled: (getFocusedRouteNameFromRoute(route) ?? "Library") === "Library",
+                  })}
+                />
+              </Drawer.Navigator>
+            </NavigationContainer>
+          ) : null}
         </RegistryProvider>
       </SafeAreaProvider>
       {launching ? <LaunchOverlay onDone={finishLaunch} /> : null}

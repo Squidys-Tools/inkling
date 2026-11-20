@@ -109,7 +109,6 @@
         "@effect/atom-react": "4.1.4",
         "@expo-google-fonts/dm-mono": "0.4.2",
         "@expo-google-fonts/dm-sans": "0.4.2",
-        "@expo-google-fonts/libre-baskerville": "0.4.3",
         "@huggingface/tokenizers": "0.2.0",
         "@react-navigation/drawer": "7.14.5",
         "@react-navigation/native": "7.5.2",
@@ -410,8 +409,6 @@
     "@expo-google-fonts/dm-mono": ["@expo-google-fonts/dm-mono@0.4.2", "", {}, "sha512-loMaZOkQRs1r7yt4rN39zcr9e0J+smwnSx929yuODkuiPfsY4PaW18C9SEZ0BvXfcBKoRhatGoIBl8V2MOYVPQ=="],
 
     "@expo-google-fonts/dm-sans": ["@expo-google-fonts/dm-sans@0.4.2", "", {}, "sha512-e/fLH5aCJzkEenz7axvEn8N7IJAKhUwNjIxS75h9j+Ip1M9S7d22M19gJN3A7QW4egVkBJRyQh1hQFhngQn9yA=="],
-
-    "@expo-google-fonts/libre-baskerville": ["@expo-google-fonts/libre-baskerville@0.4.3", "", {}, "sha512-EUd0gcmJ2C9ZzobNFe5ohFEOyfZFAy5rA8qluzl32VJCqdysRO1RjU2uxmK4g5EUxwCq4UHVHVzp3sPS7+Ubrw=="],
 
     "@expo-google-fonts/material-symbols": ["@expo-google-fonts/material-symbols@0.4.54", "", {}, "sha512-BcwBgi5EX5sA3sCzwPFM9Cp2squg3ugfw+e3OKBvWkZs9bEDkO0QiTeX8AlezS032vyAryikwEOqeJXVs5hNgQ=="],
 

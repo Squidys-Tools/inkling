@@ -13,7 +13,6 @@
     "@effect/atom-react": "4.1.4",
     "@expo-google-fonts/dm-mono": "0.4.2",
     "@expo-google-fonts/dm-sans": "0.4.2",
-    "@expo-google-fonts/libre-baskerville": "0.4.3",
     "@huggingface/tokenizers": "0.2.0",
     "@react-navigation/drawer": "7.14.5",
     "@react-navigation/native": "7.5.2",

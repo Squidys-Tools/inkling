@@ -39,6 +39,12 @@ function parse(file: File) {
   }
 }
 
+/** Where a queued image waits on this phone, so its card can show it before desktop has it. */
+export function payloadUri(entry: OutboxEntry) {
+  const outbox = outboxDirectory();
+  return outbox && entry.file ? new File(outbox, entry.file).uri : null;
+}
+
 /** Newest first. Also clears payloads whose record never landed or was already sent. */
 export function readOutbox(now = Date.now()): OutboxEntry[] {
   const outbox = outboxDirectory();

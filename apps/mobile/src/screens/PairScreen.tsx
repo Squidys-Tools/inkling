@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Button, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { colors } from "../colors";
 import { isPairing, type Pairing } from "../pairing-link";
 import type { ScreenProps } from "../routes";
 import { pair } from "../state/actions";
+import { AppText } from "../ui/AppText";
+import { Button } from "../ui/Button";
 import { useRegistry } from "../state/hooks";
 
 export function PairScreen({ navigation, route }: ScreenProps<"Pair">) {
@@ -47,11 +49,11 @@ function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) 
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.detail}>
+      <AppText variant="footnote" style={styles.muted}>
         {link
           ? `Pair with the desktop at ${link.url}? Saves from this phone will go to it.`
           : "Open the pairing link your desktop shows, or enter its Tailscale address and the token from its phone_token file."}
-      </Text>
+      </AppText>
       <View style={styles.group}>
         <TextInput
           style={styles.input}
@@ -70,6 +72,8 @@ function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) 
           value={token}
           onChangeText={setToken}
           placeholder="Token"
+          // The token is a password to the library; keep it off screenshots and screen shares.
+          secureTextEntry
           placeholderTextColor={colors.placeholder}
           autoCapitalize="none"
           autoCorrect={false}
@@ -77,10 +81,17 @@ function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) 
           autoComplete="off"
         />
       </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <AppText variant="footnote" style={styles.error}>
+          {error}
+        </AppText>
+      ) : null}
       <Button
-        title={busy ? "Pairing…" : "Pair"}
-        disabled={busy || !url || !token}
+        tone="primary"
+        fullWidth
+        label="Pair"
+        loading={busy}
+        disabled={!url || !token}
         onPress={submit}
       />
     </ScrollView>
@@ -90,16 +101,22 @@ function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) 
 const styles = StyleSheet.create({
   screen: { backgroundColor: colors.background },
   content: { padding: 16, gap: 14 },
-  detail: { color: colors.muted, fontSize: 14, lineHeight: 20 },
-  group: { backgroundColor: colors.surface, borderRadius: 14, overflow: "hidden" },
+  muted: { color: colors.muted },
+  group: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderCurve: "continuous",
+    overflow: "hidden",
+  },
   input: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: 16,
+    minHeight: 52,
     paddingHorizontal: 14,
     paddingVertical: 13,
     borderBottomColor: colors.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   last: { borderBottomWidth: 0 },
-  error: { color: colors.danger, fontSize: 13 },
+  error: { color: colors.danger },
 });

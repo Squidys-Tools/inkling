@@ -7,6 +7,7 @@ import Animated, {
   ReduceMotion,
   type SharedValue,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withDelay,
   withSpring,
@@ -57,9 +58,11 @@ export function LaunchOverlay({ onDone }: { onDone: () => void }) {
   const word = useSharedValue(0);
   const burst = useSharedValue(0);
   const fade = useSharedValue(1);
+  // Read synchronously from native: AccessibilityInfo answers only after this first frame has started.
+  const reduced = useReducedMotion();
 
   useEffect(() => {
-    if (nativeMotion.reducedMotion()) {
+    if (reduced) {
       word.value = 1;
       fade.value = withDelay(
         600,
@@ -82,7 +85,7 @@ export function LaunchOverlay({ onDone }: { onDone: () => void }) {
       setTimeout(onDone, FADE_MS + FADE_FOR),
     ];
     return () => timers.forEach(clearTimeout);
-  }, [player, wake, word, burst, fade, onDone]);
+  }, [player, wake, word, burst, fade, onDone, reduced]);
 
   const skip = () => {
     fade.set(withTiming(0, { duration: SKIP_FOR, ...always }));

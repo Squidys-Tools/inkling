@@ -1,11 +1,15 @@
 import { Image } from "expo-image";
-import { StyleSheet, Text, View } from "react-native";
-import { fileExtension, hostname, kindOf, quoteAttribution, wordCount } from "../cards";
+import { SymbolView } from "expo-symbols";
+import { StyleSheet, Text, type TextProps, View } from "react-native";
+import { fileExtension, hostname, quoteAttribution, wordCount } from "../cards";
 import { colors } from "../colors";
-import type { PhoneCard } from "../desktop";
+import type { CardKind, PhoneCard } from "../desktop";
 import { font } from "../fonts";
 import type { Pairing } from "../pairing";
 import { cardImage, type CardImage } from "./cardImage";
+
+// Card text is drawn into fixed-shape artwork, like desktop's; past this it would clip.
+const ArtText = (props: TextProps) => <Text maxFontSizeMultiplier={1.3} {...props} />;
 
 const texture = require("../../assets/cards/typed-texture.png");
 
@@ -15,18 +19,18 @@ export function TypedArt(props: { label: string; title: string; footnote?: strin
     <View style={styles.typed}>
       <Image source={texture} style={StyleSheet.absoluteFill} contentFit="cover" />
       <View style={styles.labelRow}>
-        <Text style={styles.label}>{props.label}</Text>
+        <ArtText style={styles.label}>{props.label}</ArtText>
         <View style={styles.ring} />
       </View>
-      <Text style={styles.typedTitle} numberOfLines={3}>
+      <ArtText style={styles.typedTitle} numberOfLines={3}>
         {props.title}
-      </Text>
+      </ArtText>
       <View style={styles.dots}>
         <View style={[styles.dot, { backgroundColor: colors.accentDeep }]} />
         <View style={[styles.dot, { backgroundColor: colors.paperYellow }]} />
         <View style={[styles.dot, { backgroundColor: colors.success }]} />
       </View>
-      {props.footnote ? <Text style={styles.footnote}>{props.footnote}</Text> : null}
+      {props.footnote ? <ArtText style={styles.footnote}>{props.footnote}</ArtText> : null}
     </View>
   );
 }
@@ -39,14 +43,14 @@ function ArticleCard({ card, image }: { card: PhoneCard; image: CardImage }) {
         <Image source={image} style={styles.strip} contentFit="cover" transition={180} />
       ) : null}
       <View style={styles.paperText}>
-        <Text style={styles.paperTitle} numberOfLines={4}>
+        <ArtText style={styles.paperTitle} numberOfLines={4}>
           {card.title ?? source}
-        </Text>
+        </ArtText>
         <View style={styles.paperFooter}>
-          <Text style={styles.paperSource} numberOfLines={1}>
+          <ArtText style={styles.paperSource} numberOfLines={1}>
             {source}
-          </Text>
-          <Text style={styles.paperArrow}>↗</Text>
+          </ArtText>
+          <ArtText style={styles.paperArrow}>↗</ArtText>
         </View>
       </View>
     </View>
@@ -57,16 +61,16 @@ function QuoteCard({ card }: { card: PhoneCard }) {
   const attribution = quoteAttribution(card.description);
   return (
     <View style={styles.quote}>
-      <Text style={styles.quoteMark}>“</Text>
-      <Text style={styles.quoteText} numberOfLines={8}>
+      <ArtText style={styles.quoteMark}>“</ArtText>
+      <ArtText style={styles.quoteText} numberOfLines={8}>
         {card.title?.replace(/\s+/gu, " ").trim() || "Saved quote"}
-      </Text>
+      </ArtText>
       {attribution ? (
         <>
           <View style={styles.quoteRule} />
-          <Text style={styles.quoteBy} numberOfLines={1}>
+          <ArtText style={styles.quoteBy} numberOfLines={1}>
             {attribution}
-          </Text>
+          </ArtText>
         </>
       ) : null}
     </View>
@@ -80,39 +84,46 @@ function PostCard({ card }: { card: PhoneCard }) {
     <View style={styles.post}>
       <View style={styles.postHead}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarInk}>{name.slice(0, 1).toUpperCase()}</Text>
+          <ArtText style={styles.avatarInk}>{name.slice(0, 1).toUpperCase()}</ArtText>
         </View>
         <View style={styles.postWho}>
-          <Text style={styles.postName} numberOfLines={1}>
+          <ArtText style={styles.postName} numberOfLines={1}>
             {name}
-          </Text>
-          <Text style={styles.postHandle} numberOfLines={1}>
+          </ArtText>
+          <ArtText style={styles.postHandle} numberOfLines={1}>
             {post?.handle ? `@${post.handle}` : "@x"}
-          </Text>
+          </ArtText>
         </View>
-        <Text style={styles.postMark}>𝕏</Text>
+        <ArtText style={styles.postMark}>𝕏</ArtText>
       </View>
-      <Text style={styles.postText} numberOfLines={7}>
+      <ArtText style={styles.postText} numberOfLines={7}>
         {post?.text || card.description || card.title || "Post preview unavailable."}
-      </Text>
+      </ArtText>
     </View>
   );
 }
 
+// Desktop's fallbackRatio in apps/renderer/src/library/cardModel.ts, for media it couldn't measure.
+const fallbackRatio = (kind: CardKind) => (kind === "Video" ? 16 / 9 : 4 / 3);
+
 function MediaCard({ card, image }: { card: PhoneCard; image: NonNullable<CardImage> }) {
-  const ratio = Math.min(1.8, Math.max(0.62, card.aspectRatio ?? 1));
+  const kind = card.displayKind;
+  const ratio = Math.min(1.8, Math.max(0.62, card.aspectRatio ?? fallbackRatio(kind)));
   return (
-    <Image
-      source={image}
-      style={[styles.media, { aspectRatio: ratio }]}
-      contentFit="cover"
-      transition={180}
-    />
+    <View style={[styles.media, { aspectRatio: ratio }]}>
+      <Image source={image} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} />
+      {kind === "Video" ? (
+        // Desktop's only play affordance on a video card; playback happens on the item page.
+        <View style={styles.playPill}>
+          <SymbolView name="play.fill" size={10} tintColor={colors.text} />
+        </View>
+      ) : null}
+    </View>
   );
 }
 
 function typedFor(card: PhoneCard) {
-  const kind = kindOf(card);
+  const kind = card.displayKind;
   if (kind === "Note") {
     const words = wordCount(card.description);
     return {
@@ -133,7 +144,7 @@ function typedFor(card: PhoneCard) {
 /** A grid card drawn the way desktop draws its kind. */
 export function CardTile({ pairing, card }: { pairing: Pairing; card: PhoneCard }) {
   const image = cardImage(pairing, card);
-  const kind = kindOf(card);
+  const kind = card.displayKind;
   if (kind === "Article") return <ArticleCard card={card} image={image} />;
   if (kind === "Quote") return <QuoteCard card={card} />;
   if (kind === "Post") return <PostCard card={card} />;
@@ -238,5 +249,16 @@ const styles = StyleSheet.create({
   postHandle: { color: colors.postMuted, fontSize: 11 },
   postMark: { color: colors.postInk, fontSize: 14 },
   postText: { color: colors.postInk, fontSize: 13, lineHeight: 18 },
-  media: { width: "100%", borderRadius: 16, backgroundColor: colors.raised },
+  media: { width: "100%", borderRadius: 16, overflow: "hidden", backgroundColor: colors.raised },
+  playPill: {
+    position: "absolute",
+    left: 10,
+    bottom: 10,
+    width: 28,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.tileButton,
+  },
 });

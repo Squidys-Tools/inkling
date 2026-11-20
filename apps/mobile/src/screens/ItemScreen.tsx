@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { CardTile } from "../cards/CardTile";
 import { cardImage } from "../cards/cardImage";
-import { cardTitle, hostname, kindOf, savedAgo } from "../cards";
+import { cardTitle, hostname, savedAgo } from "../cards";
 import { colors } from "../colors";
 import type { PhoneCard } from "../desktop";
 import { font } from "../fonts";
@@ -14,7 +14,7 @@ import { pairingAtom } from "../state/library";
 /** Pictures fill the stage at their own shape; text kinds keep their card art. */
 function Hero({ pairing, card }: { pairing: Pairing; card: PhoneCard }) {
   const image = cardImage(pairing, card);
-  const kind = kindOf(card);
+  const kind = card.displayKind;
   if (kind === "Article")
     return image ? (
       <Image source={image} style={styles.cover} contentFit="cover" transition={180} />
@@ -42,7 +42,7 @@ function Hero({ pairing, card }: { pairing: Pairing; card: PhoneCard }) {
 export function ItemScreen({ route }: ScreenProps<"Item">) {
   const pairing = useAtomValue(pairingAtom);
   const { card } = route.params;
-  const kind = kindOf(card);
+  const kind = card.displayKind;
   const site = card.source ?? (card.sourceUrl?.startsWith("http") ? hostname(card.sourceUrl) : "");
   return (
     <ScrollView

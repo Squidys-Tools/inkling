@@ -1,15 +1,8 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { FlashList } from "@shopify/flash-list";
+import { Image } from "expo-image";
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  Button,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { TypedArt, CardTile } from "../cards/CardTile";
 import { cardTitle, hostname } from "../cards";
 import { colors } from "../colors";
@@ -26,28 +19,49 @@ import {
   searchAtom,
   type Connection,
 } from "../state/library";
+import { payloadUri, type OutboxEntry } from "../outbox";
+import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
+import { Notice } from "../ui/Notice";
 
 function Banner({ connection, onPair }: { connection: Connection; onPair: () => void }) {
   if (connection === "repair")
     return (
-      <View style={styles.banner}>
-        <Text style={styles.bannerText}>
-          This desktop's token changed. Pair again to keep browsing.
-        </Text>
-        <Button title="Pair again" color={colors.accent} onPress={onPair} />
-      </View>
+      <Notice
+        icon="exclamationmark.triangle"
+        tone="danger"
+        message="This desktop's token changed. Pair again to keep browsing."
+        action={<Button tone="primary" label="Pair again" onPress={onPair} />}
+      />
     );
   if (connection === "offline")
     return (
-      <View style={styles.banner}>
-        <Text style={styles.bannerText}>
-          Can't reach your desktop. Check that Tailscale is on here and on the desktop. Your saves
-          wait on this phone until it's back.
-        </Text>
-      </View>
+      <Notice
+        icon="wifi.slash"
+        message="Can't reach your desktop. Check that Tailscale is on here and on the desktop. Your saves wait on this phone until it's back."
+      />
     );
   return null;
+}
+
+/** A share still on this phone: its own photo when it has one, else the typed card. */
+function PendingCard({ entry, refused }: { entry: OutboxEntry; refused: boolean }) {
+  const footnote = refused ? "DESKTOP COULDN'T SAVE THIS" : "WAITING FOR DESKTOP";
+  const uri = entry.kind === "image" ? payloadUri(entry) : null;
+  if (uri)
+    return (
+      <View style={styles.pendingImage}>
+        <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+        <Text style={styles.pendingBadge}>{footnote}</Text>
+      </View>
+    );
+  return (
+    <TypedArt
+      label="ON THIS PHONE"
+      title={entry.kind === "url" ? hostname(entry.text) : entry.text}
+      footnote={footnote}
+    />
+  );
 }
 
 // The header floats over the screen; an inset scroll view keeps content below it.
@@ -71,17 +85,20 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
   const [pulled, setPulled] = useState(false);
   if (pulled && !view.loading) setPulled(false);
   if (connection === "loading") return null;
-  if (!pairing)
-    return (
-      <Inset>
-        <EmptyState
-          title="Pair with your desktop"
-          detail="Turn on the phone service in inkling on your desktop, keep Tailscale on here, then open the pairing link it shows."
-          actionLabel="Pair"
-          onAction={() => navigation.navigate("Pair")}
-        />
-      </Inset>
-    );
+  const pairPrompt = (
+    <EmptyState
+      title="Pair with your desktop"
+      detail={
+        outbox.length
+          ? "These saves wait on this phone until it's paired with your desktop."
+          : "Turn on the phone service in inkling on your desktop, keep Tailscale on here, then open the pairing link it shows."
+      }
+      actionLabel="Pair"
+      onAction={() => navigation.navigate("Pair")}
+    />
+  );
+  // Saves shared before pairing still show, under the prompt that sends them.
+  if (!pairing && outbox.length === 0) return <Inset>{pairPrompt}</Inset>;
 
   const rows = [
     ...outbox.map((entry) => ({ key: `pending-${entry.id}`, entry })),
@@ -107,6 +124,7 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
       }}
       ListHeaderComponent={
         <View style={styles.header}>
+          {pairing ? null : pairPrompt}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           <Banner connection={connection} onPair={() => navigation.navigate("Pair")} />
         </View>
@@ -133,13 +151,7 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
       renderItem={({ item: row }) =>
         "entry" in row ? (
           <View style={styles.cell}>
-            <TypedArt
-              label="ON THIS PHONE"
-              title={row.entry.kind === "url" ? hostname(row.entry.text) : row.entry.text}
-              footnote={
-                refused.has(row.entry.id) ? "DESKTOP COULDN'T SAVE THIS" : "WAITING FOR DESKTOP"
-              }
-            />
+            <PendingCard entry={row.entry} refused={refused.has(row.entry.id)} />
           </View>
         ) : (
           <Pressable
@@ -147,7 +159,7 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
             accessibilityLabel={cardTitle(row.card)}
             onPress={() => navigation.navigate("Item", { card: row.card })}
           >
-            <CardTile pairing={pairing} card={row.card} />
+            {pairing ? <CardTile pairing={pairing} card={row.card} /> : null}
           </Pressable>
         )
       }
@@ -161,8 +173,26 @@ const styles = StyleSheet.create({
   grid: { paddingHorizontal: 10, paddingBottom: 120 },
   header: { paddingHorizontal: 4, paddingBottom: 10, gap: 8 },
   notice: { color: colors.muted, fontFamily: font.mono, fontSize: 11, flexShrink: 1 },
-  banner: { backgroundColor: colors.surface, borderRadius: 14, padding: 12, gap: 4 },
-  bannerText: { color: colors.text, fontSize: 14, lineHeight: 20 },
+  pendingImage: {
+    aspectRatio: 4 / 3,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: colors.raised,
+    justifyContent: "flex-end",
+    padding: 10,
+  },
+  pendingBadge: {
+    alignSelf: "flex-start",
+    overflow: "hidden",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: colors.tileButton,
+    color: colors.text,
+    fontFamily: font.mono,
+    fontSize: 9,
+    letterSpacing: 1.2,
+  },
   cell: { padding: 5 },
   loading: { paddingVertical: 32 },
 });

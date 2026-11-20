@@ -1,80 +1,96 @@
 import { useAtomValue } from "@effect/atom-react";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { useNavigation } from "@react-navigation/native";
+import {
+  createNativeStackNavigator,
+  type NativeStackScreenProps,
+} from "@react-navigation/native-stack";
+import { SymbolView } from "expo-symbols";
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { colors } from "../colors";
 import { desktopName } from "../desktop";
 import { embedQuery, modelInstalled } from "../embedQuery";
 import { font } from "../fonts";
-import type { ScreenProps } from "../routes";
 import { forget } from "../state/actions";
 import { useRegistry } from "../state/hooks";
 import { connectionAtom, pairingAtom } from "../state/library";
+import { AppText } from "../ui/AppText";
+import { EmptyState } from "../ui/EmptyState";
+import { ListRow, ListSection } from "../ui/List";
 import { StatusPill, tones } from "../ui/StatusPill";
+import { SymbolButton } from "../ui/SymbolButton";
 
-type Page = "home" | "desktop" | "search";
-const titles: Record<Page, string> = {
-  home: "Settings",
-  desktop: "Desktop",
-  search: "On-device search",
-};
+type SettingsRoutes = { Home: undefined; Desktop: undefined; Search: undefined };
+type PageProps<Name extends keyof SettingsRoutes> = NativeStackScreenProps<SettingsRoutes, Name>;
 
-function Group({ title, children }: { title?: string; children: React.ReactNode }) {
+const Settings = createNativeStackNavigator<SettingsRoutes>();
+
+const Page = ({ children }: { children: React.ReactNode }) => (
+  <ScrollView
+    style={styles.page}
+    contentInsetAdjustmentBehavior="automatic"
+    contentContainerStyle={styles.content}
+  >
+    {children}
+  </ScrollView>
+);
+
+function Home({ navigation }: PageProps<"Home">) {
+  const pairing = useAtomValue(pairingAtom);
+  const connection = useAtomValue(connectionAtom);
   return (
-    <View style={styles.section}>
-      {title ? <Text style={styles.sectionTitle}>{title}</Text> : null}
-      <View style={styles.group}>{children}</View>
-    </View>
-  );
-}
-
-function Row(props: {
-  icon?: SFSymbol;
-  label: string;
-  value?: string;
-  tone?: "danger" | "accent";
-  last?: boolean;
-  onPress?: () => void;
-  chevron?: boolean;
-}) {
-  const ink =
-    props.tone === "danger" ? colors.danger : props.tone === "accent" ? colors.accent : colors.text;
-  const body = (
-    <View style={styles.row}>
-      {props.icon ? (
-        <View style={styles.icon}>
-          <SymbolView name={props.icon} tintColor={props.tone ? ink : colors.inkSoft} size={20} />
+    <Page>
+      <View style={styles.identity}>
+        <View style={styles.avatar}>
+          <SymbolView name="desktopcomputer" tintColor={colors.title} size={22} />
         </View>
-      ) : null}
-      <View style={[styles.rowBody, !props.last && styles.rule]}>
-        <Text style={[styles.label, { color: ink }]}>{props.label}</Text>
-        {props.value ? (
-          <Text style={styles.value} numberOfLines={1}>
-            {props.value}
-          </Text>
-        ) : null}
-        {props.chevron ? (
-          <SymbolView name="chevron.right" tintColor={colors.faint} size={14} />
-        ) : null}
+        <View style={styles.identityText}>
+          <AppText variant="headline" style={styles.title}>
+            {pairing ? "Paired desktop" : "No desktop yet"}
+          </AppText>
+          <AppText variant="caption" style={styles.mono}>
+            {pairing ? desktopName(pairing) : "Pair to browse your library"}
+          </AppText>
+        </View>
+        <StatusPill connection={connection} />
       </View>
-    </View>
-  );
-  return props.onPress ? (
-    <Pressable accessibilityRole="button" onPress={props.onPress}>
-      {body}
-    </Pressable>
-  ) : (
-    body
+      <ListSection title="Library">
+        <ListRow
+          icon="desktopcomputer"
+          label="Desktop"
+          navigates
+          onPress={() => navigation.navigate("Desktop")}
+        />
+        {__DEV__ ? (
+          <ListRow
+            icon="sparkle.magnifyingglass"
+            label="On-device search"
+            navigates
+            onPress={() => navigation.navigate("Search")}
+          />
+        ) : null}
+      </ListSection>
+    </Page>
   );
 }
 
-/** Settings as paged groups: a summary of this phone and its desktop, then a page per group. */
-export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
+function Desktop({ navigation }: PageProps<"Desktop">) {
   const registry = useRegistry();
   const pairing = useAtomValue(pairingAtom);
   const connection = useAtomValue(connectionAtom);
-  const [page, setPage] = useState<Page>("home");
-  const [modelCheck, setModelCheck] = useState("");
+  // The Pair sheet lives on the root stack, above this modal.
+  const openPair = () => navigation.getParent()?.navigate("Pair");
+  if (!pairing)
+    return (
+      <Page>
+        <EmptyState
+          title="No desktop paired yet"
+          detail="Open the pairing link your desktop shows, or enter its address and token."
+          actionLabel="Pair"
+          onAction={openPair}
+        />
+      </Page>
+    );
   const confirmForget = () =>
     Alert.alert(
       "Forget this desktop?",
@@ -84,166 +100,101 @@ export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
         {
           text: "Forget",
           style: "destructive",
-          onPress: () => void forget(registry).then(() => navigation.goBack()),
+          onPress: () => void forget(registry).then(() => navigation.popToTop()),
         },
       ],
     );
-  const close = () => (page === "home" ? navigation.goBack() : setPage("home"));
   return (
-    <View style={styles.screen}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={page === "home" ? "Close" : "Back"}
-          style={styles.round}
-          onPress={close}
-        >
-          <SymbolView
-            name={page === "home" ? "xmark" : "chevron.left"}
-            tintColor={colors.text}
-            size={17}
-            weight="semibold"
-          />
-        </Pressable>
-        <Text style={styles.title}>{titles[page]}</Text>
-        {page === "desktop" ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Pair with a desktop"
-            style={styles.round}
-            onPress={() => navigation.navigate("Pair")}
-          >
-            <SymbolView name="plus" tintColor={colors.text} size={17} weight="semibold" />
-          </Pressable>
-        ) : (
-          <View style={styles.spacer} />
-        )}
-      </View>
-      <ScrollView contentContainerStyle={styles.content}>
-        {page === "home" ? (
-          <>
-            <View style={styles.identity}>
-              <View style={styles.avatar}>
-                <SymbolView name="desktopcomputer" tintColor={colors.title} size={22} />
-              </View>
-              <View style={styles.identityText}>
-                <Text style={styles.identityName}>
-                  {pairing ? "Paired desktop" : "No desktop yet"}
-                </Text>
-                <Text style={styles.identityDetail}>
-                  {pairing ? desktopName(pairing) : "Pair to browse your library"}
-                </Text>
-              </View>
-              <StatusPill connection={connection} />
-            </View>
-            <Group title="Library">
-              <Row
-                icon="desktopcomputer"
-                label="Desktop"
-                chevron
-                last={!__DEV__}
-                onPress={() => setPage("desktop")}
-              />
-              {__DEV__ ? (
-                <Row
-                  icon="sparkle.magnifyingglass"
-                  label="On-device search"
-                  chevron
-                  last
-                  onPress={() => setPage("search")}
-                />
-              ) : null}
-            </Group>
-          </>
-        ) : null}
-        {page === "desktop" && pairing ? (
-          <>
-            <Group title="DESKTOPS">
-              <View style={styles.device}>
-                <View style={[styles.dot, { backgroundColor: tones[connection].color }]} />
-                <SymbolView name="desktopcomputer" tintColor={colors.muted} size={16} />
-                <View style={styles.deviceText}>
-                  <Text style={styles.deviceName} numberOfLines={1}>
-                    {desktopName(pairing)}
-                  </Text>
-                  <Text style={styles.deviceState}>{tones[connection].label}</Text>
-                </View>
-              </View>
-            </Group>
-            <Text style={styles.note}>
-              Saves from this phone go to this desktop through Tailscale, and browsing and search
-              read its library.
-            </Text>
-            <Group>
-              <Row
-                icon="xmark.circle"
-                label="Forget this desktop"
-                tone="danger"
-                last
-                onPress={confirmForget}
-              />
-            </Group>
-          </>
-        ) : null}
-        {page === "desktop" && !pairing ? (
-          <View style={styles.empty}>
-            <View style={styles.emptyIcon}>
-              <SymbolView name="desktopcomputer" tintColor={colors.muted} size={22} />
-            </View>
-            <Text style={styles.emptyText}>
-              No desktop paired yet.{"\n"}Tap <Text style={styles.emptyPlus}>+</Text> to add one.
-            </Text>
-          </View>
-        ) : null}
-        {__DEV__ && page === "search" ? (
-          <Group>
-            <Row
-              icon="checkmark.circle"
-              label="Check the search model"
-              tone="accent"
-              value={modelCheck}
-              last
-              onPress={async () => {
-                if (!modelInstalled()) return setModelCheck("Not installed");
-                const started = Date.now();
-                const vector = await embedQuery("sunset over the ocean");
-                setModelCheck(`${vector.length} dims, ${Date.now() - started} ms`);
-              }}
-            />
-          </Group>
-        ) : null}
-      </ScrollView>
-    </View>
+    <Page>
+      <ListSection
+        title="This phone saves to"
+        footer="Saves from this phone go to this desktop through Tailscale, and browsing and search read its library."
+      >
+        <ListRow
+          leading={<View style={[styles.dot, { backgroundColor: tones[connection].color }]} />}
+          label={desktopName(pairing)}
+          description={tones[connection].label}
+        />
+      </ListSection>
+      <ListSection>
+        <ListRow icon="arrow.triangle.2.circlepath" label="Pair again" onPress={openPair} />
+        <ListRow
+          icon="xmark.circle"
+          label="Forget this desktop"
+          tone="danger"
+          onPress={confirmForget}
+        />
+      </ListSection>
+    </Page>
+  );
+}
+
+/** A developer check that the bundled search model loads and embeds on this phone. */
+function Search() {
+  const [result, setResult] = useState("");
+  const check = async () => {
+    if (!modelInstalled()) return setResult("Not installed");
+    const started = Date.now();
+    const vector = await embedQuery("sunset over the ocean");
+    setResult(`${vector.length} dims, ${Date.now() - started} ms`);
+  };
+  return (
+    <Page>
+      <ListSection footer={result || undefined}>
+        <ListRow icon="checkmark.circle" label="Check the search model" onPress={check} />
+      </ListSection>
+    </Page>
+  );
+}
+
+function CloseButton() {
+  // This header belongs to the settings stack; closing dismisses the modal on the stack above it.
+  const navigation = useNavigation();
+  return (
+    <SymbolButton name="xmark" label="Close" onPress={() => navigation.getParent()?.goBack()} />
+  );
+}
+
+const closeButton = () => <CloseButton />;
+
+/** Settings as its own stack in a modal, so each group is a real page with a native back. */
+export function SettingsScreen() {
+  return (
+    <Settings.Navigator
+      screenOptions={{
+        headerTintColor: colors.accent,
+        headerTitleStyle: { fontFamily: font.display, color: colors.title },
+        headerShadowVisible: false,
+        headerStyle: { backgroundColor: colors.surface },
+        contentStyle: { backgroundColor: colors.surface },
+      }}
+    >
+      <Settings.Screen
+        name="Home"
+        component={Home}
+        options={{
+          title: "Settings",
+          headerLeft: closeButton,
+        }}
+      />
+      <Settings.Screen name="Desktop" component={Desktop} />
+      {__DEV__ ? (
+        <Settings.Screen name="Search" component={Search} options={{ title: "On-device search" }} />
+      ) : null}
+    </Settings.Navigator>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  round: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.raised,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  spacer: { width: 40 },
-  title: { color: colors.title, fontSize: 17, fontWeight: "600" },
-  content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 22 },
+  page: { backgroundColor: colors.surface },
+  content: { padding: 16, paddingBottom: 40, gap: 24 },
   identity: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     backgroundColor: colors.raised,
-    borderRadius: 22,
+    borderRadius: 24,
+    borderCurve: "continuous",
     padding: 16,
   },
   avatar: {
@@ -255,52 +206,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   identityText: { flex: 1, gap: 2 },
-  identityName: { color: colors.title, fontSize: 17, fontWeight: "600" },
-  identityDetail: { color: colors.muted, fontFamily: font.mono, fontSize: 12 },
-  section: { gap: 8 },
-  device: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16 },
+  title: { color: colors.title },
+  mono: { color: colors.muted, fontFamily: font.mono },
   dot: { width: 9, height: 9, borderRadius: 5 },
-  deviceText: { flex: 1, gap: 2 },
-  deviceName: { color: colors.title, fontSize: 17, fontWeight: "600" },
-  deviceState: { color: colors.muted, fontSize: 13 },
-  note: { color: colors.muted, fontSize: 15, lineHeight: 21, marginHorizontal: 16, marginTop: -8 },
-  empty: {
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.raised,
-    borderRadius: 24,
-    paddingHorizontal: 24,
-    paddingVertical: 32,
-  },
-  emptyIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyText: { color: colors.muted, fontSize: 15, lineHeight: 21, textAlign: "center" },
-  emptyPlus: { color: colors.title, fontWeight: "700" },
-  sectionTitle: {
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-    marginLeft: 8,
-  },
-  group: { backgroundColor: colors.raised, borderRadius: 22, overflow: "hidden" },
-  row: { flexDirection: "row", alignItems: "center", paddingLeft: 16 },
-  icon: { width: 28, marginRight: 12, alignItems: "center" },
-  rowBody: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 15,
-    paddingRight: 16,
-  },
-  rule: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth },
-  label: { flex: 1, fontSize: 17 },
-  value: { color: colors.muted, fontSize: 16, flexShrink: 1, textAlign: "right" },
 });

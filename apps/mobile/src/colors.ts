@@ -1,9 +1,8 @@
-// Desktop inkling's palette (packages/ui/src/tokens.stylex.ts), as plain values for React Native.
-// The only mobile file allowed to hold color values.
+// Desktop's palette from packages/ui/src/tokens.stylex.ts, as plain values for React Native;
+// colors.test.ts holds each one to its desktop token. The only mobile file with color values.
 export const colors = {
   window: "#0c0c0b",
   background: "#0a0a09",
-  sunken: "#100f0e",
   surface: "#161412",
   raised: "#1b1917",
   border: "#262221",
@@ -14,12 +13,10 @@ export const colors = {
   muted: "#8d867c",
   faint: "#5e5850",
   placeholder: "#5e5850",
-  placeholderSurface: "#1b1917",
   accent: "#c27f5b",
   mascot: "#e5ddd2",
   mascotNotification: "#3b93f0",
   accentDeep: "#b0714f",
-  accentSoft: "#241c16",
   success: "#7fa08d",
   warning: "#c9b27a",
   danger: "#d07055",
@@ -27,7 +24,6 @@ export const colors = {
   articlePaper: "#ece6dc",
   articleInk: "#1a1714",
   articleMuted: "#7a7268",
-  articleRule: "rgba(26, 23, 20, 0.12)",
   quoteKicker: "#b3ad8d",
   quoteMark: "#c4ba8c",
   quoteText: "#d0c68f",
@@ -36,12 +32,8 @@ export const colors = {
   postInk: "#e7e9ea",
   postMuted: "#71767b",
   postAvatar: "#2f3336",
-  postRule: "rgba(231, 233, 234, 0.14)",
-  postLink: "#1d9bf0",
+  tileButton: "rgba(12, 12, 11, 0.72)",
   stage: "#121110",
-  stageDot: "#2a2623",
-  badge: "rgba(14, 14, 12, 0.72)",
-  badgeInk: "#d8d2c6",
 } as const;
 
 // Desktop's Space swatches (spaceColor in tokens.stylex.ts).
