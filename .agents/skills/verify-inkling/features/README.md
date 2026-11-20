@@ -27,7 +27,7 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 
 ## Features
 
-Every feature was executed end to end with agent-desktop on 2026-11-17 unless its file says otherwise.
+Every feature was executed end to end with agent-desktop on 2026-11-20 (the Linux instabox; the Windows setup window on Windows 11) unless its file says otherwise.
 
 - [Capture a note](./capture-note.md): Add > Note > Save to library, Ctrl+Enter.
 - [Edit a note](./edit-note.md): note card > write page, or item view > Edit note > Save.
@@ -45,8 +45,8 @@ Every feature was executed end to end with agent-desktop on 2026-11-17 unless it
 - [Reader](./item-reader.md): card or item view > Read > Typeface > Esc.
 - [Settings](./settings.md): Settings or Ctrl+, > sheet sections, welcome replay.
 - [Keyboard shortcuts](./shortcuts.md): `?` > bindings dialog; the commands it lists.
-- [Welcome tour](./welcome.md): first launch on an unfinished library, `launch --empty`. Driven 2026-11-17.
-- [Windows setup window](./installer.md): `launch --installer`, Install, progress pacing, ready, failed. Driven 2026-11-17.
+- [Welcome tour](./welcome.md): first launch on an unfinished library, `launch --empty`.
+- [Windows setup window](./installer.md): `launch --installer`, Install, progress pacing, ready, failed.
 
 ## Not covered, with the reason
 

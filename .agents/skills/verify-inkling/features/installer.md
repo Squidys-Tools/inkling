@@ -1,6 +1,6 @@
 # Windows setup window
 
-`inkling-setup-<version>-win-<arch>.exe` (`apps/setup`, packed by `tools/installer/pack.ts`) shows a branded window over the silent NSIS installer: Install, a progress bar, "You're all set" with a 3 s countdown that opens inkling, or "Setup didn't finish" with Try again and Copy details. Status: **driven** on 2026-11-19 on Windows 11 — welcome, paced progress (phase-weighted samples to 99%), ready countdown (`open` in `progress.log`), installed `inkling.exe` + `inkling setup verify` uninstall entry, failed-install rollback (both guid keys absent), Try again back to failed, page Close, cleanup. Windows only.
+`inkling-setup-<version>-win-<arch>.exe` (`apps/setup`, packed by `tools/installer/pack.ts`) shows a branded window over the silent NSIS installer: Install, a progress bar, "You're all set" with a 3 s countdown that opens inkling, or "Setup didn't finish" with Try again and Copy details. Status: **driven** on 2026-11-20 on Windows 11 — welcome, paced progress (phase-weighted samples to 99%), ready countdown (`open` in `progress.log`), installed `inkling.exe` + `inkling setup verify` uninstall entry, failed-install rollback (both guid keys absent), Try again back to failed, page Close, cleanup. Windows only.
 
 ## Sub-features
 

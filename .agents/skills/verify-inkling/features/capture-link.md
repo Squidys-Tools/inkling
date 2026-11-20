@@ -5,7 +5,7 @@ Capture a link saves a URL as a card at once, then fills in title and descriptio
 ## Sub-features
 
 - `link-instant` the card appears immediately with the domain as its title.
-- `link-enrich` a background job replaces the title and description from the page.
+- `link-enrich` a background job fills title and description from the page — the title only while it still equals the capture-time domain placeholder (a title you set or renamed is kept), the description only while empty.
 
 ## How to get to it (user POV)
 

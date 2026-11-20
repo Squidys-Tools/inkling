@@ -1,6 +1,6 @@
 # Grid column zoom
 
-The library grid zooms between the `Grid columns` choices in Settings > Appearance: **Ctrl+=** / **Ctrl++** shows fewer columns, **Ctrl+-** shows more, **Ctrl+0** resets to the default. **Ctrl+wheel** (pinch on a trackpad) steps the same way after enough travel. The choice is the same `gridColumns` appearance value the segmented control edits, so it persists across restarts. Status: **driven** on 2026-11-19 on the Linux box (`Ctrl+-` 4→5, `Ctrl+=` 5→4, `Ctrl+0` back to default — each read back on the Appearance panel). Not driven: the wheel path (needs `--headed` wheel input), the `+` alias (same handler as `=`), and the ignore-rules (editable fields, open dialogs, inert pages).
+The library grid zooms between the `Grid columns` choices in Settings > Appearance: **Ctrl+=** / **Ctrl++** shows fewer columns, **Ctrl+-** shows more, **Ctrl+0** resets to the default. **Ctrl+wheel** (pinch on a trackpad) steps the same way after enough travel. The choice is the same `gridColumns` appearance value the segmented control edits, so it persists across restarts. Status: **driven** on 2026-11-20 on the Linux box (`Ctrl+-` 4→5, `Ctrl+=` 5→4, `Ctrl+0` back to default — each read back on the Appearance panel). Not driven: the wheel path (needs `--headed` wheel input), the `+` alias (same handler as `=`), and the ignore-rules (editable fields, open dialogs, inert pages).
 
 ## Sub-features
 
@@ -19,7 +19,7 @@ The library grid zooms between the `Grid columns` choices in Settings > Appearan
 Preconditions: seeded library, on `#/` (the listener lives in `Grid.tsx`, so a grid view must be mounted — an item view or a form does not zoom).
 
 - **Zoom.** `-`/`=`/`+`/`0`: on Windows `-`/`=`/`+` are punctuation keys `ad press` cannot name — use the SendKeys fallback `$I press ctrl+minus`, `$I press ctrl+equal`. `ctrl+0` works through either there. On Linux `ad press` takes xdotool names directly (`$I ad press ctrl+minus`); `press` is the Windows fallback and refuses to run there.
-- **Read the result.** Open Settings (`$I ad expand "$($I ref menubutton Settings)"`), `$I ad click "$($I ref button Appearance)"`, then `$I tree | grep radiobutton`: exactly one of `3`/`4`/`5`/`6` carries `states=selected` — that is the live `gridColumns`. Escape closes the sheet.
+- **Read the result.** Open Settings (`$I ad expand "$($I ref menubutton Settings)"`), `$I ad click "$($I ref button Appearance)"`, then `$I tree | grep radiobutton`: exactly one of `3`/`4`/`5`/`6` carries the checked state (`states=checked` on the Linux box's AT-SPI; UIA may report `selected`) — that is the live `gridColumns`. Escape closes the sheet.
 - **Proof.** Baseline `4` → `press ctrl+minus` → `5` selected; `press ctrl+equal` → `4`; `press ctrl+minus` then `press ctrl+0` → `4` (reset is only distinct when the value is off default). `$I shot` of the grid between steps also shows the cards resizing.
 
 ## Gotchas
