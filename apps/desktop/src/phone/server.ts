@@ -1,7 +1,7 @@
 import type { LibraryCard } from "@inkling/contracts";
 import { itemKind } from "@inkling/ingestion/item-kind";
 import { readFile, rename, writeFile } from "node:fs/promises";
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -12,10 +12,13 @@ import { serveAssetFile } from "../asset-response.ts";
 import { bearerToken, tokensEqual } from "../capture/gate.ts";
 import { openPairingToken } from "../capture/pairing-token.ts";
 import type { LibraryClient } from "../library-client.ts";
-import { tailnetAddresses } from "./tailnet.ts";
+import { disableTailscaleServe, ensureTailscaleServe, TailscaleError } from "./tailscale.ts";
 
 const phoneServicePort = 47_620;
-const READ_TIMEOUT = 10_000;
+const HEADERS_TIMEOUT = 10_000;
+// An idle socket closes after this; a large upload over a relayed tailnet may take minutes in total.
+const IDLE_TIMEOUT = 30_000;
+const UPLOAD_TIMEOUT = 10 * 60_000;
 const MAX_PAGE = 200;
 const MAX_CAPTURE_BYTES = 32 * 1024 * 1024;
 const captureSource = "phone";
@@ -67,6 +70,8 @@ const phoneCard = (card: LibraryCard) => {
     source: card.sourceLabel,
     createdAt: card.createdAt,
     hasThumbnail: card.thumbnailPath !== null,
+    // Desktop rewrites thumbnail.webp in place, so the phone keys its image cache on this.
+    thumbnailVersion: card.thumbnailPath === null ? null : card.updatedAt,
     imageUrl: webImage(card.metadata),
     aspectRatio: aspectRatio(card.metadata),
     post,
@@ -83,9 +88,21 @@ function send(response: ServerResponse, status: number, value: unknown) {
   response.end(body);
 }
 
-type PhoneCapture = { id: string; kind: string; text: string; file?: string };
+/**
+ * `POST /v1/captures/<id>?kind=url|note|image[&name=…]`. A URL or note is its UTF-8 text as the body;
+ * an image is its raw bytes.
+ */
+type PhoneCapture = { id: string; kind: "url" | "note" | "image"; name: string; body: Buffer };
 
-async function readJson(request: IncomingMessage) {
+function captureTarget(url: URL) {
+  const id = /^\/v1\/captures\/([\w-]{1,64})$/u.exec(url.pathname)?.[1];
+  const kind = url.searchParams.get("kind");
+  if (!id || (kind !== "url" && kind !== "note" && kind !== "image")) return undefined;
+  return { id, kind, name: url.searchParams.get("name")?.trim() ?? "" } as const;
+}
+
+/** The body, or `undefined` once it passes the cap, so the caller can answer 413. */
+async function readBody(request: IncomingMessage) {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request as AsyncIterable<Buffer>) {
@@ -93,23 +110,8 @@ async function readJson(request: IncomingMessage) {
     if (size > MAX_CAPTURE_BYTES) return undefined;
     chunks.push(chunk);
   }
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
-  } catch {
-    return undefined;
-  }
+  return Buffer.concat(chunks);
 }
-
-const isCapture = (value: unknown): value is PhoneCapture => {
-  const capture = value as PhoneCapture | null;
-  return (
-    typeof capture?.id === "string" &&
-    /^[\w-]{1,64}$/u.test(capture.id) &&
-    typeof capture.text === "string" &&
-    (capture.kind === "url" || capture.kind === "note" || capture.kind === "image") &&
-    (capture.kind !== "image" || typeof capture.file === "string")
-  );
-};
 
 /** Phone capture ids already saved, so a retried upload returns the same item instead of a copy. */
 async function openCaptureLedger(path: string) {
@@ -156,12 +158,13 @@ function imageType(bytes: Buffer) {
 }
 
 function saveCapture(client: LibraryClient, capture: PhoneCapture) {
-  if (capture.kind === "url") return client.captureUrl({ sourceUrl: capture.text, captureSource });
+  const text = capture.body.toString("utf8").trim();
+  if (capture.kind === "url") return client.captureUrl({ sourceUrl: text, captureSource });
   if (capture.kind === "note")
-    return client.createNote({ body: capture.text, metadata: { captureSource } });
-  const bytes = Buffer.from(capture.file ?? "", "base64");
+    return client.createNote({ body: text, metadata: { captureSource } });
+  const bytes = capture.body;
   const type = imageType(bytes);
-  const name = capture.text.trim() || "Image from phone";
+  const name = capture.name || "Image from phone";
   return client.saveFile({
     fileName: /\.\w{3,4}$/u.test(name) ? name : `${name}.${type.extension}`,
     mimeType: type.mimeType,
@@ -176,18 +179,16 @@ const pageLimit = (value: string | null) => {
 };
 
 /**
- * The phone app's service: it reads the library and saves the phone's captures. It listens only on the given hosts (the
- * tailnet addresses by default) and answers only requests holding its token.
+ * The phone app's service: it reads the library and saves the phone's captures. It listens on loopback only, where
+ * Tailscale Serve proxies the tailnet to it, and answers only requests holding its token.
  */
 export async function startPhoneService({
   libraryDirectory,
   library,
-  hosts,
   port = phoneServicePort,
 }: {
   libraryDirectory: string;
   library: () => Promise<LibraryClient>;
-  hosts: readonly string[];
   port?: number;
 }) {
   const token = await openPairingToken(join(libraryDirectory, "phone_token"));
@@ -196,7 +197,7 @@ export async function startPhoneService({
 
   async function respond(request: IncomingMessage, response: ServerResponse) {
     const url = new URL(request.url ?? "/", "http://phone.invalid");
-    const writes = url.pathname === "/v1/captures";
+    const writes = url.pathname.startsWith("/v1/captures/");
     if (request.method !== (writes ? "POST" : "GET"))
       return send(response, 405, { error: "method-not-allowed" });
     const presented = bearerToken(request.headers);
@@ -205,8 +206,14 @@ export async function startPhoneService({
     const client = await library();
 
     if (writes) {
-      const capture = await readJson(request);
-      if (!isCapture(capture)) return send(response, 400, { error: "invalid-capture" });
+      const target = captureTarget(url);
+      if (!target) return send(response, 400, { error: "invalid-capture" });
+      if (Number(request.headers["content-length"] ?? 0) > MAX_CAPTURE_BYTES)
+        return send(response, 413, { error: "too-large" });
+      const body = await readBody(request);
+      if (!body) return send(response, 413, { error: "too-large" });
+      if (body.length === 0) return send(response, 400, { error: "invalid-capture" });
+      const capture = { ...target, body };
       const itemId = await ledger.run(async () => {
         const known = ledger.lookup(capture.id);
         if (known) return known;
@@ -269,69 +276,65 @@ export async function startPhoneService({
     send(response, 404, { error: "not-found" });
   }
 
-  const servers: Server[] = [];
-  const addresses: string[] = [];
-  try {
-    for (const host of hosts) {
-      const server = createServer((request, response) => {
-        request.setTimeout(READ_TIMEOUT, () => request.destroy());
-        respond(request, response).catch((error: unknown) => {
-          console.error("inkling: phone service request failed", error);
-          if (!response.headersSent) send(response, 500, { error: "internal" });
-          else response.destroy();
-        });
+  const server = createServer((request, response) => {
+    request.setTimeout(IDLE_TIMEOUT, () => request.destroy());
+    respond(request, response).catch((error: unknown) => {
+      console.error("inkling: phone service request failed", error);
+      if (!response.headersSent) send(response, 500, { error: "internal" });
+      else response.destroy();
+    });
+  });
+  server.headersTimeout = HEADERS_TIMEOUT;
+  server.requestTimeout = UPLOAD_TIMEOUT;
+  const listen = (at: number) =>
+    new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(at, "127.0.0.1", () => {
+        server.off("error", reject);
+        resolve();
       });
-      server.headersTimeout = READ_TIMEOUT;
-      server.requestTimeout = READ_TIMEOUT;
-      servers.push(server);
-      await new Promise<void>((resolve, reject) => {
-        server.once("error", reject);
-        server.listen(port, host, () => resolve());
-      });
-      const address = server.address();
-      if (address && typeof address !== "string")
-        addresses.push(
-          address.family === "IPv6"
-            ? `[${address.address}]:${address.port}`
-            : `${address.address}:${address.port}`,
-        );
-    }
-  } catch (error) {
-    await Promise.all(servers.map((server) => new Promise((resolve) => server.close(resolve))));
-    throw error;
-  }
+    });
+  // Another inkling, or a dev build beside the installed app, may hold the usual port.
+  await listen(port).catch((error: NodeJS.ErrnoException) =>
+    error.code === "EADDRINUSE" ? listen(0) : Promise.reject(error),
+  );
+  const address = server.address();
+  const boundPort = address && typeof address !== "string" ? address.port : port;
 
   return {
-    addresses,
+    port: boundPort,
     token: token.current,
     close: () =>
-      Promise.all(
-        servers.map(
-          (server) =>
-            new Promise<void>((resolve) =>
-              server.listening ? server.close(() => resolve()) : resolve(),
-            ),
-        ),
-      ).then(() => {}),
+      new Promise<void>((resolve) =>
+        server.listening ? server.close(() => resolve()) : resolve(),
+      ),
   };
 }
 
-/** Starts the service when INKLING_PHONE_SERVICE=1, on the tailnet unless INKLING_PHONE_SERVICE_HOST names a host. */
+/**
+ * Starts the service when INKLING_PHONE_SERVICE=1 and publishes it on the tailnet with Tailscale Serve.
+ * The service stays up on loopback when Tailscale can't publish it, so a later start can.
+ */
 export async function startPhoneServiceIfEnabled(
   options: { libraryDirectory: string; library: () => Promise<LibraryClient> },
   env = process.env,
 ) {
   if (env.INKLING_PHONE_SERVICE !== "1") return undefined;
-  const hosts = env.INKLING_PHONE_SERVICE_HOST
-    ? [env.INKLING_PHONE_SERVICE_HOST]
-    : tailnetAddresses();
-  if (hosts.length === 0) {
-    console.error("inkling: phone service needs Tailscale running; no tailnet address found");
+  const service = await startPhoneService(options);
+  const baseUrl = await ensureTailscaleServe(service.port).catch((error: unknown) => {
+    const reason = error instanceof TailscaleError ? error.reason : "failed";
+    console.error(`inkling: the phone service is not on the tailnet (${reason})`);
     return undefined;
-  }
-  const service = await startPhoneService({ ...options, hosts });
-  console.log(
-    `inkling: phone service on ${service.addresses.join(", ")}; token in ${join(options.libraryDirectory, "phone_token")}`,
-  );
-  return service;
+  });
+  if (baseUrl)
+    console.log(
+      `inkling: phone service at ${baseUrl}; token in ${join(options.libraryDirectory, "phone_token")}`,
+    );
+  return {
+    ...service,
+    close: async () => {
+      if (baseUrl) await disableTailscaleServe();
+      await service.close();
+    },
+  };
 }
