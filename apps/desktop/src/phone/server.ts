@@ -113,6 +113,8 @@ async function readBody(request: IncomingMessage) {
   return Buffer.concat(chunks);
 }
 
+const LEDGER_LIMIT = 1000;
+
 /** Phone capture ids already saved, so a retried upload returns the same item instead of a copy. */
 async function openCaptureLedger(path: string) {
   let saved: Record<string, string> = {};
@@ -132,7 +134,8 @@ async function openCaptureLedger(path: string) {
       return result;
     },
     async record(id: string, itemId: string) {
-      saved = { ...saved, [id]: itemId };
+      // Only a capture still in a phone's outbox can retry, so the newest ids are enough.
+      saved = Object.fromEntries([...Object.entries(saved), [id, itemId]].slice(-LEDGER_LIMIT));
       await writeFile(`${path}.tmp`, JSON.stringify(saved));
       await rename(`${path}.tmp`, path);
     },
