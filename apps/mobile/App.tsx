@@ -25,7 +25,7 @@ import { colors } from "./src/colors";
 import { font, fontFiles } from "./src/fonts";
 import { parsePairingLink } from "./src/pairing-link";
 import type { DrawerRoutes, Routes } from "./src/routes";
-import { ItemScreen } from "./src/screens/ItemScreen";
+import { ItemScreen, shareButton } from "./src/screens/ItemScreen";
 import { LibraryScreen } from "./src/screens/LibraryScreen";
 import { PairScreen } from "./src/screens/PairScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
@@ -130,7 +130,11 @@ function Screens() {
             : undefined,
         }}
       />
-      <Stack.Screen name="Item" component={ItemScreen} options={{ title: "" }} />
+      <Stack.Screen
+        name="Item"
+        component={ItemScreen}
+        options={{ title: "", headerRight: shareButton }}
+      />
       <Stack.Screen
         name="Settings"
         component={SettingsScreen}

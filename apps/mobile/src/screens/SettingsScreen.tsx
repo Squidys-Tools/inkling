@@ -4,7 +4,6 @@ import {
   createNativeStackNavigator,
   type NativeStackScreenProps,
 } from "@react-navigation/native-stack";
-import { SymbolView } from "expo-symbols";
 import { useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { colors } from "../colors";
@@ -14,10 +13,9 @@ import { font } from "../fonts";
 import { forget } from "../state/actions";
 import { useRegistry } from "../state/hooks";
 import { connectionAtom, pairingAtom } from "../state/library";
-import { AppText } from "../ui/AppText";
 import { EmptyState } from "../ui/EmptyState";
 import { ListRow, ListSection } from "../ui/List";
-import { StatusPill, tones } from "../ui/StatusPill";
+import { tones } from "../ui/connectionTones";
 import { SymbolButton } from "../ui/SymbolButton";
 
 type SettingsRoutes = { Home: undefined; Desktop: undefined; Search: undefined };
@@ -40,36 +38,25 @@ function Home({ navigation }: PageProps<"Home">) {
   const connection = useAtomValue(connectionAtom);
   return (
     <Page>
-      <View style={styles.identity}>
-        <View style={styles.avatar}>
-          <SymbolView name="desktopcomputer" tintColor={colors.title} size={22} />
-        </View>
-        <View style={styles.identityText}>
-          <AppText variant="headline" style={styles.title}>
-            {pairing ? "Paired desktop" : "No desktop yet"}
-          </AppText>
-          <AppText variant="caption" style={styles.mono}>
-            {pairing ? desktopName(pairing) : "Pair to browse your library"}
-          </AppText>
-        </View>
-        <StatusPill connection={connection} />
-      </View>
-      <ListSection title="Library">
+      <ListSection title="Desktop">
         <ListRow
-          icon="desktopcomputer"
-          label="Desktop"
+          leading={<View style={[styles.dot, { backgroundColor: tones[connection].color }]} />}
+          label={pairing ? desktopName(pairing) : "Pair a desktop"}
+          description={tones[connection].label}
           navigates
           onPress={() => navigation.navigate("Desktop")}
         />
-        {__DEV__ ? (
+      </ListSection>
+      {__DEV__ ? (
+        <ListSection title="Developer">
           <ListRow
             icon="sparkle.magnifyingglass"
             label="On-device search"
             navigates
             onPress={() => navigation.navigate("Search")}
           />
-        ) : null}
-      </ListSection>
+        </ListSection>
+      ) : null}
     </Page>
   );
 }
@@ -188,25 +175,5 @@ export function SettingsScreen() {
 const styles = StyleSheet.create({
   page: { backgroundColor: colors.surface },
   content: { padding: 16, paddingBottom: 40, gap: 24 },
-  identity: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.raised,
-    borderRadius: 24,
-    borderCurve: "continuous",
-    padding: 16,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  identityText: { flex: 1, gap: 2 },
-  title: { color: colors.title },
-  mono: { color: colors.muted, fontFamily: font.mono },
   dot: { width: 9, height: 9, borderRadius: 5 },
 });
