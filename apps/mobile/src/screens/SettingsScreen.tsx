@@ -1,18 +1,21 @@
+import { useAtomValue } from "@effect/atom-react";
 import { SymbolView, type SFSymbol } from "expo-symbols";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors } from "../colors";
+import { desktopName } from "../desktop";
 import { embedQuery, modelInstalled } from "../embedQuery";
 import { font } from "../fonts";
 import type { ScreenProps } from "../routes";
-import { useLibrary } from "../state";
+import { forget } from "../state/actions";
+import { useRegistry } from "../state/hooks";
+import { connectionAtom, pairingAtom } from "../state/library";
 import { StatusPill, tones } from "../ui/StatusPill";
 
-type Page = "home" | "desktop" | "tailscale" | "search";
+type Page = "home" | "desktop" | "search";
 const titles: Record<Page, string> = {
   home: "Settings",
   desktop: "Desktop",
-  tailscale: "Tailscale",
   search: "On-device search",
 };
 
@@ -67,9 +70,24 @@ function Row(props: {
 
 /** Settings as paged groups: a summary of this phone and its desktop, then a page per group. */
 export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
-  const library = useLibrary();
+  const registry = useRegistry();
+  const pairing = useAtomValue(pairingAtom);
+  const connection = useAtomValue(connectionAtom);
   const [page, setPage] = useState<Page>("home");
   const [modelCheck, setModelCheck] = useState("");
+  const confirmForget = () =>
+    Alert.alert(
+      "Forget this desktop?",
+      "Saves waiting on this phone stay here until you pair again.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Forget",
+          style: "destructive",
+          onPress: () => void forget(registry).then(() => navigation.goBack()),
+        },
+      ],
+    );
   const close = () => (page === "home" ? navigation.goBack() : setPage("home"));
   return (
     <View style={styles.screen}>
@@ -110,54 +128,50 @@ export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
               </View>
               <View style={styles.identityText}>
                 <Text style={styles.identityName}>
-                  {library.pairing ? "Paired desktop" : "No desktop yet"}
+                  {pairing ? "Paired desktop" : "No desktop yet"}
                 </Text>
                 <Text style={styles.identityDetail}>
-                  {library.pairing?.address ?? "Pair to browse your library"}
+                  {pairing ? desktopName(pairing) : "Pair to browse your library"}
                 </Text>
               </View>
-              <StatusPill connection={library.connection} />
+              <StatusPill connection={connection} />
             </View>
             <Group title="Library">
               <Row
                 icon="desktopcomputer"
                 label="Desktop"
                 chevron
+                last={!__DEV__}
                 onPress={() => setPage("desktop")}
               />
-              <Row
-                icon="point.3.connected.trianglepath.dotted"
-                label="Tailscale"
-                value={library.tailscale.state}
-                chevron
-                onPress={() => setPage("tailscale")}
-              />
-              <Row
-                icon="sparkle.magnifyingglass"
-                label="On-device search"
-                chevron
-                last
-                onPress={() => setPage("search")}
-              />
+              {__DEV__ ? (
+                <Row
+                  icon="sparkle.magnifyingglass"
+                  label="On-device search"
+                  chevron
+                  last
+                  onPress={() => setPage("search")}
+                />
+              ) : null}
             </Group>
           </>
         ) : null}
-        {page === "desktop" && library.pairing ? (
+        {page === "desktop" && pairing ? (
           <>
             <Group title="DESKTOPS">
               <View style={styles.device}>
-                <View style={[styles.dot, { backgroundColor: tones[library.connection].color }]} />
+                <View style={[styles.dot, { backgroundColor: tones[connection].color }]} />
                 <SymbolView name="desktopcomputer" tintColor={colors.muted} size={16} />
                 <View style={styles.deviceText}>
                   <Text style={styles.deviceName} numberOfLines={1}>
-                    {library.pairing.address}
+                    {desktopName(pairing)}
                   </Text>
-                  <Text style={styles.deviceState}>{tones[library.connection].label}</Text>
+                  <Text style={styles.deviceState}>{tones[connection].label}</Text>
                 </View>
               </View>
             </Group>
             <Text style={styles.note}>
-              Saves from this phone go to this desktop over your tailnet, and browsing and search
+              Saves from this phone go to this desktop through Tailscale, and browsing and search
               read its library.
             </Text>
             <Group>
@@ -166,12 +180,12 @@ export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
                 label="Forget this desktop"
                 tone="danger"
                 last
-                onPress={() => library.forget().then(() => navigation.goBack())}
+                onPress={confirmForget}
               />
             </Group>
           </>
         ) : null}
-        {page === "desktop" && !library.pairing ? (
+        {page === "desktop" && !pairing ? (
           <View style={styles.empty}>
             <View style={styles.emptyIcon}>
               <SymbolView name="desktopcomputer" tintColor={colors.muted} size={22} />
@@ -181,13 +195,7 @@ export function SettingsScreen({ navigation }: ScreenProps<"Settings">) {
             </Text>
           </View>
         ) : null}
-        {page === "tailscale" ? (
-          <Group>
-            <Row label="Status" value={library.tailscale.state} />
-            <Row label="This phone" value={library.tailscale.ips?.[0] ?? "—"} last />
-          </Group>
-        ) : null}
-        {page === "search" ? (
+        {__DEV__ && page === "search" ? (
           <Group>
             <Row
               icon="checkmark.circle"

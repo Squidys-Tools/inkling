@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { Button, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { colors } from "../colors";
-import type { Pairing } from "../pairing";
+import { isPairing, type Pairing } from "../pairing-link";
 import type { ScreenProps } from "../routes";
-import { useLibrary } from "../state";
+import { pair } from "../state/actions";
+import { useRegistry } from "../state/hooks";
 
 export function PairScreen({ navigation, route }: ScreenProps<"Pair">) {
   const link = route.params?.link;
   // A link opened while the sheet is up remounts the form with its fields.
   return (
     <PairForm
-      key={link ? `${link.address} ${link.token}` : "manual"}
+      key={link ? `${link.url} ${link.token}` : "manual"}
       link={link}
       onPaired={() => navigation.goBack()}
     />
@@ -18,20 +19,24 @@ export function PairScreen({ navigation, route }: ScreenProps<"Pair">) {
 }
 
 function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) {
-  const library = useLibrary();
-  const [address, setAddress] = useState(link?.address ?? "");
+  const registry = useRegistry();
+  const [url, setUrl] = useState(link?.url ?? "");
   const [token, setToken] = useState(link?.token ?? "");
-  const online = library.tailscale.state === "Running";
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const pair = async () => {
+  const next = { url: url.trim(), token: token.trim() };
+  const submit = async () => {
+    if (!isPairing(next))
+      return setError("The address starts with https:// and ends with the port, such as :8443.");
     setBusy(true);
     setError("");
     try {
-      await library.pair({ address: address.trim(), token: token.trim() });
+      await pair(registry, next);
       onPaired();
     } catch {
-      setError("Couldn't reach a desktop with that address and token. Check both and try again.");
+      setError(
+        "Couldn't reach a desktop with that address and token. Check both, and that Tailscale is on.",
+      );
     } finally {
       setBusy(false);
     }
@@ -44,15 +49,16 @@ function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) 
     >
       <Text style={styles.detail}>
         {link
-          ? `Pair with the desktop at ${link.address}? Saves from this phone will go to it.`
-          : "Open the pairing link your desktop shows, or enter its tailnet address and the token from its phone_token file."}
+          ? `Pair with the desktop at ${link.url}? Saves from this phone will go to it.`
+          : "Open the pairing link your desktop shows, or enter its Tailscale address and the token from its phone_token file."}
       </Text>
       <View style={styles.group}>
         <TextInput
           style={styles.input}
-          value={address}
-          onChangeText={setAddress}
-          placeholder="100.x.y.z:47620"
+          value={url}
+          onChangeText={setUrl}
+          placeholder="https://your-mac.tailnet.ts.net:8443"
+          keyboardType="url"
           placeholderTextColor={colors.placeholder}
           autoCapitalize="none"
           autoCorrect={false}
@@ -73,9 +79,9 @@ function PairForm({ link, onPaired }: { link?: Pairing; onPaired: () => void }) 
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button
-        title={online ? (busy ? "Pairing…" : "Pair") : "Waiting for Tailscale…"}
-        disabled={!online || busy || !address || !token}
-        onPress={pair}
+        title={busy ? "Pairing…" : "Pair"}
+        disabled={busy || !url || !token}
+        onPress={submit}
       />
     </ScrollView>
   );

@@ -1,6 +1,16 @@
-import type { Pairing } from "./pairing";
+/** The desktop's Tailscale Serve address, such as https://studio.tail1234.ts.net:8443, and its token. */
+export type Pairing = { url: string; token: string };
 
-/** Reads `inkling-mobile://pair?address=…&token=…`, the link a desktop hands the phone to pair. */
+export const isPairing = (value: unknown): value is Pairing => {
+  const pairing = value as Pairing | null;
+  return (
+    typeof pairing?.url === "string" &&
+    /^https:\/\/[^/?#\s]+\/?$/u.test(pairing.url) &&
+    typeof pairing.token === "string" &&
+    pairing.token.length > 0
+  );
+};
+
 const decode = (value: string) => {
   try {
     return decodeURIComponent(value).trim();
@@ -9,6 +19,7 @@ const decode = (value: string) => {
   }
 };
 
+/** Reads `inkling-mobile://pair?url=…&token=…`, the link a desktop hands the phone to pair. */
 export function parsePairingLink(link: string): Pairing | null {
   const query = /^inkling-mobile:\/\/pair\/?\?(.+)$/u.exec(link)?.[1];
   if (!query) return null;
@@ -18,7 +29,6 @@ export function parsePairingLink(link: string): Pairing | null {
       return [key, decode(value)] as const;
     }),
   );
-  const address = fields.get("address");
-  const token = fields.get("token");
-  return address && token ? { address, token } : null;
+  const pairing = { url: fields.get("url") ?? "", token: fields.get("token") ?? "" };
+  return isPairing(pairing) ? pairing : null;
 }

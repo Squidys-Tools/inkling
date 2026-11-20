@@ -1,14 +1,34 @@
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { FlashList } from "@shopify/flash-list";
-import { Button, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Button,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { TypedArt, CardTile } from "../cards/CardTile";
 import { cardTitle, hostname } from "../cards";
 import { colors } from "../colors";
 import { font } from "../fonts";
 import type { ScreenProps } from "../routes";
-import { useLibrary } from "../state";
+import { outboxAtom, refreshLibrary, refusedAtom } from "../state/actions";
+import { useRegistry } from "../state/hooks";
+import {
+  cardsAtom,
+  cardsView,
+  connectionAtom,
+  noticeAtom,
+  pairingAtom,
+  searchAtom,
+  type Connection,
+} from "../state/library";
 import { EmptyState } from "../ui/EmptyState";
 
-function Banner({ connection, onPair }: { connection: string; onPair: () => void }) {
+function Banner({ connection, onPair }: { connection: Connection; onPair: () => void }) {
   if (connection === "repair")
     return (
       <View style={styles.banner}>
@@ -22,7 +42,8 @@ function Banner({ connection, onPair }: { connection: string; onPair: () => void
     return (
       <View style={styles.banner}>
         <Text style={styles.bannerText}>
-          Can't reach your desktop. Your saves wait on this phone until it's back.
+          Can't reach your desktop. Check that Tailscale is on here and on the desktop. Your saves
+          wait on this phone until it's back.
         </Text>
       </View>
     );
@@ -37,26 +58,25 @@ const Inset = ({ children }: { children: React.ReactNode }) => (
 );
 
 export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
-  const library = useLibrary();
-  const { pairing } = library;
-  if (pairing === undefined) return null;
-  if (library.tailscale.authURL)
-    return (
-      <Inset>
-        <EmptyState
-          title="Sign in to Tailscale"
-          detail="inkling reaches your desktop over your own tailnet. Sign in once on this phone."
-          actionLabel="Sign in"
-          onAction={() => Linking.openURL(library.tailscale.authURL ?? "")}
-        />
-      </Inset>
-    );
+  const registry = useRegistry();
+  const pairing = useAtomValue(pairingAtom);
+  const connection = useAtomValue(connectionAtom);
+  const view = cardsView(useAtomValue(cardsAtom));
+  const loadMore = useAtomSet(cardsAtom);
+  const outbox = useAtomValue(outboxAtom);
+  const refused = useAtomValue(refusedAtom);
+  const notice = useAtomValue(noticeAtom);
+  const search = useAtomValue(searchAtom);
+  // Shows the pull spinner until the reload it started settles, not during later page loads.
+  const [pulled, setPulled] = useState(false);
+  if (pulled && !view.loading) setPulled(false);
+  if (connection === "loading") return null;
   if (!pairing)
     return (
       <Inset>
         <EmptyState
           title="Pair with your desktop"
-          detail="Turn on the phone service in inkling on your desktop, then open its pairing link here or enter its address and token."
+          detail="Turn on the phone service in inkling on your desktop, keep Tailscale on here, then open the pairing link it shows."
           actionLabel="Pair"
           onAction={() => navigation.navigate("Pair")}
         />
@@ -64,10 +84,9 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
     );
 
   const rows = [
-    ...library.pending.map((entry) => ({ key: `pending-${entry.id}`, entry })),
-    ...library.cards.map((card) => ({ key: card.id, card })),
+    ...outbox.map((entry) => ({ key: `pending-${entry.id}`, entry })),
+    ...view.cards.map((card) => ({ key: card.id, card })),
   ];
-  const searching = library.shownQuery.trim() !== "";
   return (
     <FlashList
       style={styles.screen}
@@ -77,25 +96,39 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
       masonry
       numColumns={2}
       keyExtractor={(row) => row.key}
-      refreshing={false}
-      onRefresh={() => library.refresh(library.query)}
+      getItemType={(row) => ("entry" in row ? "pending" : row.card.displayKind)}
+      refreshing={pulled}
+      onRefresh={() => {
+        setPulled(true);
+        void refreshLibrary(registry);
+      }}
+      onEndReached={() => {
+        if (view.more && !view.loading) loadMore();
+      }}
       ListHeaderComponent={
         <View style={styles.header}>
-          {library.notice ? <Text style={styles.notice}>{library.notice}</Text> : null}
-          <Banner connection={library.connection} onPair={() => navigation.navigate("Pair")} />
+          {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+          <Banner connection={connection} onPair={() => navigation.navigate("Pair")} />
         </View>
       }
       ListEmptyComponent={
-        library.connection === "connected" ? (
+        view.loading ? (
+          <ActivityIndicator style={styles.loading} color={colors.muted} />
+        ) : connection === "connected" && !view.failed ? (
           <EmptyState
-            title={searching ? "Nothing matches" : "Nothing saved yet"}
+            title={search ? "Nothing matches" : "Nothing saved yet"}
             detail={
-              searching
-                ? `No saves match "${library.shownQuery}". Try describing what you remember.`
+              search
+                ? `No saves match "${search}". Try describing what you remember.`
                 : "Share a link or photo to inkling and it shows up here."
             }
           />
         ) : undefined
+      }
+      ListFooterComponent={
+        view.more && view.cards.length > 0 ? (
+          <ActivityIndicator style={styles.loading} color={colors.muted} />
+        ) : null
       }
       renderItem={({ item: row }) =>
         "entry" in row ? (
@@ -103,7 +136,9 @@ export function LibraryScreen({ navigation }: ScreenProps<"Library">) {
             <TypedArt
               label="ON THIS PHONE"
               title={row.entry.kind === "url" ? hostname(row.entry.text) : row.entry.text}
-              footnote="WAITING FOR DESKTOP"
+              footnote={
+                refused.has(row.entry.id) ? "DESKTOP COULDN'T SAVE THIS" : "WAITING FOR DESKTOP"
+              }
             />
           </View>
         ) : (
@@ -129,4 +164,5 @@ const styles = StyleSheet.create({
   banner: { backgroundColor: colors.surface, borderRadius: 14, padding: 12, gap: 4 },
   bannerText: { color: colors.text, fontSize: 14, lineHeight: 20 },
   cell: { padding: 5 },
+  loading: { paddingVertical: 32 },
 });

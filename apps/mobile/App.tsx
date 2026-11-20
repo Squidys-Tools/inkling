@@ -1,3 +1,4 @@
+import { RegistryProvider, useAtomValue } from "@effect/atom-react";
 import {
   createDrawerNavigator,
   type DrawerContentComponentProps,
@@ -7,6 +8,7 @@ import {
   createNavigationContainerRef,
   DarkTheme,
   DrawerActions,
+  getFocusedRouteNameFromRoute,
   NavigationContainer,
   useNavigation,
 } from "@react-navigation/native";
@@ -27,7 +29,9 @@ import { ItemScreen } from "./src/screens/ItemScreen";
 import { LibraryScreen } from "./src/screens/LibraryScreen";
 import { PairScreen } from "./src/screens/PairScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
-import { LibraryProvider, useLibrary } from "./src/state";
+import { submitSearch } from "./src/state/actions";
+import { useLibrarySync, useRegistry } from "./src/state/hooks";
+import { pairingAtom, scopeAtom, searchAtom } from "./src/state/library";
 import { LaunchOverlay } from "./src/ui/LaunchOverlay";
 import { Sidebar } from "./src/ui/Sidebar";
 import { SymbolButton } from "./src/ui/SymbolButton";
@@ -36,11 +40,25 @@ const Stack = createNativeStackNavigator<Routes>();
 const Drawer = createDrawerNavigator<DrawerRoutes>();
 const navigation = createNavigationContainerRef<DrawerRoutes>();
 
+let waitingLink: string | null = null;
+
 // A pairing link only fills in the Pair sheet: the user confirms the desktop before any save goes to it.
 function openPairingLink(link: string | null | undefined) {
   const pairing = link ? parsePairingLink(link) : null;
-  if (pairing && navigation.isReady())
-    navigation.navigate("Main", { screen: "Pair", params: { link: pairing } });
+  if (!pairing) return;
+  if (!navigation.isReady()) waitingLink = link ?? null;
+  else navigation.navigate("Main", { screen: "Pair", params: { link: pairing } });
+}
+
+function openWaitingLink() {
+  const link = waitingLink;
+  waitingLink = null;
+  openPairingLink(link);
+}
+
+function LibrarySync() {
+  useLibrarySync();
+  return null;
 }
 
 const theme = {
@@ -70,15 +88,18 @@ const sidebarButton = () => <SidebarButton />;
 const sidebar = (props: DrawerContentComponentProps) => <Sidebar {...props} />;
 
 function Screens() {
-  const library = useLibrary();
-  const { scope } = library;
+  const registry = useRegistry();
+  const pairing = useAtomValue(pairingAtom);
+  const scope = useAtomValue(scopeAtom);
+  const search = useAtomValue(searchAtom);
   const searchBar = useRef<SearchBarCommands>(null);
   // A new collection replaces the search, so the bar's leftover text goes too.
   useEffect(() => {
     if (scope.kind) searchBar.current?.clearText();
   }, [scope]);
-  const title =
-    scope.kind === "archived"
+  const title = search
+    ? `“${search}”`
+    : scope.kind === "archived"
       ? "Archive"
       : scope.kind === "space"
         ? scope.space.name
@@ -97,18 +118,14 @@ function Screens() {
           title,
           headerShadowVisible: false,
           headerLeft: sidebarButton,
-          headerSearchBarOptions: library.pairing
+          headerSearchBarOptions: pairing
             ? {
                 ref: searchBar,
                 placeholder: "Search your library",
                 autoCapitalize: "none",
                 hideWhenScrolling: false,
-                onChangeText: (event) => library.setQuery(event.nativeEvent.text),
-                onSearchButtonPress: (event) => library.refresh(event.nativeEvent.text),
-                onCancelButtonPress: () => {
-                  library.setQuery("");
-                  library.refresh("");
-                },
+                onSearchButtonPress: (event) => submitSearch(registry, event.nativeEvent.text),
+                onCancelButtonPress: () => submitSearch(registry, ""),
               }
             : undefined,
         }}
@@ -158,11 +175,15 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <LibraryProvider>
+        <RegistryProvider>
+          <LibrarySync />
           <NavigationContainer
             ref={navigation}
             theme={theme}
-            onReady={() => Linking.getInitialURL().then(openPairingLink, () => {})}
+            onReady={() => {
+              openWaitingLink();
+              Linking.getInitialURL().then(openPairingLink, () => {});
+            }}
           >
             {/* oxlint-disable-next-line react/style-prop-object -- expo-status-bar takes the style as a string */}
             <StatusBar style="light" />
@@ -177,10 +198,17 @@ export default function App() {
                 drawerStyle: styles.drawer,
               }}
             >
-              <Drawer.Screen name="Main" component={MainCard} />
+              <Drawer.Screen
+                name="Main"
+                component={MainCard}
+                // Only the library opens the sidebar by swiping; elsewhere the edge swipe goes back.
+                options={({ route }) => ({
+                  swipeEnabled: (getFocusedRouteNameFromRoute(route) ?? "Library") === "Library",
+                })}
+              />
             </Drawer.Navigator>
           </NavigationContainer>
-        </LibraryProvider>
+        </RegistryProvider>
       </SafeAreaProvider>
       {launching ? <LaunchOverlay onDone={finishLaunch} /> : null}
     </GestureHandlerRootView>

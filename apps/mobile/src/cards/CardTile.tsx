@@ -5,19 +5,14 @@ import { colors } from "../colors";
 import type { PhoneCard } from "../desktop";
 import { font } from "../fonts";
 import type { Pairing } from "../pairing";
-import { useCardImage } from "./useCardImage";
+import { cardImage, type CardImage } from "./cardImage";
 
 const texture = require("../../assets/cards/typed-texture.png");
 
 /** Notes, PDFs and files share desktop's typed layout: mono label and ring, caps title, three dots. */
-export function TypedArt(props: {
-  label: string;
-  title: string;
-  footnote?: string;
-  tall?: boolean;
-}) {
+export function TypedArt(props: { label: string; title: string; footnote?: string }) {
   return (
-    <View style={[styles.typed, props.tall && styles.typedTall]}>
+    <View style={styles.typed}>
       <Image source={texture} style={StyleSheet.absoluteFill} contentFit="cover" />
       <View style={styles.labelRow}>
         <Text style={styles.label}>{props.label}</Text>
@@ -36,12 +31,12 @@ export function TypedArt(props: {
   );
 }
 
-function ArticleCard({ card, image }: { card: PhoneCard; image: string | null }) {
+function ArticleCard({ card, image }: { card: PhoneCard; image: CardImage }) {
   const source = card.source ?? (card.sourceUrl ? hostname(card.sourceUrl) : "");
   return (
     <View style={styles.paper}>
       {image ? (
-        <Image source={{ uri: image }} style={styles.strip} contentFit="cover" transition={180} />
+        <Image source={image} style={styles.strip} contentFit="cover" transition={180} />
       ) : null}
       <View style={styles.paperText}>
         <Text style={styles.paperTitle} numberOfLines={4}>
@@ -104,11 +99,11 @@ function PostCard({ card }: { card: PhoneCard }) {
   );
 }
 
-function MediaCard({ card, image }: { card: PhoneCard; image: string }) {
+function MediaCard({ card, image }: { card: PhoneCard; image: NonNullable<CardImage> }) {
   const ratio = Math.min(1.8, Math.max(0.62, card.aspectRatio ?? 1));
   return (
     <Image
-      source={{ uri: image }}
+      source={image}
       style={[styles.media, { aspectRatio: ratio }]}
       contentFit="cover"
       transition={180}
@@ -137,7 +132,7 @@ function typedFor(card: PhoneCard) {
 
 /** A grid card drawn the way desktop draws its kind. */
 export function CardTile({ pairing, card }: { pairing: Pairing; card: PhoneCard }) {
-  const image = useCardImage(pairing, card);
+  const image = cardImage(pairing, card);
   const kind = kindOf(card);
   if (kind === "Article") return <ArticleCard card={card} image={image} />;
   if (kind === "Quote") return <QuoteCard card={card} />;
@@ -156,7 +151,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
-  typedTall: { height: 280, paddingTop: 34, paddingHorizontal: 26 },
   labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   label: { fontFamily: font.mono, fontSize: 9, letterSpacing: 1.4, color: colors.muted },
   ring: { width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: colors.muted },

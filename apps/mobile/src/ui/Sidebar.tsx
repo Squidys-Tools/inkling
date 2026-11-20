@@ -1,3 +1,4 @@
+import { useAtomValue } from "@effect/atom-react";
 import { type DrawerContentComponentProps, useDrawerStatus } from "@react-navigation/drawer";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { SymbolView, type SFSymbol } from "expo-symbols";
@@ -7,7 +8,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spaceColors } from "../colors";
 import type { Scope } from "../desktop";
 import { font } from "../fonts";
-import { useLibrary } from "../state";
+import { AsyncResult } from "effect/reactivity";
+import { selectScope } from "../state/actions";
+import { useRegistry } from "../state/hooks";
+import { scopeAtom, spacesAtom, totalAtom } from "../state/library";
 import { Mascot } from "./Mascot";
 
 function Row(props: {
@@ -39,11 +43,13 @@ const symbol = (name: SFSymbol) => <SymbolView name={name} tintColor={colors.ink
 
 /** Desktop's sidebar for the phone: Everything, the Spaces, Archive, and Settings at the foot. */
 export function Sidebar({ navigation }: DrawerContentComponentProps) {
-  const library = useLibrary();
+  const registry = useRegistry();
+  const scope = useAtomValue(scopeAtom);
+  const total = useAtomValue(totalAtom);
+  const spaces = AsyncResult.getOrElse(useAtomValue(spacesAtom), () => null) ?? [];
   const insets = useSafeAreaInsets();
-  const { scope } = library;
   const pick = (next: Scope) => {
-    library.selectScope(next);
+    selectScope(registry, next);
     navigation.navigate("Main", { screen: "Library" });
     navigation.closeDrawer();
   };
@@ -59,12 +65,12 @@ export function Sidebar({ navigation }: DrawerContentComponentProps) {
         <Row
           icon={symbol("square.grid.3x3")}
           label="Everything"
-          count={library.total}
+          count={total}
           active={scope.kind === "everything"}
           onPress={() => pick({ kind: "everything" })}
         />
         <Text style={styles.section}>SPACES</Text>
-        {library.spaces.map((space) => (
+        {spaces.map((space) => (
           <Row
             key={space.id}
             icon={
@@ -82,7 +88,7 @@ export function Sidebar({ navigation }: DrawerContentComponentProps) {
             onPress={() => pick({ kind: "space", space })}
           />
         ))}
-        {library.spaces.length === 0 ? (
+        {spaces.length === 0 ? (
           <Text style={styles.empty}>Spaces you make on desktop show up here.</Text>
         ) : null}
         <View style={styles.rule} />
