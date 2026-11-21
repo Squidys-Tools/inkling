@@ -185,11 +185,12 @@ export function Sidebar({
           styles.width(width),
           rail && railRows,
           rail && styles.railSidebar,
-          narrow && styles.narrow,
+          rail && chrome.controls === "native-left" && styles.railNativeLeft,
+          narrow && open && styles.narrow,
           chrome.controls === "native-left" && styles.belowLights,
         )}
       >
-        <div {...stylex.props(styles.brand, compact && styles.brandCompact)}>
+        <div {...stylex.props(styles.brand, rail && styles.brandRail)}>
           {compact ? (
             <button
               type="button"
@@ -198,6 +199,7 @@ export function Sidebar({
               tabIndex={-1}
               aria-label="Open sidebar"
               title="Open sidebar"
+              data-glide="mascot"
               data-bench="sidebar-toggle"
               aria-expanded={false}
               aria-controls="library-navigation"
@@ -207,7 +209,7 @@ export function Sidebar({
               <SidebarMascot />
             </button>
           ) : (
-            <span {...stylex.props(styles.mascotButton)}>
+            <span data-glide="mascot" {...stylex.props(styles.mascotButton)}>
               <SidebarMascot />
             </span>
           )}
@@ -236,7 +238,7 @@ export function Sidebar({
         </div>
         {/* Closing, Add glides from the top bar to its spot under the mascot. */}
         {rail && (
-          <div {...stylex.props(styles.railAdd, styles.railColumn(compactWidth - 16))}>
+          <div {...stylex.props(styles.railAdd)}>
             <AddMenu compact />
           </div>
         )}
@@ -256,6 +258,7 @@ export function Sidebar({
             ) : (
               <NavLink
                 to="/"
+                glide="everything"
                 compact={compact}
                 rail={rail}
                 active={shown === "Active"}
@@ -269,9 +272,7 @@ export function Sidebar({
           </nav>
           <SpacesSection compact={compact} rail={rail} strip={strip} />
         </div>
-        <div
-          {...stylex.props(styles.footer, rail && styles.railFooter, strip && styles.stripFooter)}
-        >
+        <div {...stylex.props(styles.footer, rail && styles.railFooter)}>
           <UpdateRow compact={compact} />
           <NavLink
             to="/archive"
@@ -328,6 +329,8 @@ const styles = stylex.create({
     // The main frame reveals this panel; never animate sidebar layout width.
   },
   railSidebar: { gap: "6px" },
+  // Centers the 40px rail column inside the 76px macOS rail from the moment closing starts.
+  railNativeLeft: { paddingInline: "18px" },
   width: (width: number) => ({ width }),
   belowLights: { top: "32px", paddingTop: "6px" },
   narrow: {
@@ -358,7 +361,7 @@ const styles = stylex.create({
     marginBottom: "-4px",
     WebkitAppRegion: "drag",
   },
-  brandCompact: { justifyContent: "center", paddingRight: 0, marginBottom: "4px" },
+  brandRail: { paddingRight: 0, marginBottom: "4px" },
   mascotButton: {
     WebkitAppRegion: "no-drag",
     display: "grid",
@@ -471,12 +474,11 @@ const styles = stylex.create({
     paddingTop: "6px",
   },
   railFooter: { gap: "6px", paddingTop: 0 },
-  stripFooter: { paddingTop: "6px" },
-  // The rail's inner column, so Add centers under the mascot while the edge is still moving.
+  // The rail's 40px column, so Add centers under the mascot while the edge is still moving.
   railAdd: {
     display: "flex",
     justifyContent: "center",
+    width: "40px",
     flexShrink: 0,
   },
-  railColumn: (width: number) => ({ width }),
 });

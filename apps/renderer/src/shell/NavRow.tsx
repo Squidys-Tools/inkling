@@ -45,6 +45,7 @@ export function NavLink({
   glide?: string;
   onClick?: () => void;
 } & Pick<LinkProps, "to" | "params">) {
+  const usesFill = active && (slides || (rail && !compact));
   return (
     <Link
       {...link}
@@ -62,10 +63,10 @@ export function NavLink({
         compact && styles.compact,
         compact && styles.compactTone,
         active && styles.active,
-        active && slides && styles.slid,
+        usesFill && styles.slid,
       )}
     >
-      {active && slides && <SelectionFill rail={rail && !compact} />}
+      {usesFill && <SelectionFill rail={rail && !compact} />}
       <span {...stylex.props(styles.icon, active && styles.activeIcon)}>{icon}</span>
       {!compact && (
         <span data-sidebar-label {...stylex.props(styles.label)}>
