@@ -4,11 +4,22 @@ import type { ReactNode } from "react";
 import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { railRow } from "./railRow.stylex.ts";
 
-type RowLook = { active?: boolean; tone?: "nav" | "footer"; compact: boolean };
+type RowLook = { active?: boolean; tone?: "nav" | "footer"; compact: boolean; rail?: boolean };
 
 /** A selected sidebar row's fill, drawn inside the row so it scrolls and drags with it. */
-export function SelectionFill() {
-  return <span data-selection-fill aria-hidden="true" {...stylex.props(styles.fill)} />;
+export function SelectionFill({
+  rail = false,
+}: {
+  /** Closing shrinks the fill to the rail control's spot before the frame edge reaches it. */
+  rail?: boolean;
+} = {}) {
+  return (
+    <span
+      data-selection-fill
+      aria-hidden="true"
+      {...stylex.props(styles.fill, rail && styles.railFill)}
+    />
+  );
 }
 
 /** A sidebar destination keeps its name when only its icon is visible. */
@@ -16,6 +27,7 @@ export function NavLink({
   active = false,
   tone = "nav",
   compact,
+  rail = compact,
   icon,
   label,
   count,
@@ -33,6 +45,7 @@ export function NavLink({
   glide?: string;
   onClick?: () => void;
 } & Pick<LinkProps, "to" | "params">) {
+  const usesFill = active && (slides || (rail && !compact));
   return (
     <Link
       {...link}
@@ -48,12 +61,12 @@ export function NavLink({
         styles.row,
         styles[tone],
         compact && styles.compact,
-        compact && railSquare,
+        compact && styles.compactTone,
         active && styles.active,
-        active && slides && styles.slid,
+        usesFill && styles.slid,
       )}
     >
-      {active && slides && <SelectionFill />}
+      {usesFill && <SelectionFill rail={rail && !compact} />}
       <span {...stylex.props(styles.icon, active && styles.activeIcon)}>{icon}</span>
       {!compact && (
         <span data-sidebar-label {...stylex.props(styles.label)}>
@@ -104,7 +117,7 @@ export function NavButton({
         styles.button,
         styles[tone],
         compact && styles.compact,
-        compact && railSquare,
+        compact && styles.compactTone,
         active && styles.active,
       )}
     >
@@ -118,59 +131,51 @@ export function NavButton({
   );
 }
 
-// A rail control keeps the column's full click but draws its fill as a square, like a Space's cover:
-// transparent side borders take the 52px column down to the 44px row, and each corner is wider by
-// the same 4px to stay round.
-export const { railSquare } = stylex.create({
-  railSquare: {
-    borderLeftWidth: "4px",
-    borderRightWidth: "4px",
-    borderLeftStyle: "solid",
-    borderRightStyle: "solid",
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    backgroundClip: "padding-box",
-    borderTopLeftRadius: `calc(${radius.control} + 4px) ${radius.control}`,
-    borderTopRightRadius: `calc(${radius.control} + 4px) ${radius.control}`,
-    borderBottomLeftRadius: `calc(${radius.control} + 4px) ${radius.control}`,
-    borderBottomRightRadius: `calc(${radius.control} + 4px) ${radius.control}`,
-  },
-});
-
 const styles = stylex.create({
   row: {
     display: "flex",
     alignItems: "center",
-    gap: "10px",
-    // Every rail control is the column's width and this tall, so each takes the same click.
+    gap: "11px",
+    // Every rail control is centered on the rail column and this tall, so each takes the same click.
     height: railRow.height,
     minWidth: 0,
     flexGrow: 1,
-    paddingLeft: "18px",
+    paddingLeft: "11px",
     paddingRight: "10px",
     borderRadius: radius.control,
     // Keyboard focus lights the row like a hover; a ring would sit on the selected row too.
     backgroundColor: {
       default: "transparent",
-      ":hover": color.overlayHover,
-      ":focus-visible": color.overlayHover,
+      ":hover": color.overlayActive,
+      ":focus-visible": color.overlayActive,
     },
     lineHeight: "18px",
     textDecoration: "none",
     cursor: "pointer",
-    transform: { default: "none", ":active": "scale(0.985)" },
+    transform: { default: "none", ":active": "scale(0.96)" },
     transitionProperty: "color, background-color, transform",
     transitionDuration: motion.micro,
     transitionTimingFunction: motion.enter,
     outline: "none",
   },
-  compact: { justifyContent: "center", paddingLeft: 0, paddingRight: 0 },
+  compact: {
+    width: "38px",
+    flexGrow: 0,
+    marginInline: "auto",
+    justifyContent: "center",
+    paddingLeft: 0,
+    paddingRight: 0,
+    borderRadius: radius.tile,
+  },
+  compactTone: {
+    color: { default: color.inkSoft, ":hover": color.inkStrong, ":focus-visible": color.inkStrong },
+  },
   button: { width: "100%", borderWidth: 0, fontFamily: font.body, textAlign: "left" },
-  nav: { fontSize: "14px", color: { default: color.inkSoft, ":hover": color.ink } },
+  nav: { fontSize: "14px", color: { default: color.inkSoft, ":hover": color.inkStrong } },
   footer: { fontSize: "13px", color: { default: color.muted, ":hover": color.ink } },
   active: {
     fontWeight: 600,
-    backgroundColor: { default: color.overlayActive, ":hover": color.overlayActive },
+    backgroundColor: { default: color.hover, ":hover": color.hover },
     color: { default: color.inkStrong, ":hover": color.inkStrong },
   },
   slid: {
@@ -183,12 +188,19 @@ const styles = stylex.create({
     position: "absolute",
     inset: 0,
     zIndex: -1,
-    borderRadius: radius.control,
-    backgroundColor: color.overlayActive,
+    borderRadius: "inherit",
+    backgroundColor: color.hover,
     pointerEvents: "none",
   },
-  icon: { display: "grid", placeItems: "center", width: "16px", flexShrink: 0, color: color.muted },
-  activeIcon: { color: color.accent },
+  railFill: { left: "1px", right: "auto", width: "38px", borderRadius: radius.tile },
+  icon: {
+    display: "grid",
+    placeItems: "center",
+    width: "18px",
+    flexShrink: 0,
+    color: "currentColor",
+  },
+  activeIcon: { color: color.inkStrong },
   label: {
     flexGrow: 1,
     minWidth: 0,

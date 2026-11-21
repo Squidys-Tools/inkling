@@ -7,7 +7,6 @@ import { color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { captureFiles, captureScreenshot, useCaptureState } from "../capture/capture.ts";
 import type { Choice } from "./AddChoices.tsx";
 import { railRow } from "./railRow.stylex.ts";
-import { railSquare } from "./NavRow.tsx";
 import { handleCommand } from "./commands.ts";
 
 // Base UI's menu is a large share of the first screen's code and only matters once the button
@@ -35,11 +34,11 @@ export function AddMenu({ compact }: { compact: boolean }) {
   const trigger = {
     "aria-label": compact ? (saving ? "Saving…" : "Add") : undefined,
     title: compact ? "Add" : undefined,
-    ...stylex.props(styles.trigger, compact && styles.compact, compact && railSquare),
+    ...stylex.props(styles.trigger, compact && styles.compact),
   };
   const label = (
     <>
-      <HugeiconsIcon icon={PlusSignIcon} size={compact ? 16 : 14} />
+      <HugeiconsIcon icon={PlusSignIcon} size={compact ? 18 : 14} />
       {!compact && <span data-sidebar-label>{saving ? "Saving…" : "Add"}</span>}
     </>
   );
@@ -94,11 +93,11 @@ const styles = stylex.create({
     borderRadius: radius.control,
     backgroundColor: {
       default: "transparent",
-      ":hover": color.overlayHover,
-      ":focus-visible": color.overlayHover,
-      ":active": color.overlayActive,
+      ":hover": color.overlayActive,
+      ":focus-visible": color.overlayActive,
+      ":active": color.hover,
     },
-    color: { default: color.inkSoft, ":hover": color.ink, ":focus-visible": color.ink },
+    color: { default: color.inkSoft, ":hover": color.inkStrong, ":focus-visible": color.inkStrong },
     fontFamily: font.body,
     fontSize: "13px",
     lineHeight: "18px",
@@ -111,6 +110,13 @@ const styles = stylex.create({
     transitionTimingFunction: motion.enter,
     outline: "none",
   },
-  compact: { justifyContent: "center", width: "100%", height: railRow.height, paddingInline: 0 },
+  compact: {
+    justifyContent: "center",
+    width: "38px",
+    height: railRow.height,
+    marginInline: "auto",
+    paddingInline: 0,
+    borderRadius: radius.tile,
+  },
   anchorCompact: { width: "100%" },
 });

@@ -2,7 +2,7 @@ import type { Platform, WindowChrome } from "@inkling/contracts/desktop";
 import type { BrowserWindowConstructorOptions } from "electron";
 
 // Same value as color.window; the window paints it before the renderer's first frame.
-export const windowBackground = "#0c0c0b";
+export const windowBackground = "#000000";
 const titlebarHeight = 32;
 
 /** macOS keeps its traffic lights; Windows and Linux draw their own controls. */

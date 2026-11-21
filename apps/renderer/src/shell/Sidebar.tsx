@@ -23,7 +23,7 @@ import { AddMenu } from "./AddMenu.tsx";
 import { IndexingRing } from "./IndexingRing.tsx";
 import { NavButton, NavLink } from "./NavRow.tsx";
 import { railRow } from "./railRow.stylex.ts";
-import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
+import { compactSidebarWidth, sidebarExpanded } from "./sidebarGeometry.ts";
 import { SpacesSection } from "./SpacesSection.tsx";
 import { UpdateRow } from "./UpdateRow.tsx";
 import { useSelectionGlide } from "./useSelectionGlide.ts";
@@ -32,7 +32,7 @@ import { useLayoutGlide } from "./useReorderGlide.ts";
 // Keep the shipped nine-dot Everything glyph unchanged.
 function DotGrid() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+    <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
       {[5, 12, 19].flatMap((cy) =>
         [5, 12, 19].map((cx) => (
           <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="2.2" fill="currentColor" />
@@ -56,7 +56,7 @@ function SidebarMascot() {
   const captureFailed = useCaptureState((state) => state.error !== null);
   // The mascot stays as the compact rail's way back, even during search.
   const mood = useMascotMood({ searchFocused: false, query, captureFailed });
-  return <Mascot mood={mood} size={44} visible />;
+  return <Mascot mood={mood} size={40} visible />;
 }
 
 function steppedRow(event: KeyboardEvent<HTMLElement>) {
@@ -129,7 +129,8 @@ export function Sidebar({
   const track = useSelectionGlide();
   const openSettings = () =>
     void navigate({ to: ".", search: (prev) => ({ ...prev, settings: "general" }) });
-  const width = visualOpen ? sidebarExpanded : sidebarCompact;
+  const compactWidth = compactSidebarWidth(chrome.controls);
+  const width = visualOpen ? sidebarExpanded : compactWidth;
   const reopenButton = useRef<HTMLButtonElement>(null);
   const returnToggleFocus = useRef(false);
   const toggle = () => {
@@ -183,12 +184,13 @@ export function Sidebar({
           styles.sidebar,
           styles.width(width),
           rail && railRows,
-          narrow && styles.narrow,
-          chrome.controls === "custom-right" && styles.unifiedHeader,
+          rail && styles.railSidebar,
+          rail && chrome.controls === "native-left" && styles.railNativeLeft,
+          narrow && open && styles.narrow,
           chrome.controls === "native-left" && styles.belowLights,
         )}
       >
-        <div {...stylex.props(styles.brand)}>
+        <div {...stylex.props(styles.brand, rail && styles.brandRail)}>
           {compact ? (
             <button
               type="button"
@@ -197,6 +199,7 @@ export function Sidebar({
               tabIndex={-1}
               aria-label="Open sidebar"
               title="Open sidebar"
+              data-glide="mascot"
               data-bench="sidebar-toggle"
               aria-expanded={false}
               aria-controls="library-navigation"
@@ -206,7 +209,7 @@ export function Sidebar({
               <SidebarMascot />
             </button>
           ) : (
-            <span {...stylex.props(styles.mascotButton)}>
+            <span data-glide="mascot" {...stylex.props(styles.mascotButton)}>
               <SidebarMascot />
             </span>
           )}
@@ -239,8 +242,14 @@ export function Sidebar({
             <AddMenu compact />
           </div>
         )}
-        <div ref={track} {...stylex.props(styles.track, strip && styles.stripTrack)}>
-          <nav aria-label="Main navigation" {...stylex.props(styles.rows)}>
+        <div
+          ref={track}
+          {...stylex.props(styles.track, rail && styles.railTrack, strip && styles.stripTrack)}
+        >
+          <nav
+            aria-label="Main navigation"
+            {...stylex.props(styles.rows, rail && styles.railRowsGap)}
+          >
             {strip ? (
               <StripEverything
                 active={shown === "Active"}
@@ -249,7 +258,9 @@ export function Sidebar({
             ) : (
               <NavLink
                 to="/"
+                glide="everything"
                 compact={compact}
+                rail={rail}
                 active={shown === "Active"}
                 slides
                 icon={compact && indexing ? indexingRing : <DotGrid />}
@@ -261,15 +272,16 @@ export function Sidebar({
           </nav>
           <SpacesSection compact={compact} rail={rail} strip={strip} />
         </div>
-        <div {...stylex.props(styles.footer, strip && styles.stripFooter)}>
+        <div {...stylex.props(styles.footer, rail && styles.railFooter)}>
           <UpdateRow compact={compact} />
           <NavLink
             to="/archive"
             tone="footer"
             glide="archive"
             compact={compact}
+            rail={rail}
             active={shown === "Archived"}
-            icon={<HugeiconsIcon icon={Archive01Icon} size={15} />}
+            icon={<HugeiconsIcon icon={Archive01Icon} size={compact ? 18 : 16} />}
             label="Archive"
             onClick={() => search.clear()}
           />
@@ -280,7 +292,7 @@ export function Sidebar({
               expanded={settingsOpen}
               controls="settings-sheet"
               compact={compact}
-              icon={<HugeiconsIcon icon={Settings01Icon} size={15} />}
+              icon={<HugeiconsIcon icon={Settings01Icon} size={compact ? 18 : 16} />}
               label="Settings"
               onClick={openSettings}
             />
@@ -291,8 +303,8 @@ export function Sidebar({
   );
 }
 
-// The rail's rows are taller, so each control's highlight square has room around its icon or cover.
-const railRows = stylex.createTheme(railRow, { height: "44px" });
+// The rail's rows are 38px tall, so each tile control sits evenly in the rail.
+const railRows = stylex.createTheme(railRow, { height: "38px" });
 
 const styles = stylex.create({
   sidebar: {
@@ -306,11 +318,9 @@ const styles = stylex.create({
     flexDirection: "column",
     gap: "14px",
     minHeight: 0,
-    paddingTop: "32px",
+    paddingTop: "10px",
     paddingInline: "8px",
-    paddingBottom: "10px",
-    borderTopRightRadius: radius.panel,
-    borderBottomRightRadius: radius.panel,
+    paddingBottom: "12px",
     overflow: "hidden",
     // Fade labels before the moving frame can crop them, and reveal them only as it clears.
     transitionProperty: "opacity",
@@ -318,11 +328,18 @@ const styles = stylex.create({
     transitionTimingFunction: motion.enter,
     // The main frame reveals this panel; never animate sidebar layout width.
   },
-  // Only the right edge floats; leave the same 8px gap in expanded and compact modes.
-  width: (width: number) => ({ width: width - 8 }),
-  unifiedHeader: { paddingTop: "8px" },
-  belowLights: { top: "32px", paddingTop: "8px" },
-  narrow: { position: "fixed", zIndex: 30, backgroundColor: color.window },
+  railSidebar: { gap: "6px" },
+  // Centers the 40px rail column inside the 76px macOS rail from the moment closing starts.
+  railNativeLeft: { paddingInline: "18px" },
+  width: (width: number) => ({ width }),
+  belowLights: { top: "32px", paddingTop: "6px" },
+  narrow: {
+    position: "fixed",
+    zIndex: 30,
+    borderTopRightRadius: radius.card,
+    borderBottomRightRadius: radius.card,
+    backgroundColor: color.window,
+  },
   scrim: {
     position: "fixed",
     inset: 0,
@@ -338,26 +355,29 @@ const styles = stylex.create({
     display: "flex",
     alignItems: "center",
     flexShrink: 0,
-    height: "44px",
-    paddingInline: "4px",
-    marginBottom: "-8px",
+    height: "40px",
+    paddingLeft: 0,
+    paddingRight: "4px",
+    marginBottom: "-4px",
     WebkitAppRegion: "drag",
   },
+  brandRail: { paddingRight: 0, marginBottom: "4px" },
   mascotButton: {
     WebkitAppRegion: "no-drag",
-    display: "block",
-    width: "44px",
-    height: "44px",
+    display: "grid",
+    placeItems: "center",
+    width: "40px",
+    height: "40px",
     flexShrink: 0,
     padding: 0,
     borderWidth: 0,
-    borderRadius: radius.control,
+    borderRadius: radius.tile,
     backgroundColor: "transparent",
     cursor: "pointer",
     outline: "none",
   },
   wordmark: {
-    marginLeft: "-4px",
+    marginLeft: "-2px",
     marginRight: "auto",
     fontFamily: font.quote,
     fontSize: "20px",
@@ -377,8 +397,8 @@ const styles = stylex.create({
     padding: 0,
     borderWidth: 0,
     borderRadius: radius.control,
-    backgroundColor: { default: "transparent", ":hover": color.overlayHover },
-    color: { default: color.muted, ":hover": color.ink },
+    backgroundColor: { default: "transparent", ":hover": color.overlayActive },
+    color: { default: color.muted, ":hover": color.inkStrong },
     cursor: "pointer",
     transform: { default: "none", ":active": "scale(0.94)" },
     transitionProperty: "color, background-color, transform",
@@ -387,8 +407,10 @@ const styles = stylex.create({
     outline: { default: "none", ":focus-visible": `2px solid ${color.accent}` },
   },
   track: { display: "flex", flexDirection: "column", gap: "14px", minHeight: 0 },
+  railTrack: { gap: "6px" },
   stripTrack: { gap: "10px" },
   rows: { display: "grid", gap: "2px", flexShrink: 0 },
+  railRowsGap: { gap: "6px" },
   hero: {
     display: "grid",
     gap: "8px",
@@ -449,18 +471,14 @@ const styles = stylex.create({
     gap: "2px",
     marginTop: "auto",
     flexShrink: 0,
-    paddingTop: "10px",
-    borderTopWidth: 1,
-    borderTopStyle: "solid",
-    borderTopColor: color.border,
+    paddingTop: "6px",
   },
-  stripFooter: { paddingTop: "6px", borderTopWidth: 0 },
-  // The rail's 52px column, so Add centers under the mascot while the edge is still moving.
+  railFooter: { gap: "6px", paddingTop: 0 },
+  // The rail's 40px column, so Add centers under the mascot while the edge is still moving.
   railAdd: {
     display: "flex",
     justifyContent: "center",
-    width: "52px",
+    width: "40px",
     flexShrink: 0,
-    marginBottom: "-6px",
   },
 });

@@ -4,7 +4,7 @@ import * as stylex from "@stylexjs/stylex";
 // Roles are named for what they mark, so a surface never borrows an ink color.
 export const color = stylex.defineVars({
   // Also apps/desktop/src/chrome.ts, which paints it before the first frame.
-  window: "#0c0c0b",
+  window: "#000000",
   app: "#0a0a09",
   frame: "#0d0c0b",
   sunken: "#100f0e",
@@ -57,7 +57,7 @@ export const color = stylex.defineVars({
 
 // The marketing site's <meta name="theme-color">, which takes a concrete color: color.window.
 export const siteColor = stylex.defineConsts({
-  browserChrome: "#0c0c0b",
+  browserChrome: "#000000",
 });
 
 // The marketing landing page keeps its own neutral palette, apart from the app's warm one.

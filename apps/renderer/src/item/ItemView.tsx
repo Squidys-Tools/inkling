@@ -321,7 +321,7 @@ const styles = stylex.create({
   ground: {
     position: "absolute",
     inset: 0,
-    borderRadius: `calc(${radius.frame} - 1px)`,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: color.border,
@@ -337,7 +337,7 @@ const styles = stylex.create({
     paddingBlock: { default: "60px", [narrow]: space.s4 },
     paddingInline: { default: space.s10, [narrow]: space.s4 },
     overflow: "hidden",
-    borderRadius: `calc(${radius.frame} - 1px)`,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: "transparent",

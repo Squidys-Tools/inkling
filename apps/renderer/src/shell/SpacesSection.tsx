@@ -105,7 +105,7 @@ export function SpacesSection({
         ref={list}
         data-glide-hold="spaces"
         onScroll={(event) => fadeEdges(event.currentTarget)}
-        {...stylex.props(styles.list)}
+        {...stylex.props(styles.list, rail && styles.railList)}
       >
         {spaces.map((space, index) => {
           const selected = shownSpace === space.id;
@@ -228,7 +228,7 @@ const styles = stylex.create({
     alignItems: "center",
     justifyContent: "space-between",
     height: "28px",
-    paddingLeft: "18px",
+    paddingLeft: "11px",
     paddingRight: "10px",
     fontFamily: font.body,
     fontSize: "12px",
@@ -262,6 +262,7 @@ const styles = stylex.create({
     maskImage:
       "linear-gradient(to bottom, transparent, black var(--fade-top, 0px), black calc(100% - var(--fade-bottom, 0px)), transparent)",
   },
+  railList: { gap: "6px" },
   form: {
     display: "grid",
     gap: "8px",

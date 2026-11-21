@@ -3,6 +3,7 @@ import { Outlet, useRouterState } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useSyncExternalStore } from "react";
 import { cardColor, color, font, motion, radius } from "@inkling/ui/tokens.stylex";
 import { useCaptureEvents } from "../capture/useCaptureEvents.ts";
+import { chrome } from "../desktop.ts";
 import { useFlightPainting } from "../item/itemFlight.ts";
 import { scopeFromPath } from "../library/scope.ts";
 import { startLibrarySync } from "../library/sync.ts";
@@ -14,7 +15,7 @@ import { useFirstRun } from "../onboarding/useFirstRun.ts";
 import { handleCommand } from "./commands.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { Sidebar } from "./Sidebar.tsx";
-import { sidebarCompact, sidebarExpanded } from "./sidebarGeometry.ts";
+import { compactSidebarWidth, sidebarExpanded } from "./sidebarGeometry.ts";
 import { TitleBar } from "./TitleBar.tsx";
 import { useCommands } from "./useCommands.ts";
 import { useSidebarMotion } from "./useSidebarMotion.ts";
@@ -50,7 +51,8 @@ export function AppShell() {
   const dragging = useCaptureEvents(!covered);
   const narrow = useMedia("(max-width: 780px)");
   const open = useViewState((state) => state.sidebarOpen);
-  const inset = narrow && open ? 0 : open ? sidebarExpanded : sidebarCompact;
+  const compactInset = compactSidebarWidth(chrome.controls);
+  const inset = narrow && open ? 0 : open ? sidebarExpanded : compactInset;
   const [stageRef, visualOpen] = useSidebarMotion(open, inset, narrow);
 
   return (
@@ -109,16 +111,16 @@ const styles = stylex.create({
   welcome: { position: "fixed", inset: 0, zIndex: 35, backgroundColor: color.window },
   stage: {
     position: "absolute",
-    top: "8px",
-    bottom: "8px",
-    right: "8px",
+    top: "6px",
+    bottom: "6px",
+    right: "6px",
     zIndex: 1,
     boxSizing: "border-box",
     minWidth: 0,
     backgroundColor: color.surface,
     borderWidth: 0,
-    borderRadius: radius.frame,
-    boxShadow: `0 0 0 1px ${color.border}, -10px 0 28px -12px ${color.shadow}`,
+    borderRadius: radius.card,
+    boxShadow: `0 0 0 1px ${color.glassSheen}`,
     overflow: "hidden",
     contain: "strict",
     transformOrigin: "left top",
