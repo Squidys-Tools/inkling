@@ -1,6 +1,13 @@
 import { expect, test } from "bun:test";
 import { parseSpaceCounts } from "../library/spaceCounts.ts";
-import { dragSteps, sidebarClip, sidebarLabelFrames } from "./sidebarGeometry.ts";
+import {
+  compactSidebarWidth,
+  dragSteps,
+  sidebarClip,
+  sidebarCompact,
+  sidebarCompactNativeLeft,
+  sidebarLabelFrames,
+} from "./sidebarGeometry.ts";
 
 test("a dragged Space moves one place per row crossed and never leaves the list", () => {
   // Third of five rows, 34px apart.
@@ -21,14 +28,21 @@ test("remembered Smart Space counts drop anything that is not a count", () => {
     expect(parseSpaceCounts(stored)).toEqual({});
 });
 
-test("retained sidebar keeps an 8px gap and round right edge throughout the slide", () => {
-  for (const frameLeft of [76, 100, 171, 220, 248]) {
-    const clipped = sidebarClip(frameLeft, 240);
-    expect(240 - clipped).toBe(frameLeft - 8);
+test("compact rail clears macOS traffic lights and stays narrow elsewhere", () => {
+  expect(compactSidebarWidth("native-left")).toBe(sidebarCompactNativeLeft);
+  expect(compactSidebarWidth("custom-right")).toBe(sidebarCompact);
+  expect(compactSidebarWidth("overlay-right")).toBe(sidebarCompact);
+  expect(compactSidebarWidth("system-frame")).toBe(sidebarCompact);
+});
+
+test("retained sidebar clips flush to the moving frame edge throughout the slide", () => {
+  for (const frameLeft of [56, 76, 100, 171, 220, 248]) {
+    const clipped = sidebarClip(frameLeft, 248);
+    expect(248 - clipped).toBe(frameLeft);
   }
-  expect(sidebarClip(76, 68)).toBe(0);
-  expect(sidebarClip(248, 240)).toBe(0);
-  expect(sidebarClip(500, 240)).toBe(0);
+  expect(sidebarClip(56, 56)).toBe(0);
+  expect(sidebarClip(248, 248)).toBe(0);
+  expect(sidebarClip(500, 248)).toBe(0);
 });
 
 test("labels leave before the edge clips them, arrive after it opens, and reverse from their painted opacity", () => {

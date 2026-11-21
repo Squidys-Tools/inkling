@@ -176,7 +176,7 @@ export function SpaceRow({
         spaceRowMarker,
       )}
     >
-      {selected && !strip && <SelectionFill />}
+      {selected && !strip && <SelectionFill rail={rail && !compact} />}
       {!strip && (
         <SpaceCover
           space={space}
@@ -271,9 +271,9 @@ const styles = stylex.create({
     height: "32px",
     minWidth: 0,
     borderRadius: radius.control,
-    backgroundColor: { default: "transparent", ":hover": color.overlayHover },
+    backgroundColor: { default: "transparent", ":hover": color.overlayActive },
     fontSize: "14px",
-    color: { default: color.inkSoft, ":hover": color.ink },
+    color: { default: color.inkSoft, ":hover": color.inkStrong },
     userSelect: "none",
     transitionProperty: "color, background-color, box-shadow",
     transitionDuration: motion.micro,
@@ -310,10 +310,10 @@ const styles = stylex.create({
     pointerEvents: "none",
   },
   // Under the link, which covers the whole row, so a click on the picture opens the Space.
-  cover: { position: "absolute", left: "14px", top: "6px" },
+  cover: { position: "absolute", left: "8px", top: "6px" },
   // The rail row's cover and its center, so the swap to that row at the end of closing moves
-  // nothing. The open row takes this larger cover as soon as it starts closing.
-  railCover: { left: "11px", top: "7px", width: "30px", height: "30px" },
+  // nothing. The open row takes this cover size as soon as it starts closing.
+  railCover: { left: "7px", top: "6px", width: "26px", height: "26px" },
   lifted: {
     zIndex: 1,
     backgroundColor: { default: color.hover, ":hover": color.hover },
@@ -329,11 +329,11 @@ const styles = stylex.create({
     minWidth: 0,
     height: "100%",
     // The link is the whole row, so a click anywhere opens the Space and focus lights the row.
-    paddingLeft: "44px",
+    paddingLeft: "40px",
     paddingRight: "10px",
     color: "inherit",
     textDecoration: "none",
-    backgroundColor: { default: "transparent", ":focus-visible": color.overlayHover },
+    backgroundColor: { default: "transparent", ":focus-visible": color.overlayActive },
     outline: "none",
     borderRadius: radius.control,
   },
@@ -387,14 +387,14 @@ const styles = stylex.create({
   // Centered on the name's line, which sits at the top of a Strip row.
   stripMore: { top: "4px" },
   renaming: {
-    backgroundColor: { default: color.overlayHover, ":hover": color.overlayHover },
+    backgroundColor: { default: color.overlayActive, ":hover": color.overlayActive },
     boxShadow: `inset 0 0 0 1px ${color.borderStrong}`,
   },
   // The name's own spot, font and weight, so editing it moves nothing.
   rename: {
     flexGrow: 1,
     minWidth: 0,
-    marginLeft: "44px",
+    marginLeft: "40px",
     marginRight: "10px",
     padding: 0,
     borderWidth: 0,

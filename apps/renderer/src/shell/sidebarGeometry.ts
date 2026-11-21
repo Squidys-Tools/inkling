@@ -1,5 +1,12 @@
+import type { WindowChrome } from "@inkling/contracts/desktop";
+
 export const sidebarExpanded = 248;
-export const sidebarCompact = 76;
+export const sidebarCompact = 56;
+// macOS traffic lights span x=12..64; the rail stays wide enough that the stage clears them.
+export const sidebarCompactNativeLeft = 76;
+
+export const compactSidebarWidth = (controls: WindowChrome["controls"]) =>
+  controls === "native-left" ? sidebarCompactNativeLeft : sidebarCompact;
 
 /**
  * Labels fade out before the moving edge reaches them and fade in only once it
@@ -23,6 +30,6 @@ export function sidebarLabelFrames(opacity: number, open: boolean, reversing: bo
 export const dragSteps = (offset: number, pitch: number, index: number, lastIndex: number) =>
   Math.max(-index, Math.min(lastIndex - index, Math.round(offset / pitch))) + 0;
 
-/** Clip the retained navigation to the moving frame, preserving the gutter and round edge. */
+/** Clip the retained navigation to the moving frame edge. */
 export const sidebarClip = (frameLeft: number, width: number) =>
-  Math.max(0, width - Math.max(0, frameLeft - 8));
+  Math.max(0, width - Math.max(0, frameLeft));

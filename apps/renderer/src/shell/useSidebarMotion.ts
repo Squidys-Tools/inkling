@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { chrome } from "../desktop.ts";
 import {
+  compactSidebarWidth,
   sidebarClip,
-  sidebarCompact,
   sidebarExpanded,
   sidebarLabelFrames,
 } from "./sidebarGeometry.ts";
@@ -29,7 +30,8 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
     // An active left animation survives React's destination style commit.
     const fromLeft = flight.current ? parseFloat(timing.left) : old.inset;
     const sidebar = document.getElementById("library-navigation");
-    const oldWidth = (old.open ? sidebarExpanded : sidebarCompact) - 8;
+    const compactWidth = compactSidebarWidth(chrome.controls);
+    const oldWidth = old.open ? sidebarExpanded : compactWidth;
     const clip = sidebar ? getComputedStyle(sidebar).clipPath : "none";
     const clipped = clip.match(/^inset\(\s*[\d.]+px\s+([\d.]+)px/);
     const fromEdge =
@@ -52,10 +54,8 @@ export function useSidebarMotion(open: boolean, inset: number, narrow: boolean) 
     };
     if (sidebar) {
       const width = sidebar.offsetWidth;
-      const radius = getComputedStyle(sidebar).borderTopRightRadius;
-      const clipAt = (edge: number) =>
-        `inset(0px ${sidebarClip(edge + 8, width)}px 0px 0px round 0px ${radius} ${radius} 0px)`;
-      const targetEdge = (open ? sidebarExpanded : sidebarCompact) - 8;
+      const clipAt = (edge: number) => `inset(0px ${sidebarClip(edge, width)}px 0px 0px)`;
+      const targetEdge = open ? sidebarExpanded : compactWidth;
       edgeFlight.current = sidebar.animate(
         [{ clipPath: clipAt(fromEdge) }, { clipPath: clipAt(targetEdge) }],
         { ...options, fill: "both" },

@@ -56,7 +56,7 @@ export function UpdateRow({ compact }: { compact: boolean }) {
   const failed = tone === "failed";
   const waiting = row.phase === "verifying" || row.phase === "installing";
   return (
-    <div {...stylex.props(styles.card, styles[tone])}>
+    <div {...stylex.props(styles.card, compact && styles.cardCompact, styles[tone])}>
       <button
         type="button"
         title={row.description}
@@ -120,8 +120,8 @@ export function UpdateRow({ compact }: { compact: boolean }) {
       )}
       {waiting && (
         <>
-          <Dim corners={radius.control} />
-          <Beam label={row.label} corners={radius.control} />
+          <Dim corners={compact ? radius.tile : radius.control} />
+          <Beam label={row.label} corners={compact ? radius.tile : radius.control} />
         </>
       )}
       {failed && (
@@ -145,6 +145,12 @@ const styles = stylex.create({
     borderRadius: radius.control,
     overflow: "hidden",
   },
+  cardCompact: {
+    width: "38px",
+    height: "38px",
+    marginInline: "auto",
+    borderRadius: radius.tile,
+  },
   quiet: { backgroundColor: color.raised, boxShadow: `inset 0 0 0 1px ${color.borderStrong}` },
   offer: { backgroundColor: "transparent", boxShadow: `inset 0 0 0 1px ${color.borderStrong}` },
   ready: { backgroundColor: color.ink },
@@ -155,14 +161,14 @@ const styles = stylex.create({
   main: {
     display: "flex",
     alignItems: "center",
-    gap: "10px",
+    gap: "11px",
     flex: 1,
     minWidth: 0,
     height: "100%",
-    paddingLeft: "18px",
+    paddingLeft: "11px",
     paddingRight: "12px",
     borderWidth: 0,
-    borderRadius: radius.control,
+    borderRadius: "inherit",
     backgroundColor: { default: "transparent", ":hover": color.overlayActive },
     color: color.ink,
     fontFamily: font.body,
@@ -181,7 +187,7 @@ const styles = stylex.create({
   icon: {
     display: "grid",
     placeItems: "center",
-    width: "16px",
+    width: "18px",
     flexShrink: 0,
     color: color.ink,
   },

@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { color, motion, radius } from "@inkling/ui/tokens.stylex";
 import { search } from "../library/search.ts";
 import { railRow } from "./railRow.stylex.ts";
-import { railSquare, SelectionFill } from "./NavRow.tsx";
+import { SelectionFill } from "./NavRow.tsx";
 import { SpaceCover } from "./SpaceCover.tsx";
 import { opensMenu, openSpaceMenu, type SpaceActions } from "./spaceMenu.ts";
 
@@ -38,7 +38,7 @@ export function CompactSpaceRow({
       onKeyDown={(event) => {
         if (opensMenu(event)) void openSpaceMenu(event, space.name, can, actions);
       }}
-      {...stylex.props(styles.row, railSquare, selected && styles.selected)}
+      {...stylex.props(styles.row, selected && styles.selected)}
     >
       {selected && <SelectionFill />}
       <SpaceCover space={space} thumbs={thumbs} glide={`cover ${space.id}`} style={styles.cover} />
@@ -47,21 +47,23 @@ export function CompactSpaceRow({
 }
 
 const styles = stylex.create({
-  // Centered in the square with 7px around it; the open row's rail cover sits at the same spot.
-  cover: { width: "30px", height: "30px" },
+  // Centered in the 38px tile with 6px around it; the open row's rail cover sits at the same spot.
+  cover: { width: "26px", height: "26px" },
   row: {
     position: "relative",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    width: "38px",
+    marginInline: "auto",
     height: railRow.height,
-    borderRadius: radius.control,
+    borderRadius: radius.tile,
     textDecoration: "none",
     backgroundColor: {
       default: "transparent",
-      ":hover": color.overlayHover,
-      ":focus-visible": color.overlayHover,
+      ":hover": color.overlayActive,
+      ":focus-visible": color.overlayActive,
     },
     cursor: "pointer",
     transform: { default: "none", ":active": "scale(0.94)" },
