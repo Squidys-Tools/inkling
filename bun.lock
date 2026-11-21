@@ -11,7 +11,7 @@
         "@napi-rs/canvas": "1.1.1",
         "@tesseract.js-data/eng": "1.0.0",
         "builder-util-runtime": "9.7.0",
-        "defuddle": "0.19.7",
+        "defuddle": "0.19.11",
         "dompurify": "3.4.18",
         "effect": "4.1.4",
         "electron-updater": "6.8.11",
@@ -1005,7 +1005,7 @@
 
     "define-properties": ["define-properties@1.2.1", "", { "dependencies": { "define-data-property": "^1.0.1", "has-property-descriptors": "^1.0.0", "object-keys": "^1.1.1" } }, "sha512-8QmQKqEASLd5nx0U1B1okLElbUuuttJ/AnYmRXbbbGDWh6uS208EjD4Xqq/I9wK7u0v6O08XhTWnt5XtEbR6Dg=="],
 
-    "defuddle": ["defuddle@0.19.7", "", { "dependencies": { "commander": "^12.1.0", "mathml-to-latex": "^1.8.0" }, "optionalDependencies": { "linkedom": "^0.18.12", "temml": "^0.13.3", "turndown": "^7.2.0" }, "bin": { "defuddle": "dist/cli.js" } }, "sha512-eMCseeaNoFhTq5MMI3Ny3v5g2kc59IHB8Eznr0Jt1kybiA1mMFZrKjZIXO7IIVcBi6MXI5SCE4u+YVMe+6O0kA=="],
+    "defuddle": ["defuddle@0.19.11", "", { "dependencies": { "commander": "^12.1.0", "mathml-to-latex": "^1.8.0" }, "optionalDependencies": { "linkedom": "^0.18.12", "temml": "^0.13.3", "turndown": "^7.2.0" }, "bin": { "defuddle": "dist/cli.js" } }, "sha512-+o3W1yvYbKmXXMqr9cBoQqzVG9BOP2oAYt6nTA+xLtzUGjRg/iCOGbr+lEV5DzExh7cfDpSHPfqtZ403r/u77A=="],
 
     "delayed-stream": ["delayed-stream@1.0.0", "", {}, "sha512-ZySD7Nf91aLB0RxL4KGrKHBXl7Eds1DAmEdcoVawXnLD7SDhpNgtuII2aAkg7a7QS41jxPSZ17p4VdGnMHk3MQ=="],
 
