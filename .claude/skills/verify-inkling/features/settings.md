@@ -24,6 +24,6 @@ Preconditions: any launched run.
 ## Gotchas
 
 - The sheet is a modal dialog: while it is open the keyboard shortcut handler is suppressed. `useCommands.ts` special-cases `settings-sheet` so back/forward from the mouse side-buttons or menus can still close and reopen the sheet by history, but Base UI keeps keyboard `Alt+Left`/`Alt+Right` inside the sheet — proven 2026-11-20 on Windows and Linux: `ad press alt+Left` with it open left it open, same section. Don't diagnose other dead keys as broken either.
-- `Open source licenses` is a card button inside the General panel, not a rail entry: opening it keeps `General` selected.
+- `Open source licenses` is a card button inside the General panel, not a rail entry: opening it keeps `General` selected. Its panel's back button is also named `General`, twinning the rail's — `ref` reports 2 matches and a tree-read ref refuses the click (`AMBIGUOUS_TARGET`). Escape and reopen the sheet instead: it lands back on the General section.
 - The section lives in the URL: opening pushes one history entry on General, switching sections replaces it, and closing goes back to the page — the sheet counts as a single history entry no matter how many sections you visit.
 - Panel contents are mostly form controls and transfer actions; nothing in them was mutated in this pass — extend only with a proven drive.

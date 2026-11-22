@@ -12,7 +12,7 @@ Search narrows the library to items matching a query, shows an empty state with 
 
 ## How to get to it (user POV)
 
-- Click the search pill, or press Ctrl+K. The pill shows the current view's name at rest (`Everything`); its accessible name is `Search your mind`.
+- Click the search pill, or press Ctrl+K. The pill shows the current view's name at rest (`Everything`); its accessible name is `Search your mind`. While the field is focused it shows an `esc to close` hint.
 
 ## Driving it with agent-desktop
 
