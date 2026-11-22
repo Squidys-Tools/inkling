@@ -18,7 +18,7 @@ Preconditions: seeded library. Similar results lazy-load once the section approa
 
 - **Open.** `$I ad click "$($I ref group 'Article: The Hundred-Year Language')"`.
 - **Go to Similar.** `$I ad click "$($I ref button Similar)"` (inside `navigation "Item sections"`; the active button carries `current` state).
-- **Proof.** `$I ad find --name 'Nothing similar yet.'` returns one `statictext` under `group:Similar` (`tree` lists only interactive nodes, so it never shows this text). `$I shot s1`.
+- **Proof.** `$I ad find --name 'Nothing similar yet.'` returns one `statictext` under `group:Similar`. On the Linux box `tree`'s deeper snapshot lists it directly; on Windows `tree` lists only interactive nodes, so `ad find` is the portable probe. `$I shot s1`.
 
 ## Gotchas
 

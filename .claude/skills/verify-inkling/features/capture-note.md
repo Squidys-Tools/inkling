@@ -31,4 +31,5 @@ Preconditions: seeded library, `doctor` all PASS, sidebar reads `Everything 42`.
 - `set-value` reports `application_commit: not_verified` but the app did commit it (the saved row proves it). Always read the row.
 - The `Everything` count includes only active items; the seed also has archived rows.
 - Empty text is refused; text that is only a URL is saved as a `url` item (an `Article:` card — a recognized YouTube/Vimeo link renders `Video:`), not a note.
+- A draft restored into the editor (leaving `/add/note` and coming back) opens already dirty: `Discard`/`Save to library` are visible at once, not only after typing. The `Format selection` bubble also stays up while its link field is open, not only while text is selected.
 - `ref group 'Note: Untitled note'` reports multiple matches if you capture twice; the seed's other note is `Note: Books to reread this fall`.
