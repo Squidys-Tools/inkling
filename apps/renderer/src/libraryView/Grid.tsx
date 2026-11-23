@@ -10,6 +10,7 @@ import {
   useReducer,
   useRef,
 } from "react";
+import { color } from "@inkling/ui/tokens.stylex";
 import { GridCell } from "../cards/Card.tsx";
 import { GradualBlur } from "./GradualBlur.tsx";
 import { relayoutLanes } from "./masonryLanes.ts";
@@ -197,9 +198,13 @@ export function Grid({
 }
 
 const styles = stylex.create({
+  // A backdrop root with its own square fill: otherwise GradualBlur samples the black window
+  // past the stage's rounded corners and smears it into all four of them.
   frame: {
     position: "absolute",
     inset: 0,
+    backgroundColor: color.surface,
+    willChange: "filter",
   },
   // The grid scrolls under the search bar, and GradualBlur blurs both edges.
   // The side padding sits inside the scroller so the edge cards' focus ring and hover
