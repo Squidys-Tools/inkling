@@ -16,7 +16,7 @@ The item view's title is a `button "<title>"`; choosing it opens an inline `text
 Preconditions: a non-Quote item with a title (a note with no title shows `Untitled note`; Quote items have no title control — their `title` is the quote text).
 
 - **Open.** `$I ad click "$($I ref group 'Article: <title>')"` then `$I ad click "$($I ref button '<title>')"` → `textfield "Title"` focused with `value="<title>"` (a title ending in a file extension opens with only the stem selected).
-- **Save.** `$I ad set-value <field> "<new title>"` then `$I ad press return --window-id '{window}'`. `$I db "SELECT title FROM items WHERE id='<id>'"` → the new title; closing the item shows `group "<Kind>: <new title>"` in the grid (`article` on Linux).
+- **Save.** `$I ad set-value <field> "<new title>"` then `$I ad press return --window-id '{window}'`. `$I db "SELECT title FROM items WHERE id='<id>'"` → the new title (poll it — the write lands after the field's short exit animation, so an instant read can still show the old title); closing the item shows `group "<Kind>: <new title>"` in the grid (`article` on Linux).
 - **Proof.** The row's `title` plus the retitled card; `$I shot`.
 
 ## Gotchas
@@ -24,4 +24,4 @@ Preconditions: a non-Quote item with a title (a note with no title shows `Untitl
 - The title button's accessible name IS the title, so after a rename the next `ref` must use the new name.
 - Blur commits the edit (`onBlur` saves like Enter): take no focus-moving action between `set-value` and `return`, or the edit saves on the blur instead.
 - `TitleField` is single-line: pasted text flattens newlines and clips to the room left under the 500-char cap, and `beforeinput` refuses inserts that would not fit — but a `set-value` write past the cap trips the `input` handler's snapshot restore, so it lands as *no change*, not a clipped title. Assert on `db`, not on the value you sent.
-- A user's title is theirs: enrichment can still replace a non-empty title while it equals the placeholder the pending capture wrote (the auto-derived domain/blank title), but it never rewrites a title the user renamed — a manual rename survives later enrichment jobs.
+- A user's title is theirs: enrichment can still replace a non-empty title while it equals the placeholder the pending capture wrote (the auto-derived domain title), but it never rewrites a title the user renamed — a manual rename survives later enrichment jobs.
