@@ -17,13 +17,13 @@ The first launch over an unfinished library opens a five-screen welcome (`#/welc
 
 Preconditions: `$I launch --empty` (unseeded library). `doctor` accepts `Skip` as the ready marker on an unseeded run — the shell under the welcome overlay is `inert` (the `TitleBar` sits outside the inert wrapper and stays live), so the sidebar's `Everything` link is not the marker here.
 
-- **Screens.** `$I tree` shows `group "Welcome to inkling"` (`region` on Linux) with `Continue` and `Skip` on screen one; from screen two a `Back` button joins. `$I ad click "$($I ref button Continue)"` four times walks all five; on the last screen `Continue` is replaced by `Open my library`.
+- **Screens.** `$I tree` shows `group "Welcome to inkling"` (`region` on Linux) with `Continue` and `Skip` on screen one; from screen two a `Back` button joins. `$I ad click "$($I ref button Continue)"` four times walks all five; on the last screen `Continue` is replaced by `Open my library`, and a static `Settings › Library › Export a copy` breadcrumb shows under `nav "Where to export"` (plain list items, not buttons — only `Open my library`/`Back`/`Skip` are actionable).
 - **Finish.** `$I ad click "$($I ref button 'Open my library')"` lands on `document …#/` with `Everything 0`. `$I db "SELECT value FROM app_settings WHERE key='onboarding_completed'"` → `1`. `$I shot`.
 - **Skip.** `Skip` on any screen finishes identically (same flag, same landing); Escape does the same. To prove Skip instead of finishing, click it on screen one and check the flag.
 
 ## Gotchas
 
 - A seeded run never shows the tour — its library already carries `onboarding_completed`. Verify only on `--empty`.
-- Automatic first-launch opening is desktop-only (`useFirstRun` checks `desktop`), but the Settings > General replay navigates to the shared `/welcome` route without a desktop check, so the tour is reachable in the web preview that way. A failed `onboardingCompleted` check counts as complete, so the welcome can't trap the user.
-- While `#/welcome` is shown, all shortcuts are suppressed (`useCommands` returns early), so Ctrl+K etc. do nothing — don't diagnose that as a broken search.
-- Screen transitions animate; the button names stay stable (`Continue`/`Back`/`Skip`), so ref-lookup still works mid-transition.
+- Automatic first-launch opening is desktop-only (`useFirstRun` checks `desktop`), but the Settings > General replay navigates to the shared `/welcome` route without a desktop check, so the tour is reachable in the web preview that way — finishing there navigates back without writing the flag (the write is `desktop`-gated). A failed `onboardingCompleted` check counts as complete, so the welcome can't trap the user.
+- While `#/welcome` is shown, all shortcuts, menu commands and mouse back/forward buttons are suppressed (`useCommands` returns early), so Ctrl+K etc. do nothing — don't diagnose that as a broken search.
+- Screen transitions animate; the button names stay stable (`Continue`/`Back`/`Skip`), so ref-lookup still works mid-transition — but while a screen leaves (~320 ms) `go()` returns early and the outgoing stage is `pointer-events:none`, so a burst of `ad click`s on `Continue` silently drops the ones inside the exit window; wait for the tree to settle between advances.

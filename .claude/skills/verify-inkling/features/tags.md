@@ -6,7 +6,7 @@ The item view's Info panel lists the Regular Spaces an item is filed in (`In` an
 
 - `tag-add` adds what was typed on Enter; the field stays focused for the next one.
 - `tag-suggest` typing lists up to five library tags the item lacks (`listbox "Tags you use"`); ArrowDown/ArrowUp pick one, Enter adds it.
-- `tag-cancel` Escape clears a draft; Escape on an empty field leaves it. Neither closes the item view.
+- `tag-cancel` Escape clears a draft; Escape on an empty field blurs it. Neither closes the item view.
 - `tag-remove` removes a tag from its token, and focus stays in the field.
 
 ## How to get to it (user POV)
@@ -25,7 +25,7 @@ Preconditions: seeded library, Everything shown. Item `5` (`Post: The first post
 
 ## Gotchas
 
-- The stored tag is trimmed, lowercased and stripped of leading `#`s (`##x` saves as `x`), so `  MiXeD Case  ` saves as `mixed case` and the remove button's name is `Remove tag launch`, not `#Launch`. A tag the item already has is silently ignored.
+- The stored tag is trimmed, lowercased and stripped of leading `#`s (`##x` saves as `x`), so `  MiXeD Case  ` saves as `mixed case` and the remove button's name is `Remove tag launch`, not `#Launch`. A tag the item already has is silently ignored. Normalization is library-side only: the web preview's `updateItem` stores `addTag` verbatim, so `Mixed Case` keeps its case in `bun run dev`.
 - Blurring the field with a draft (clicking away, Tab) commits it as a tag, so a driver that clicks away mid-edit ends up with an extra tag. Escape first to clear.
 - Enter adds what was typed, not the first suggestion — but a suggestion arms two ways (arrow keys, and the pointer resting over it via `onPointerEnter`), while a click commits it immediately as a tag. With the cursor parked on an option, Enter adds that option, not the typed text; move the mouse off the list first.
 - With the field blurred, a further Escape closes the item view as usual.

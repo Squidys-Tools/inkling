@@ -28,3 +28,4 @@ Preconditions: seeded library, on `#/` (the listener lives in `Grid.tsx`, so a g
 - Steps clamp at the ends of `appearanceOptions.gridColumns` (3..6) — a `ctrl+minus` at `6` changes nothing; don't read a no-change as failure.
 - Bare `+` needs Shift on a US layout, so the `Ctrl++` binding arrives as `ctrl+shift+=`; `zoomKey` maps it to the same `fewer` step. `$I press ctrl+shift+equal` reaches it if a proof is ever needed.
 - `accumulateWheel` folds wheel deltas into one step after a threshold, so a single wheel tick may do nothing by design.
+- The value lives in renderer `localStorage` (the `appearance` blob), not `app_settings`, and the whole path is DOM-level — zoom works in the web preview too.

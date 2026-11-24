@@ -32,4 +32,6 @@ Preconditions: seeded library, `doctor` all PASS, sidebar reads `Everything 42`.
 - The `Everything` count includes only active items; the seed also has archived rows.
 - Empty text is refused; text that is only a URL is saved as a `url` item (an `Article:` card — a recognized YouTube/Vimeo link renders `Video:`), not a note.
 - A draft restored into the editor (leaving `/add/note` and coming back) opens already dirty: `Discard`/`Save to library` are visible at once, not only after typing. The `Format selection` bubble also stays up while its link field is open, not only while text is selected.
+- Every save posts a `Saved to your library` toast whose description is the card title; Escape on a dirty note asks `Discard your changes to this note?` in an `alertdialog` (`Cancel`/`Discard`), while `Back` leaves without asking and keeps the draft. Saving while a Regular Space is shown files the note into it (`space_items` gains a row — the card is not only in Everything).
+- In the web preview `createNote` titles the note from the body's first line (`Note: verify probe alpha`, not `Note: Untitled note`) and queues no `generate_embedding` job — the null-title and job proofs are full-app only.
 - `ref group 'Note: Untitled note'` reports multiple matches if you capture twice; the seed's other note is `Note: Books to reread this fall`.

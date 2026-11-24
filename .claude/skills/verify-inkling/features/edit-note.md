@@ -29,3 +29,5 @@ Preconditions: a note with body `verify probe alpha` exists (run capture-note fi
 - After a click that opens a view, the first snapshot may fail with `atomic replace failed … retry: safe`; take a fresh one (`ref` and `tree` retry for you or can be re-run). Do not repeat the click.
 - The editor is a full-page route, not a dialog; the Save button's name is `Save` — `Save to library` only exists on the new-note form.
 - The editable field is a contenteditable body: `set-value` replaces it whole.
+- A stored body whose first heading equals the item's title opens in the editor without that heading and gets it re-attached on save (`notes.ts`) — `textfield Note`'s value is the rest of the body only, while `description` still derives from the full stored body.
+- The `Edited` status's accessible text is the whole `Edited Ctrl ↵ saves · Esc discards` line — match it as a prefix. Undoing every edit re-hides `Discard`/`Save` (the dirty check compares against the opening body); while a save is in flight the button reads `Saving…` disabled and page Escape/`Back` is swallowed.
