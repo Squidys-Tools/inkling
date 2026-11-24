@@ -8,7 +8,7 @@
 - `setup-progress` the bar tracks the install's real work — phase-weighted (read/check/stage/copy); the check phase has no byte signal, so it eases on time (`CHECK_EASE_SECS`) instead of bytes. `$I progress` resamples it at tenths of the run.
 - `setup-ready` success shows "You're all set" and the countdown sends `open`.
 - `setup-failed` an install that leaves no `inkling.exe` shows "Setup didn't finish" with the reason.
-- `setup-close` the page's Close button closes the window on every screen except installing, where it is gone.
+- `setup-close` the page's Close button closes the window on every screen except installing — where it is hidden and the stub also refuses `close`/`quit` IPC and `CloseRequested`, so the window cannot be closed at all while the install runs.
 
 ## How to get to it (user POV)
 
@@ -16,14 +16,14 @@
 
 ## Driving it with instance.ts
 
-Preconditions: `.artifacts/electron/win-unpacked` from `bun run dist` (any recent build; the payload's content does not matter), Rust (MSVC or GNU host toolchain).
+Preconditions: `.artifacts/electron/win-unpacked` from `bun run dist` (any recent build; the payload's content does not matter), Rust (MSVC or GNU host toolchain), and a worktree path without spaces — `/D=` reaches NSIS unquoted, so `launch` refuses a path with a space outright.
 
 - `$I launch --installer` builds a test-identity NSIS from `win-unpacked` once (about 2 min; cached in `.artifacts/setup-verify/` until `app.asar`, `build/installer.nsh` or `instance.ts` changes), packs the current stub and UI around it, copies `WebView2Loader.dll` from the cargo build's `webview2-com-sys` OUT_DIR beside the exe (a stub built with a windows-gnu toolchain imports it and cannot start without it; MSVC links it statically), and opens the window with `/D=<run>/install`. `$I doctor` checks the window.
 - `$I ad click "$($I ref button Install)"`. Screens are asserted with `ref`: `Install` on welcome, `Open now` on ready, `Try again` on failed; each is found only while its screen shows.
-- `$I progress` reads the stub's samples: the bar at each tenth of the real duration. An even pace climbs about 10 points a row; a 13 s install ends at 99% with no row more than ~20 points off.
+- `$I progress` reads the stub's samples: the bar at each tenth of the real duration. An even pace climbs about 10 points a row; a 13 s install ends at 99% with no row more than ~20 points off. `progress.log` opens with a `start nsis=<len> installed=<bytes>` line before the samples.
 - The ready screen self-closes ~3 s after `Open now` appears, faster than a `ref` plus a separate `shot` (each is a process spawn): poll `ref button "Open now"` and take the shot in the same loop, or accept `open` in `progress.log` as the proof — under the harness the stub logs `open`, starts nothing, and closes.
 - Proof of install: `<run>/install/inkling.exe` exists, and `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\bbf65adc-c826-4291-bfd0-9e266345089d` names `inkling setup verify`.
-- `$I launch --installer --fail` puts a file where the install folder goes. `build/installer.nsh` finds no `inkling.exe`, deletes the keys NSIS just wrote and exits 3; the window shows "Setup didn't finish" / "Setup couldn't write inkling's files to <dir>". Proof: both `reg query` keys under the guid (Uninstall and `HKCU\Software\<guid>`) are missing while that screen shows. `Try again` re-runs the same install — under `--fail` the blocking file is still there, so it lands back on the failed screen, not on ready.
+- `$I launch --installer --fail` puts a file where the install folder goes. `build/installer.nsh` finds no `inkling.exe`, deletes the keys NSIS just wrote and exits 3; the window shows "Setup didn't finish" / "Setup couldn't write inkling's files to <dir>" (other reasons exist for other failures — `Setup exited with code <n>`, `Could not unpack the installer`, `Could not start setup` — only the no-`inkling.exe` case is driven). Proof: both `reg query` keys under the guid (Uninstall and `HKCU\Software\<guid>`) are missing while that screen shows. `Try again` re-runs the same install — under `--fail` the blocking file is still there, so it lands back on the failed screen, not on ready.
 - Close: `$I ad click "$($I ref button Close --in "$($I ref group 'Chrome Legacy Window')")"`. The hidden native title bar also has Minimize and Close, so unscoped `ref button Close` finds several.
 
 ## Isolation
@@ -32,10 +32,11 @@ The test identity has its own appId, package name, NSIS guid, uninstall name and
 
 ## Gotchas
 
-- `tree` on this window sometimes lists another Chromium window's controls (an agent-desktop mix-up between Chromium content panes). `ref` is not affected; trust `ref` and screenshots.
+- `tree` on this window sometimes lists another Chromium window's controls (an agent-desktop mix-up between Chromium content panes), and the WebView2 content can transiently read `about:blank` right after a screen change — `ref` is not affected and a fresh `tree` settles; trust `ref` and screenshots.
 - `tree` and doctor use `--max-depth 25`: WebView2 nests the page past agent-desktop's default of 10.
 - A launch right after repacking can wait on an antivirus scan of the 330 MB exe; `launch` allows 90 s.
-- Copy details (clipboard) and Minimize are not driven.
+- Copy details was driven 2026-11-24 on the failed screen: the clipboard carries the `Setup couldn't write …` reason text. Minimize is not driven.
 - The bar sits at 0% for the first seconds after Install while the stub copies the 330 MB NSIS to temp; that copy is not counted yet.
-- A stub built with a windows-gnu toolchain and packed outside `launch` (e.g. `pack.ts` by hand, or `bun run dist win` — the plain `dist` is the `dir` target and packs nothing) has no `WebView2Loader.dll` beside it and dies at startup with a Windows system error before `main` runs. Use `launch --installer`, or build with `cargo +stable-msvc`. CI builds with MSVC, so released installers are unaffected.
+- A stub built with a windows-gnu toolchain and packed outside `launch` (e.g. `pack.ts` by hand, or `bun run dist win` — the plain `dist` is the `dir` target and packs nothing) has no `WebView2Loader.dll` beside it and dies at startup with a Windows system error before `main` runs. Use `launch --installer`, or build with `cargo +stable-msvc`. CI builds with MSVC, so released installers are unaffected. `buildTestNsis` is x64-only (`--x64`): an arm64 host's `win-unpacked` would mismatch.
+- The GitHub release ships two Windows exes: this packed `inkling-setup-<v>-win-<a>.exe` window and the raw `inkling-<v>-win-<a>.exe` NSIS the updater consumes via `latest.yml`; only the packed one shows the branded UI.
 - The `open` log line proves the ready screen's action fired — both the countdown and an `Open now` click write it.

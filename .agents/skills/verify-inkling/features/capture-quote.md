@@ -25,5 +25,6 @@ Preconditions: seeded library; leave `Source URL` empty to stay offline.
 ## Gotchas
 
 - Unlike the note editor, the fields are plain textfields. An unsubmitted quote draft persists for the session: `Back` or the sidebar keeps it, and reopening the page restores it.
+- The page's `Discard` button opens the same `Discard this quote?` dialog rather than clearing immediately. A bad `Source URL` is refused client-side (`for the source, enter a web address, such as example.com.`), a bare domain gains `https://`, and a refused save keeps the draft while the status line reports `Couldn’t save this yet: <msg>` (curly `’`) as `role="alert"`. Saving while a Regular Space is shown files the quote into it, and a successful save posts a `Saved to your library` toast. Match the status line loosely — its `New quote` and the keys are separate nodes, so the accessible text joins them with no `·` between.
 - A filled `Source URL` never fetches: quotes only queue `generate_embedding`. It does change the row — `source_url` set, `source_label` becomes the URL's hostname instead of the comma split, `metadata.sourceUrl` added. Leave it empty for a deterministic `source_label`.
 - Attribution is stored whole in `description`; `source_label` is the part before the first comma when no `Source URL` is given (null when attribution is also empty).

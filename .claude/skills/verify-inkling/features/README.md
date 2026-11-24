@@ -27,7 +27,7 @@ The maintained source for verifying inkling's user-facing behavior with the `ver
 
 ## Features
 
-Every feature was executed end to end with agent-desktop on 2026-11-23 (the Linux instabox; the Windows setup window on Windows 11) unless its file says otherwise.
+Every feature was executed end to end with agent-desktop on 2026-11-23 (the Linux instabox; the Windows setup window on Windows 11) and again on 2026-11-24 on Windows 11, unless its file says otherwise.
 
 - [Capture a note](./capture-note.md): Add > Note > Save to library, Ctrl+Enter.
 - [Edit a note](./edit-note.md): note card > write page, or item view > Edit note > Save.
@@ -58,5 +58,5 @@ Every feature was executed end to end with agent-desktop on 2026-11-23 (the Linu
 - Item-view media wheel zoom and pan (`ZoomableMedia`): needs `--headed` wheel input.
 - The Post item view's `Load post from X` (`XPostFrame`; reloads the embed from x.com over the network): not driven.
 - The sidebar update row (`apps/renderer/src/shell/UpdateRow.tsx`): only an installed release build with an `app-update.yml` feed can update, so an unpackaged run never shows it.
-- The compact sidebar rail (collapsed sidebar): Space rows become their covers, whose context menu is the expanded rows' `Actions for <name>` menu. It opens only by right-click or Shift+F10, so the rail's menu is not driven.
+- The compact sidebar rail (collapsed sidebar): Space rows become their covers, whose context menu is the expanded rows' `Actions for <name>` menu. It opens only by right-click, Shift+F10 or the `ContextMenu` key, so the rail's menu is not driven.
 - Custom window controls (`Minimize`, `Maximize window`, `Close window` buttons) and toast notifications (the `Notifications` group; archive/restore toasts carry Undo): visible in the tree, not driven.
