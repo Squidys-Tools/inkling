@@ -5,7 +5,7 @@ The loopback receiver the browser extension posts to. `POST /v1/captures` with t
 ## Sub-features
 
 - `receiver-url` a page URL posted to the receiver saves as a card and enriches like a link.
-- `receiver-gates` wrong/missing token 401s, a foreign browser origin or a non-loopback Host 403s (Origin is checked before auth, so foreign+bad gets 403), and OPTIONS preflights answer 204.
+- `receiver-gates` wrong/missing token 401s, and a foreign browser origin or a Host other than `127.0.0.1:<port>` 403s — `localhost` included (Origin is checked before auth, so foreign+bad gets 403). OPTIONS preflights answer 204.
 - `receiver-pair` `POST /v1/pair` from an extension origin asks the user, and `GET /v1/pair/<id>` polls the answer.
 
 ## How to get to it (user POV)

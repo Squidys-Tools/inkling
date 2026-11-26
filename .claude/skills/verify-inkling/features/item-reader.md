@@ -10,7 +10,7 @@ A `Read` control opens a clean reading view of a url item's extracted article at
 
 ## How to get to it (user POV)
 
-- Hover or focus a link/article card and choose **Read**, or open the item and choose **Read** in its Info actions. Escape leaves.
+- Choose **Read** on an article card's footer (always rendered there — no hover needed), or open the item and choose **Read** in its Info actions. Escape leaves.
 
 ## Driving it with agent-desktop
 
@@ -24,6 +24,6 @@ Preconditions: an item with readable content — the card's `Read` is `states=di
 ## Gotchas
 
 - The `Typeface` combobox opens on `click` (DoDefaultAction) or `expand` — `expand` on an open popup reports `AlreadyInState`/`not_delivered` with `retry:safe`, so re-snapshot rather than retry blindly.
-- On the card, `Read` is `states=disabled` when there is no extracted text; in the card's context menu and the item view it is absent entirely — `ref button Read` on the item view means it will open.
+- Only `Article`-kind cards render `Read` at all; on one it is `states=disabled` when there is no extracted text. Other kinds show no `Read` anywhere — not on the card, not in its context menu, not in the item view — so `ref button Read` on an item view means it will open. The reader's byline `N min read` is recomputed from the sanitized text and need not equal the card's `N min` (`metadata.readingMinutes`).
 - `Escape`/`Back (Esc)` is a single `history.back()` — the same step `Alt+Left` takes: opened from a card it lands on the grid, opened from the item view it lands on the item view. With no history to go back to (a fresh load straight onto the read route) it navigates to the item view instead.
 - The byline's `·` separators render `"  ·  "` under `pre-wrap`, so the accessible text can carry doubled spaces around the `·` — don't exact-match `site · author · N min read`.

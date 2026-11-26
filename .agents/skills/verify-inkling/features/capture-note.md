@@ -11,7 +11,7 @@ Capture a note saves typed text as a note card in Everything immediately, with a
 ## How to get to it (user POV)
 
 - Choose **Add** in the top bar, then **Note**. The `n` / Ctrl+N shortcut opens the same editor. Ctrl+Enter also saves.
-- Paste, drag and drop, and the extension create other kinds; not this feature — except text: pasted or dropped plain text while the library grid is shown creates a `note` row straight to the library with no editor (`captureSource` `clipboard` / `drag and drop`; a URL alone becomes a `url` item instead).
+- Paste, drag and drop, and the extension create other kinds; not this feature — except text: pasted or dropped plain text while the library grid is shown creates a `note` row straight to the library with no editor (`captureSource` `clipboard` / `drag and drop`; a URL alone becomes a `url` item instead). Non-URL text entered in the grid's `Add a note or a link` tile saves a `note` row the same way, `captureSource` `add tile` — the tile's URL branch is [capture-link](./capture-link.md).
 
 ## Driving it with agent-desktop
 

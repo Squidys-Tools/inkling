@@ -29,4 +29,5 @@ Preconditions: seeded library, Everything shown. Item `5` (`Post: The first post
 - Blurring the field with a draft (clicking away, Tab) commits it as a tag, so a driver that clicks away mid-edit ends up with an extra tag. Escape first to clear.
 - Enter adds what was typed, not the first suggestion — but a suggestion arms two ways (arrow keys, and the pointer resting over it via `onPointerEnter`), while a click commits it immediately as a tag. With the cursor parked on an option, Enter adds that option, not the typed text; move the mouse off the list first.
 - With the field blurred, a further Escape closes the item view as usual.
+- Tags reach text search and Smart-Space `tag` filters only: `generate_embedding` embeds title/body/OCR/metadata text, not tags, so the semantic pass never matches on a tag.
 - In bash, escape the `$` in `'$.tags'` when the query sits in double quotes.

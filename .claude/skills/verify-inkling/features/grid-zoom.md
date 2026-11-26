@@ -12,14 +12,14 @@ The library grid zooms between the `Grid columns` choices in Settings > Appearan
 
 ## How to get to it (user POV)
 
-- On a grid view (Everything, search results, a Space or Archive), hold **Ctrl** — **Cmd** on macOS — and press **-**/**+**/**=**/**0**, or Ctrl+scroll. The columns step between `3` and `6`; the same value shows under Settings > Appearance > **Grid columns**.
+- On a grid view (Everything, search results, a Space or Archive), hold **Ctrl** — **Cmd** on macOS — and press **-**/**+**/**=**/**0**, or scroll while holding it (the wheel handler takes Ctrl or Cmd on every platform). The columns step between `3` and `6`; the same value shows under Settings > Appearance > **Grid columns**.
 
 ## Driving it with instance.ts
 
 Preconditions: seeded library, on `#/` (the listener lives in `Grid.tsx`, so a grid view must be mounted — an item view or a form does not zoom, and neither does an empty/error scope, which mounts a placeholder instead of `Grid`; a covered page's grid stays mounted underneath, blocked by `inert`, which also does not zoom).
 
 - **Zoom.** `-`/`=`/`+`/`0`: on Windows `-`/`=`/`+` are punctuation keys `ad press` cannot name — use the SendKeys fallback `$I press ctrl+minus`, `$I press ctrl+equal`. `ctrl+0` works through either there. On Linux `ad press` takes xdotool names directly (`$I ad press ctrl+minus`); `press` is the Windows fallback and refuses to run there.
-- **Read the result.** Open Settings (`$I ad expand "$($I ref menubutton Settings)"`), `$I ad click "$($I ref button Appearance)"`, then `$I tree | grep radiobutton`: exactly one of `3`/`4`/`5`/`6` carries the checked state (`states=checked` on the Linux box's AT-SPI; UIA may report `selected`) — that is the live `gridColumns`. Escape closes the sheet.
+- **Read the result.** Open Settings (`$I ad expand "$($I ref button Settings)"` — the row is a plain `<button>` carrying `aria-expanded`; platforms that map that to `menubutton` resolve it too via `ref`'s role fallback), `$I ad click "$($I ref button Appearance)"`, then `$I tree | grep radiobutton`: exactly one of `3`/`4`/`5`/`6` carries the checked state (`states=checked` on the Linux box's AT-SPI; UIA may report `selected`) — that is the live `gridColumns`. Escape closes the sheet.
 - **Proof.** Baseline `4` → `press ctrl+minus` → `5` selected; `press ctrl+equal` → `4`; `press ctrl+minus` then `press ctrl+0` → `4` (reset is only distinct when the value is off default). `$I shot` of the grid between steps also shows the cards resizing.
 
 ## Gotchas
