@@ -11,7 +11,7 @@
 
 ## How to get to it (user POV)
 
-- Press **?** anywhere outside a field. The dialog lists: Search `Ctrl+K` or `/`, New note `Ctrl+N` or `N`, New quote `Ctrl+Shift+N`, Add files `Ctrl+O`, sidebar `Ctrl+\`, this dialog `Ctrl+/` or `?`, Settings `Ctrl+,`, Back `Alt+Left`, Forward `Alt+Right` (Cmd-mod on macOS). Grid-zoom keys (`Ctrl+=`/`-`/`0`, [grid-zoom](./grid-zoom.md)), PDF page arrows and sidebar row arrows exist too but are not commands, so they are not listed.
+- Press **?** anywhere outside a field. The dialog lists: Search `Ctrl+K` or `/`, New note `Ctrl+N` or `N`, New quote `Ctrl+Shift+N`, Add files `Ctrl+O`, sidebar `Ctrl+\`, this dialog `Ctrl+/` or `?`, Settings `Ctrl+,`, Back `Alt+Left`, Forward `Alt+Right` (⌘[/⌘] on macOS). Grid-zoom keys (`Ctrl+=`/`-`/`0`, [grid-zoom](./grid-zoom.md)), PDF page arrows and sidebar row arrows exist too but are not commands, so they are not listed.
 
 ## Driving it with agent-desktop
 
